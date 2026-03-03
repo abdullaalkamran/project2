@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 import api from "@/lib/api";
 
 type OrderItem = {
@@ -16,13 +17,13 @@ type OrderItem = {
   status: string;
   sellerStatus: string;
   confirmedAt: string;
+  confirmedAtIso: string;
   assignedTruck: string | null;
   loadConfirmed: boolean;
   dispatched: boolean;
 };
 
 // ── Step progress ─────────────────────────────────────────────────────────────
-// Steps after seller acceptance
 const DELIVERY_STEPS = [
   { key: "CONFIRMED",  label: "Confirmed"  },
   { key: "DISPATCHED", label: "Dispatched" },
@@ -35,11 +36,10 @@ function deliveryStepIndex(status: string) {
   return i === -1 ? 0 : i;
 }
 
-// Derive a display status for chips and step bar
 function resolveDisplayStatus(status: string, sellerStatus: string) {
   if (status === "CANCELLED" || sellerStatus === "DECLINED") return "CANCELLED";
   if (sellerStatus === "PENDING_SELLER") return "AWAITING_SELLER";
-  return status; // CONFIRMED / DISPATCHED / ARRIVED / PICKED_UP
+  return status;
 }
 
 const STATUS_CHIP: Record<string, string> = {
@@ -60,6 +60,15 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED:       "Cancelled",
 };
 
+const STATUS_ACTIVE_CHIP: Record<string, string> = {
+  AWAITING_SELLER: "ring-2 ring-amber-400 bg-amber-100 text-amber-800",
+  CONFIRMED:       "ring-2 ring-orange-400 bg-orange-100 text-orange-700",
+  DISPATCHED:      "ring-2 ring-violet-400 bg-violet-100 text-violet-700",
+  ARRIVED:         "ring-2 ring-blue-400 bg-blue-100 text-blue-700",
+  PICKED_UP:       "ring-2 ring-emerald-500 bg-emerald-100 text-emerald-800",
+  CANCELLED:       "ring-2 ring-red-400 bg-red-100 text-red-700",
+};
+
 function StepBar({ status, sellerStatus }: { status: string; sellerStatus: string }) {
   const display = resolveDisplayStatus(status, sellerStatus);
 
@@ -74,7 +83,6 @@ function StepBar({ status, sellerStatus }: { status: string; sellerStatus: strin
   if (display === "AWAITING_SELLER") {
     return (
       <div className="flex items-center gap-3">
-        {/* Awaiting node — pulsing */}
         <div className="flex flex-col items-center shrink-0">
           <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-amber-400 bg-amber-50">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-400" />
@@ -82,7 +90,6 @@ function StepBar({ status, sellerStatus }: { status: string; sellerStatus: strin
           <span className="mt-0.5 text-[9px] font-medium text-amber-600">Order<br/>Placed</span>
         </div>
         <div className="mb-3 h-px flex-1 border-b border-dashed border-amber-200" />
-        {/* Remaining steps — all pending */}
         {DELIVERY_STEPS.map((step, i) => (
           <div key={step.key} className="flex flex-1 items-center">
             <div className="flex flex-col items-center shrink-0">
@@ -100,7 +107,6 @@ function StepBar({ status, sellerStatus }: { status: string; sellerStatus: strin
     );
   }
 
-  // Normal delivery progress
   const current = deliveryStepIndex(status);
   return (
     <div className="flex items-center gap-0 w-full">
@@ -112,9 +118,7 @@ function StepBar({ status, sellerStatus }: { status: string; sellerStatus: strin
             <div className="flex flex-col items-center shrink-0">
               <div
                 className={`flex h-6 w-6 items-center justify-center rounded-full border-2 text-[10px] font-bold transition-all ${
-                  done
-                    ? "border-emerald-500 bg-emerald-500 text-white"
-                    : "border-slate-200 bg-white text-slate-300"
+                  done ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-200 bg-white text-slate-300"
                 } ${active ? "ring-2 ring-emerald-200 ring-offset-1" : ""}`}
               >
                 {done ? (
@@ -137,11 +141,74 @@ function StepBar({ status, sellerStatus }: { status: string; sellerStatus: strin
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Filter helpers ────────────────────────────────────────────────────────────
+type StatusFilter = "ALL" | "AWAITING_SELLER" | "CONFIRMED" | "DISPATCHED" | "ARRIVED" | "PICKED_UP" | "CANCELLED";
+type DateFilter   = "ALL" | "7D" | "30D" | "90D";
+type SortOption   = "NEWEST" | "OLDEST" | "AMOUNT_HIGH" | "AMOUNT_LOW";
 
+const DATE_LABELS: Record<DateFilter, string>  = { ALL: "All time", "7D": "Last 7 days", "30D": "Last 30 days", "90D": "Last 90 days" };
+const SORT_LABELS: Record<SortOption, string>  = { NEWEST: "Newest first", OLDEST: "Oldest first", AMOUNT_HIGH: "Highest amount", AMOUNT_LOW: "Lowest amount" };
+
+const STATUS_FILTER_ITEMS: { key: StatusFilter; label: string }[] = [
+  { key: "ALL",             label: "All" },
+  { key: "AWAITING_SELLER", label: "Awaiting Seller" },
+  { key: "CONFIRMED",       label: "Confirmed" },
+  { key: "DISPATCHED",      label: "Dispatched" },
+  { key: "ARRIVED",         label: "Arrived" },
+  { key: "PICKED_UP",       label: "Delivered" },
+  { key: "CANCELLED",       label: "Cancelled" },
+];
+
+function daysAgo(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d;
+}
+
+// ── Dropdown component ────────────────────────────────────────────────────────
+function Dropdown<T extends string>({
+  value, options, onChange,
+}: { value: T; options: Record<T, string>; onChange: (v: T) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+      >
+        {options[value]}
+        <ChevronDown size={13} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-xl border border-slate-100 bg-white py-1 shadow-lg">
+            {(Object.entries(options) as [T, string][]).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => { onChange(k); setOpen(false); }}
+                className={`block w-full px-4 py-2 text-left text-sm transition hover:bg-slate-50 ${k === value ? "font-semibold text-emerald-700" : "text-slate-700"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function BuyerOrdersClient() {
-  const [orders, setOrders] = useState<OrderItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orders,    setOrders]    = useState<OrderItem[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [search,    setSearch]    = useState("");
+  const [status,    setStatus]    = useState<StatusFilter>("ALL");
+  const [dateRange, setDateRange] = useState<DateFilter>("ALL");
+  const [sort,      setSort]      = useState<SortOption>("NEWEST");
 
   useEffect(() => {
     api
@@ -150,25 +217,54 @@ export default function BuyerOrdersClient() {
       .finally(() => setLoading(false));
   }, []);
 
-  const counts = {
-    "Awaiting Seller": orders.filter((o) => o.sellerStatus === "PENDING_SELLER").length,
-    Confirmed:         orders.filter((o) => o.sellerStatus === "ACCEPTED" && o.status === "CONFIRMED").length,
-    Dispatched:        orders.filter((o) => o.status === "DISPATCHED").length,
-    Delivered:         orders.filter((o) => o.status === "PICKED_UP").length,
-  };
+  // ── derived counts for chips ──
+  const counts = useMemo(() => ({
+    AWAITING_SELLER: orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "AWAITING_SELLER").length,
+    CONFIRMED:       orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "CONFIRMED").length,
+    DISPATCHED:      orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "DISPATCHED").length,
+    PICKED_UP:       orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "PICKED_UP").length,
+    CANCELLED:       orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "CANCELLED").length,
+  }), [orders]);
+
+  // ── filtered + sorted list ──
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const cutoff = dateRange === "7D" ? daysAgo(7) : dateRange === "30D" ? daysAgo(30) : dateRange === "90D" ? daysAgo(90) : null;
+
+    let list = orders.filter((o) => {
+      const display = resolveDisplayStatus(o.status, o.sellerStatus);
+
+      if (status !== "ALL" && display !== status) return false;
+      if (cutoff && new Date(o.confirmedAtIso ?? o.confirmedAt) < cutoff) return false;
+      if (q) {
+        const hay = `${o.product} ${o.seller} ${o.id} ${o.lotCode}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    list = [...list].sort((a, b) => {
+      if (sort === "NEWEST")      return new Date(b.confirmedAtIso ?? b.confirmedAt).getTime() - new Date(a.confirmedAtIso ?? a.confirmedAt).getTime();
+      if (sort === "OLDEST")      return new Date(a.confirmedAtIso ?? a.confirmedAt).getTime() - new Date(b.confirmedAtIso ?? b.confirmedAt).getTime();
+      if (sort === "AMOUNT_HIGH") return b.totalAmount - a.totalAmount;
+      if (sort === "AMOUNT_LOW")  return a.totalAmount - b.totalAmount;
+      return 0;
+    });
+
+    return list;
+  }, [orders, search, status, dateRange, sort]);
+
+  const hasFilters = search !== "" || status !== "ALL" || dateRange !== "ALL" || sort !== "NEWEST";
+  const clearFilters = () => { setSearch(""); setStatus("ALL"); setDateRange("ALL"); setSort("NEWEST"); };
 
   if (loading) {
     return (
       <div className="space-y-3">
         <div className="h-8 w-52 animate-pulse rounded-lg bg-slate-100" />
         <div className="flex gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-7 w-28 animate-pulse rounded-full bg-slate-100" />
-          ))}
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-7 w-28 animate-pulse rounded-full bg-slate-100" />)}
         </div>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-36 animate-pulse rounded-2xl bg-slate-100" />
-        ))}
+        {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-36 animate-pulse rounded-2xl bg-slate-100" />)}
       </div>
     );
   }
@@ -176,23 +272,96 @@ export default function BuyerOrdersClient() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-slate-900">My Orders</h1>
-        <p className="text-slate-500">Track seller confirmation and delivery status for all your orders.</p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-slate-900">My Orders</h1>
+          <p className="text-slate-500">Track seller confirmation and delivery status for all your orders.</p>
+        </div>
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500">
+          {orders.length} total order{orders.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
-      {/* Summary chips */}
-      <div className="flex flex-wrap gap-2">
-        {[
-          { label: "Awaiting Seller", count: counts["Awaiting Seller"], color: "bg-amber-50 text-amber-700"    },
-          { label: "Confirmed",       count: counts.Confirmed,          color: "bg-orange-50 text-orange-600"  },
-          { label: "Dispatched",      count: counts.Dispatched,         color: "bg-violet-50 text-violet-700"  },
-          { label: "Delivered",       count: counts.Delivered,          color: "bg-emerald-50 text-emerald-700" },
-        ].map((c) => (
-          <span key={c.label} className={`rounded-full px-3 py-1 text-xs font-semibold ${c.color}`}>
-            {c.label}: {c.count}
-          </span>
-        ))}
+      {/* ── Smart filter bar ── */}
+      <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm space-y-3">
+
+        {/* Row 1: search + sort + date */}
+        <div className="flex flex-wrap gap-2">
+          {/* Search */}
+          <div className="relative flex-1 min-w-[180px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by product, seller, order ID…"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 py-2 text-sm placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:outline-none transition"
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          <Dropdown value={dateRange} options={DATE_LABELS} onChange={setDateRange} />
+          <Dropdown value={sort}      options={SORT_LABELS}  onChange={setSort}      />
+
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 transition"
+            >
+              <X size={12} /> Clear filters
+            </button>
+          )}
+        </div>
+
+        {/* Row 2: status chips (also work as summary) */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setStatus("ALL")}
+            className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition ${status === "ALL" ? "border-slate-400 bg-slate-100 text-slate-800 ring-2 ring-slate-300" : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
+          >
+            <SlidersHorizontal size={10} /> All <span className="opacity-60">({orders.length})</span>
+          </button>
+          {([
+            { key: "AWAITING_SELLER", label: "Awaiting Seller", count: counts.AWAITING_SELLER },
+            { key: "CONFIRMED",       label: "Confirmed",       count: counts.CONFIRMED       },
+            { key: "DISPATCHED",      label: "Dispatched",      count: counts.DISPATCHED       },
+            { key: "PICKED_UP",       label: "Delivered",       count: counts.PICKED_UP        },
+            { key: "CANCELLED",       label: "Cancelled",       count: counts.CANCELLED        },
+          ] as { key: StatusFilter; label: string; count: number }[]).map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => setStatus((prev) => prev === c.key ? "ALL" : c.key)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                status === c.key
+                  ? STATUS_ACTIVE_CHIP[c.key]
+                  : `${STATUS_CHIP[c.key]} border-transparent hover:opacity-80`
+              }`}
+            >
+              {c.label} <span className="opacity-60">({c.count})</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Results meta */}
+      <div className="flex items-center justify-between text-xs text-slate-400">
+        <span>
+          {filtered.length === orders.length
+            ? `Showing all ${orders.length} order${orders.length !== 1 ? "s" : ""}`
+            : `${filtered.length} of ${orders.length} order${orders.length !== 1 ? "s" : ""} match filters`}
+        </span>
+        {hasFilters && filtered.length === 0 && (
+          <button type="button" onClick={clearFilters} className="text-emerald-600 font-semibold hover:underline">
+            Clear all filters
+          </button>
+        )}
       </div>
 
       {/* Orders list */}
@@ -201,9 +370,17 @@ export default function BuyerOrdersClient() {
           <p className="text-sm text-slate-400">No orders yet.</p>
           <p className="mt-1 text-xs text-slate-300">Orders from the marketplace will appear here.</p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white py-14 text-center gap-2">
+          <Search size={24} className="text-slate-300" strokeWidth={1.5} />
+          <p className="text-sm font-semibold text-slate-500">No orders match your filters.</p>
+          <button type="button" onClick={clearFilters} className="text-xs text-emerald-600 font-semibold hover:underline">
+            Clear filters
+          </button>
+        </div>
       ) : (
         <div className="space-y-3">
-          {orders.map((o) => {
+          {filtered.map((o) => {
             const display = resolveDisplayStatus(o.status, o.sellerStatus);
             return (
               <div key={o.id} className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
@@ -238,32 +415,26 @@ export default function BuyerOrdersClient() {
                       </svg>
                       <div>
                         <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Truck</p>
-                        <p className={`font-semibold ${o.assignedTruck ? "text-slate-800" : "text-slate-300"}`}>
-                          {o.assignedTruck ?? "—"}
-                        </p>
+                        <p className={`font-semibold ${o.assignedTruck ? "text-slate-800" : "text-slate-300"}`}>{o.assignedTruck ?? "—"}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 px-5 py-3">
                       <div className={`h-2 w-2 shrink-0 rounded-full ${o.loadConfirmed ? "bg-emerald-500" : "bg-slate-200"}`} />
                       <div>
                         <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Load</p>
-                        <p className={`font-semibold ${o.loadConfirmed ? "text-emerald-600" : "text-slate-400"}`}>
-                          {o.loadConfirmed ? "Confirmed" : "Pending"}
-                        </p>
+                        <p className={`font-semibold ${o.loadConfirmed ? "text-emerald-600" : "text-slate-400"}`}>{o.loadConfirmed ? "Confirmed" : "Pending"}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 px-5 py-3">
                       <div className={`h-2 w-2 shrink-0 rounded-full ${o.dispatched ? "bg-violet-500" : "bg-slate-200"}`} />
                       <div>
                         <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Dispatch</p>
-                        <p className={`font-semibold ${o.dispatched ? "text-violet-700" : "text-slate-400"}`}>
-                          {o.dispatched ? "Dispatched" : "Pending"}
-                        </p>
+                        <p className={`font-semibold ${o.dispatched ? "text-violet-700" : "text-slate-400"}`}>{o.dispatched ? "Dispatched" : "Pending"}</p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Raw data grid */}
+                  {/* Data grid */}
                   <div className="grid grid-cols-2 divide-x divide-slate-50 text-xs sm:grid-cols-4">
                     <div className="px-5 py-3">
                       <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Seller</p>
@@ -287,12 +458,11 @@ export default function BuyerOrdersClient() {
                   </div>
                 </div>
 
-                {/* Row 4: order ID footer */}
+                {/* Order ID footer */}
                 <div className="border-t border-slate-50 px-5 py-2 flex items-center gap-2">
                   <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-300">Order ID</span>
                   <span className="font-mono text-xs text-slate-400">{o.id}</span>
                 </div>
-
               </div>
             );
           })}

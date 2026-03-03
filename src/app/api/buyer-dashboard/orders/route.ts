@@ -37,6 +37,7 @@ export async function GET() {
       day: "numeric",
       year: "numeric",
     }),
+    confirmedAtIso: o.confirmedAt.toISOString(),
     assignedTruck: o.assignedTruck ?? null,
     loadConfirmed: o.loadConfirmed,
     dispatched: o.dispatched,

@@ -8,8 +8,6 @@ import { ChevronLeft, ChevronRight, Menu, X } from "lucide-react";
 const nav = [
   { label: "Overview", href: "/buyer-dashboard" },
   { label: "Active Bids", href: "/buyer-dashboard/my-bids" },
-  { label: "Won Bids", href: "/buyer-dashboard/my-bids/won" },
-  { label: "Lost Bids", href: "/buyer-dashboard/my-bids/lost" },
   { label: "Auto-bid Settings", href: "/buyer-dashboard/my-bids/auto-bid" },
   { label: "My Orders", href: "/buyer-dashboard/orders" },
   { label: "Wallet & History", href: "/buyer-dashboard/payments" },
