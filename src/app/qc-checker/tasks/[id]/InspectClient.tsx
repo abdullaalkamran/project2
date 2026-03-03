@@ -188,6 +188,7 @@ export default function InspectClient() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted]   = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [checkerName, setCheckerName] = useState("");
 
   /* ── seller fields (pre-filled from DB) ── */
   const [productName, setProductName]           = useState("");
@@ -246,6 +247,7 @@ export default function InspectClient() {
   const fetchLot = useCallback(async () => {
     try {
       const me = await api.get<{ name: string }>("/api/auth/me");
+      if (me?.name) setCheckerName(me.name);
       const query = me?.name ? `?checker=${encodeURIComponent(me.name)}` : "";
       const rows = await api.get<FlowLot[]>(`/api/flow/tasks${query}`);
       const found = rows.find((l) => l.id === lotId);
@@ -348,6 +350,72 @@ export default function InspectClient() {
         inspectionLng: gpsCoords?.lng,
         inspectionAddress: manualLocation || undefined,
       });
+
+      // ── Save seller vs QC diff to the approvals store so the Leader can see it ──
+      if (lot) {
+        const sellerSnap: Record<string, string> = {
+          "Product name":    lot.title                        ?? "",
+          "Category":        lot.category                     ?? "",
+          "Quantity":        `${lot.quantity ?? ""} ${lot.unit ?? ""}`.trim(),
+          "Unit":            lot.unit                         ?? "",
+          "Declared grade":  lot.grade                        ?? "",
+          "Storage type":    lot.storageType                  ?? "",
+          "Packaging":       lot.baggageType                  ?? "",
+          "No. of bags":     String(lot.baggageQty            ?? ""),
+          "Description":     lot.description                  ?? "",
+          "Asking price/kg": String(lot.askingPricePerKg      ?? ""),
+          "Base price":      String(lot.basePrice             ?? ""),
+          "Transport cost":  String(lot.sellerTransportCost   ?? ""),
+        };
+        const qcSnap: Record<string, string> = {
+          "Product name":    productName   || lot.title        || "",
+          "Category":        category      || lot.category     || "",
+          "Quantity":        `${quantity || lot.quantity} ${unit || lot.unit}`.trim(),
+          "Unit":            unit          || lot.unit         || "",
+          "Declared grade":  grade         || lot.grade        || "",
+          "Storage type":    storageType   || lot.storageType  || "",
+          "Packaging":       baggageType   || lot.baggageType  || "",
+          "No. of bags":     baggageQty    || String(lot.baggageQty ?? ""),
+          "Description":     description   || lot.description  || "",
+          "Asking price/kg": askingPricePerKg || String(lot.askingPricePerKg ?? ""),
+          "Base price":      basePrice     || String(lot.basePrice ?? ""),
+          "Transport cost":  transportCost || String(lot.sellerTransportCost ?? ""),
+        };
+        const changes = Object.keys(sellerSnap)
+          .filter((key) => sellerSnap[key] !== qcSnap[key])
+          .map((key) => ({ label: key, before: sellerSnap[key], after: qcSnap[key] }));
+
+        await api.post("/api/qc/approvals", {
+          reportId: `QCR-${lotId}`,
+          lotId,
+          product: productName || lot.title,
+          qty: quantity ? parseFloat(quantity) : lot.quantity,
+          unit: unit || lot.unit,
+          seller: lot.sellerName,
+          checker: checkerName || lot.qcChecker || "",
+          hub: lot.hubId,
+          submitted: new Date().toISOString(),
+          grade,
+          verdict,
+          minBidRate: minBidRate ? parseFloat(minBidRate) : (lot.minBidRate ?? lot.basePrice),
+          transportCost: transportCost ? parseFloat(transportCost) : undefined,
+          sellerTransportCost: lot.sellerTransportCost,
+          notes: notes || "",
+          qcNote: notes || "",
+          askingPricePerKg: askingPricePerKg ? parseFloat(askingPricePerKg) : lot.askingPricePerKg,
+          basePrice: basePrice ? parseFloat(basePrice) : lot.basePrice,
+          weight: quantity ? parseFloat(quantity) : lot.quantity,
+          photosCount: photos.length,
+          videosCount: 0,
+          qcPhotoPreviews: photos,
+          sellerPhotoUrls: lot.sellerPhotoUrls ?? [],
+          changes,
+          sellerSnapshot: sellerSnap,
+          qcSnapshot: qcSnap,
+          decision: "pending",
+        });
+      }
+
       setSubmitted(true);
       toast.success("QC Report submitted!", { description: "QC Leader has been notified." });
     } catch (err) {

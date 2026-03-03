@@ -308,13 +308,23 @@ export default function TasksClient() {
   const toggleApproval = (id: string) => setExpApprovals((p) => ({ ...p, [id]: !p[id] }));
 
   const comparisonRows = (r: UiReport) => {
-    if (!r.sellerSnapshot || !r.qcSnapshot) return [];
-    return Object.keys(r.sellerSnapshot).map((field) => ({
-      field,
-      seller:  r.sellerSnapshot?.[field] ?? "",
-      qc:      r.qcSnapshot?.[field] ?? "",
-      changed: (r.sellerSnapshot?.[field] ?? "") !== (r.qcSnapshot?.[field] ?? ""),
-    }));
+    if (r.sellerSnapshot && r.qcSnapshot && Object.keys(r.sellerSnapshot).length > 0) {
+      return Object.keys(r.sellerSnapshot).map((field) => ({
+        field,
+        seller:  r.sellerSnapshot?.[field] ?? "",
+        qc:      r.qcSnapshot?.[field] ?? "",
+        changed: (r.sellerSnapshot?.[field] ?? "") !== (r.qcSnapshot?.[field] ?? ""),
+      }));
+    }
+    if (r.changes && r.changes.length > 0) {
+      return r.changes.map((c) => ({
+        field: c.label,
+        seller: c.before,
+        qc: c.after,
+        changed: true,
+      }));
+    }
+    return [];
   };
 
   // ── Loading skeleton ───────────────────────────────────────────────────────

@@ -107,12 +107,24 @@ export default function ApprovalsClient() {
   const done = useMemo(() => reports.filter((r) => r.decisionLabel !== "Pending"), [reports]);
 
   const comparisonRows = (r: UiReport) => {
-    if (!r.sellerSnapshot || !r.qcSnapshot) return [];
-    return Object.keys(r.sellerSnapshot).map((field) => {
-      const seller = r.sellerSnapshot?.[field] ?? "";
-      const qc = r.qcSnapshot?.[field] ?? "";
-      return { field, seller, qc, changed: seller !== qc };
-    });
+    // Use full snapshots when available
+    if (r.sellerSnapshot && r.qcSnapshot && Object.keys(r.sellerSnapshot).length > 0) {
+      return Object.keys(r.sellerSnapshot).map((field) => {
+        const seller = r.sellerSnapshot?.[field] ?? "";
+        const qc = r.qcSnapshot?.[field] ?? "";
+        return { field, seller, qc, changed: seller !== qc };
+      });
+    }
+    // Fall back to the changes array for older / Prisma-only records
+    if (r.changes && r.changes.length > 0) {
+      return r.changes.map((c) => ({
+        field: c.label,
+        seller: c.before,
+        qc: c.after,
+        changed: true,
+      }));
+    }
+    return [];
   };
 
   return (
@@ -309,7 +321,7 @@ export default function ApprovalsClient() {
                             ) : (
                               <tr>
                                 <td className="px-3 py-3 text-slate-500" colSpan={4}>
-                                  Full snapshot unavailable for this older record.
+                                  No field-level data recorded for this submission. All seller values were confirmed unchanged.
                                 </td>
                               </tr>
                             )}
