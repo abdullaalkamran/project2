@@ -1,0 +1,140 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getSessionUser } from "@/lib/session";
+
+export async function GET() {
+  const session = await getSessionUser();
+  const activeRole = (session?.activeRole || "").toLowerCase();
+  if (!session || activeRole !== "admin") {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+  const [
+    totalUsers,
+    newUsersThisMonth,
+    activeLots,
+    pendingQC,
+    openOrders,
+    trucks,
+    openDisputes,
+    revenueResult,
+    lastMonthRevenueResult,
+    suspendedUsers,
+    pendingUsers,
+  ] = await Promise.all([
+    prisma.user.count(),
+    prisma.user.count({ where: { createdAt: { gte: startOfMonth } } }),
+    prisma.lot.count({ where: { status: { in: ["LIVE", "QC_PASSED", "IN_QC", "AT_HUB"] } } }),
+    prisma.lot.count({ where: { status: { in: ["IN_QC", "QC_SUBMITTED"] } } }),
+    prisma.order.count({ where: { status: { in: ["CONFIRMED", "DISPATCHED"] } } }),
+    prisma.truck.count({ where: { status: "Available" } }),
+    prisma.dispute.count({ where: { status: { in: ["OPEN", "IN_REVIEW"] } } }),
+    prisma.order.aggregate({
+      _sum: { totalAmount: true },
+      where: {
+        status: { in: ["CONFIRMED", "DISPATCHED", "DELIVERED"] },
+        confirmedAt: { gte: startOfMonth },
+      },
+    }),
+    prisma.order.aggregate({
+      _sum: { totalAmount: true },
+      where: {
+        status: { in: ["CONFIRMED", "DISPATCHED", "DELIVERED"] },
+        confirmedAt: { gte: startOfLastMonth, lt: startOfMonth },
+      },
+    }),
+    prisma.user.count({ where: { status: "SUSPENDED" } }),
+    prisma.user.count({ where: { status: "PENDING" } }),
+  ]);
+
+  const thisMonthRevenue = revenueResult._sum.totalAmount ?? 0;
+  const lastMonthRevenue = lastMonthRevenueResult._sum.totalAmount ?? 0;
+  const revenueGrowth =
+    lastMonthRevenue > 0
+      ? Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+      : thisMonthRevenue > 0
+      ? 100
+      : 0;
+
+  const recentUsers = await prisma.user.findMany({
+    take: 5,
+    orderBy: { createdAt: "desc" },
+    include: { userRoles: true },
+  });
+
+  const recentLots = await prisma.lot.findMany({
+    take: 5,
+    orderBy: { createdAt: "desc" },
+  });
+
+  const recentOrders = await prisma.order.findMany({
+    take: 5,
+    orderBy: { confirmedAt: "desc" },
+    select: {
+      id: true,
+      orderCode: true,
+      buyerName: true,
+      sellerName: true,
+      product: true,
+      totalAmount: true,
+      status: true,
+      confirmedAt: true,
+    },
+  });
+
+  const fmt = (d: Date) =>
+    d.toLocaleDateString("en-BD", { month: "short", day: "numeric", year: "numeric" });
+
+  const stats = [
+    { label: "Total Users", value: String(totalUsers), sub: `+${newUsersThisMonth} this month`, href: "/admin/users", color: "text-indigo-700", bg: "bg-indigo-50" },
+    { label: "Active Auctions", value: String(activeLots), sub: "Lots in pipeline", href: "/admin/auctions", color: "text-emerald-700", bg: "bg-emerald-50" },
+    { label: "Open Disputes", value: String(openDisputes), sub: "Action needed", href: "/admin/disputes", color: "text-red-600", bg: "bg-red-50" },
+    { label: "Open Orders", value: String(openOrders), sub: "Across all hubs", href: "/admin/orders", color: "text-blue-700", bg: "bg-blue-50" },
+    { label: "QC Pending", value: String(pendingQC), sub: "Lots awaiting inspection", href: "/admin/qc-reports", color: "text-teal-700", bg: "bg-teal-50" },
+    { label: "Trucks Available", value: String(trucks), sub: "Fleet ready for dispatch", href: "/admin/hubs", color: "text-amber-700", bg: "bg-amber-50" },
+  ];
+
+  return NextResponse.json({
+    stats,
+    revenue: {
+      thisMonth: thisMonthRevenue,
+      lastMonth: lastMonthRevenue,
+      growth: revenueGrowth,
+    },
+    userBreakdown: {
+      total: totalUsers,
+      suspended: suspendedUsers,
+      pending: pendingUsers,
+      newThisMonth: newUsersThisMonth,
+    },
+    recentUsers: recentUsers.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.userRoles[0]?.role ?? "—",
+      status: u.status,
+      joined: fmt(u.createdAt),
+    })),
+    recentLots: recentLots.map((l) => ({
+      id: l.lotCode,
+      title: l.title,
+      seller: l.sellerName,
+      status: l.status,
+      createdAt: fmt(l.createdAt),
+    })),
+    recentOrders: recentOrders.map((o) => ({
+      id: o.id,
+      orderCode: o.orderCode,
+      buyer: o.buyerName,
+      seller: o.sellerName,
+      product: o.product,
+      amount: o.totalAmount,
+      status: o.status,
+      date: fmt(o.confirmedAt),
+    })),
+  });
+}

@@ -1,0 +1,19 @@
+{
+  "stats": [
+    { "label": "Active Bids", "value": "4", "sub": "2 you're winning", "href": "/buyer-dashboard/my-bids", "color": "text-emerald-700", "bg": "bg-emerald-50" },
+    { "label": "Auctions Won", "value": "12", "sub": "All time", "href": "/buyer-dashboard/my-bids/won", "color": "text-blue-700", "bg": "bg-blue-50" },
+    { "label": "Pending Payments", "value": "2", "sub": "Action needed", "href": "/buyer-dashboard/payments", "color": "text-orange-600", "bg": "bg-orange-50" },
+    { "label": "Wallet Balance", "value": "BDT 12,500", "sub": "Available", "href": "/buyer-dashboard/payments", "color": "text-slate-700", "bg": "bg-slate-50" }
+  ],
+  "activeBids": [
+    { "lot": "Premium Basmati Rice - 2,000 kg", "currentBid": "BDT 1,40,000", "yourBid": "BDT 1,40,000", "status": "Winning", "ends": "2h 14m" },
+    { "lot": "Refined Mustard Oil - 500 L", "currentBid": "BDT 62,500", "yourBid": "BDT 60,000", "status": "Outbid", "ends": "45m" },
+    { "lot": "Branded T-shirts - 200 pcs", "currentBid": "BDT 28,000", "yourBid": "BDT 28,000", "status": "Winning", "ends": "5h 30m" },
+    { "lot": "Fresh Potatoes - 5,000 kg", "currentBid": "BDT 37,500", "yourBid": "BDT 35,000", "status": "Outbid", "ends": "1h 05m" }
+  ],
+  "recentOrders": [
+    { "id": "ORD-2026-009", "lot": "Wheat Flour - 3,000 kg", "amount": "BDT 96,000", "status": "In Transit", "date": "Feb 18, 2026" },
+    { "id": "ORD-2026-008", "lot": "Soybean Oil - 1,000 L", "amount": "BDT 1,15,000", "status": "Delivered", "date": "Feb 14, 2026" },
+    { "id": "ORD-2026-007", "lot": "Cotton Saree - 100 pcs", "amount": "BDT 42,000", "status": "Pending Payment", "date": "Feb 19, 2026" }
+  ]
+}

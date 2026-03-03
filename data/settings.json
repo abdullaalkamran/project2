@@ -1,0 +1,11 @@
+{
+  "buyerFee": 2.5,
+  "sellerFee": 5,
+  "minIncrement": 100,
+  "payoutDays": 7,
+  "manualPayout": false,
+  "kyc": true,
+  "emailNotif": true,
+  "smsNotif": true,
+  "maintenanceMode": false
+}

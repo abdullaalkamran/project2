@@ -1,0 +1,27 @@
+{
+  "stats": [
+    { "label": "Active lots", "value": "4", "sub": "2 live now", "color": "text-emerald-700", "bg": "bg-emerald-50", "href": "/seller-dashboard/lots" },
+    { "label": "Pending orders", "value": "7", "sub": "3 need dispatch", "color": "text-orange-600", "bg": "bg-orange-50", "href": "/seller-dashboard/orders" },
+    { "label": "This month earnings", "value": "BDT 1,24,500", "sub": "+18% vs last month", "color": "text-blue-700", "bg": "bg-blue-50", "href": "/seller-dashboard/finance" },
+    { "label": "Pending payout", "value": "BDT 38,200", "sub": "Due in 2 days", "color": "text-violet-700", "bg": "bg-violet-50", "href": "/seller-dashboard/finance" }
+  ],
+  "analyticsStats": [
+    { "label": "Total lots run", "value": "12", "color": "text-slate-900" },
+    { "label": "Sell-through rate", "value": "83%", "color": "text-emerald-700" },
+    { "label": "Avg closing vs reserve", "value": "+9.7%", "color": "text-blue-700" },
+    { "label": "Repeat buyer rate", "value": "61%", "color": "text-violet-700" },
+    { "label": "Avg bids per lot", "value": "17.4", "color": "text-orange-600" },
+    { "label": "Avg auction duration", "value": "28 min", "color": "text-slate-700" }
+  ],
+  "lotPerformance": [
+    { "lot": "Potatoes - 1,500 kg", "views": 312, "bids": 24, "reserve": "BDT 13/kg", "closing": "BDT 15.67/kg", "vs": "+20.5%", "bidders": 8, "status": "Live" },
+    { "lot": "Branded T-shirts - 500 pcs", "views": 189, "bids": 8, "reserve": "BDT 40,000", "closing": "BDT 42,500", "vs": "+6.3%", "bidders": 5, "status": "Live" },
+    { "lot": "Rice - 5,000 kg", "views": 540, "bids": 31, "reserve": "BDT 48/kg", "closing": "BDT 52/kg", "vs": "+8.3%", "bidders": 11, "status": "Sold" },
+    { "lot": "Mustard Oil - 1,200 L", "views": 267, "bids": 18, "reserve": "BDT 140/L", "closing": "BDT 145/L", "vs": "+3.6%", "bidders": 7, "status": "Sold" },
+    { "lot": "Onions - 800 kg", "views": 143, "bids": 4, "reserve": "BDT 45/kg", "closing": "Below reserve", "vs": "-", "bidders": 3, "status": "Unsold" }
+  ],
+  "upcomingLots": [
+    { "title": "LED Bulbs - 2,000 pcs", "date": "Feb 21, 2026", "time": "10:00 AM" },
+    { "title": "Denim Jackets - 300 pcs", "date": "Feb 23, 2026", "time": "2:00 PM" }
+  ]
+}

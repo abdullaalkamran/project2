@@ -1,0 +1,329 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./paikari.db"
+}
+
+// ─── Users & Auth ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  phone        String?
+  photo        String?
+  hubId        String?    // assigned hub for hub_manager, qc_leader, qc_checker, delivery roles
+  isVerified   Boolean    @default(false)
+  status       String     @default("ACTIVE")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Seller profile fields
+  businessName   String?
+  ownerName      String?
+  address        String?
+  nid            String?
+  tradeLicense   String?
+
+  // Bank & payment details
+  bankName       String?
+  accountName    String?
+  accountNumber  String?
+  routingNumber  String?
+  mobileBanking  String?
+  mobileNumber   String?
+
+  userRoles     UserRole[]
+  sellerLots    Lot[]          @relation("SellerLots")
+  buyerOrders   Order[]        @relation("BuyerOrders")
+  sellerOrders  Order[]        @relation("SellerOrders")
+  bids          Bid[]
+  wallet        Wallet?
+  qcReports     QCReport[]
+  notifications Notification[]
+  paymentRequests PaymentRequest[]
+}
+
+model UserRole {
+  id         String   @id @default(cuid())
+  userId     String
+  role       String
+  assignedAt DateTime @default(now())
+  assignedBy String?
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+// ─── Product Flow: Lots ───────────────────────────────────────────────────────
+// Status flow: PENDING_DELIVERY → AT_HUB → IN_QC → QC_SUBMITTED → QC_PASSED/QC_FAILED → LIVE → AUCTION_ENDED
+
+model Lot {
+  id               String    @id @default(cuid())
+  lotCode          String    @unique
+  title            String
+  category         String
+  quantity         Float
+  unit             String    @default("kg")
+  grade            String    @default("A")
+  hubId            String
+  description      String    @default("")
+  storageType      String    @default("")
+  baggageType      String    @default("")
+  baggageQty       Int       @default(0)
+  basePrice        Float
+  askingPricePerKg Float
+  minBidRate       Float?
+  sellerId         String?
+  sellerName       String
+  sellerPhone      String?
+  saleType         String    @default("AUCTION")   // AUCTION | FIXED_PRICE
+  auctionStartsAt  DateTime?
+  auctionEndsAt    DateTime?
+  status           String    @default("PENDING_DELIVERY")
+  createdAt        DateTime  @default(now())
+  receivedAt       DateTime?
+
+  fixedAskingPrice Float?    // set when seller converts unsold auction → fixed price
+  sellerTransportCost Float?  // seller's estimated transportation cost
+  listOnMarketplace Boolean?  // QC checker decision to list on marketplace
+
+  // QC assignment (names stored for display; nullable for before assignment)
+  qcLeaderName   String?
+  qcCheckerName  String?
+  qcTaskStatus   String?   // PENDING | IN_PROGRESS | SUBMITTED
+  verdict        String?   // PASSED | FAILED | CONDITIONAL
+  qcNotes        String?
+  qcSubmittedAt  DateTime?
+  leaderDecision String?   // Approved | Rejected | Pending
+
+  seller   User?     @relation("SellerLots", fields: [sellerId], references: [id])
+  qcReport QCReport?
+  orders   Order[]
+  bids     Bid[]
+}
+
+model QCReport {
+  id          String   @id @default(cuid())
+  lotId       String   @unique
+  checkerId   String?
+  checkerName String?
+  grade       String
+  verdict        String
+  minBidRate     Float?
+  transportCost  Float?    // QC checker's determined actual transportation cost
+  notes          String?
+  submittedAt    DateTime @default(now())
+
+  // Field confirmation by QC checker (JSON string: Record<field, "confirmed"|"wrong"|"unset">)
+  fieldConfirmations String?
+
+  // GPS & manual location recorded during inspection
+  inspectionLat     Float?
+  inspectionLng     Float?
+  inspectionAddress String?
+
+  lot     Lot   @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  checker User? @relation(fields: [checkerId], references: [id])
+}
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
+
+model Order {
+  id            String    @id @default(cuid())
+  orderCode     String    @unique
+  lotId         String
+  buyerId       String?
+  sellerId      String?
+  buyerName     String
+  sellerName    String
+  product       String
+  qty           String
+  deliveryPoint String
+  winningBid       Float
+  productAmount    Float     @default(0)   // winningBid × quantity
+  transportCost    Float     @default(0)   // QC-determined transport cost (approved by leader)
+  sellerTransportCost Float? // seller's original estimate
+  buyerTransportCost  Float? // buyer's proposed estimate
+  platformFeeRate  Float     @default(5)   // platform commission %
+  platformFee      Float     @default(0)   // productAmount × rate / 100
+  sellerPayable    Float     @default(0)   // productAmount − platformFee
+  totalAmount      Float                   // productAmount + transportCost (buyer pays)
+  status           String    @default("CONFIRMED")
+  sellerStatus     String    @default("NONE")   // NONE | PENDING_SELLER | ACCEPTED | DECLINED
+  assignedTruck    String?
+  loadConfirmed    Boolean   @default(false)
+  dispatched       Boolean   @default(false)
+  delivered        Boolean   @default(false)
+  confirmedAt      DateTime  @default(now())
+  arrivedAt        DateTime?
+  pickedUpAt       DateTime?
+  deliveredAt      DateTime?                // when order is fully delivered
+
+  lot    Lot   @relation(fields: [lotId], references: [id])
+  buyer  User? @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller User? @relation("SellerOrders", fields: [sellerId], references: [id])
+}
+
+// ─── Bids ─────────────────────────────────────────────────────────────────────
+
+model Bid {
+  id              String   @id @default(cuid())
+  lotId           String
+  bidderId        String?
+  bidderName      String
+  amount          Float
+  transportCost   Float?    // buyer's proposed transportation cost
+  createdAt       DateTime @default(now())
+
+  lot    Lot   @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  bidder User? @relation(fields: [bidderId], references: [id])
+}
+
+// ─── Fleet ────────────────────────────────────────────────────────────────────
+
+model Truck {
+  id                  String    @id @default(cuid())
+  truckCode           String    @unique
+  reg                 String    @unique
+  type                String
+  capacityKg          Int
+  status              String    @default("Available")
+  currentDestination  String?
+  liveCoordLat        Float?
+  liveCoordLng        Float?
+  liveCoordsUpdatedAt DateTime?
+  photoUrl            String?
+  registrationStatus  String    @default("APPROVED")
+  registrationNote    String?
+  submittedAt         DateTime  @default(now())
+  submittedBy         String?
+  submittedByName     String?
+  hubId               String?
+  hubName             String?
+
+  driver Driver?
+}
+
+model Driver {
+  id            String  @id @default(cuid())
+  driverCode    String  @unique
+  name          String
+  phone         String
+  address       String?
+  license       String  @unique
+  licenseExpiry String
+  licensePhotoUrl String?
+  nid           String  @unique
+  nidPhotoUrl   String?
+  photoUrl      String?
+  joinDate      String
+  truckId       String? @unique
+
+  emergencyContactName       String?
+  emergencyContactRelation   String?
+  emergencyContactPhone      String?
+  emergencyContactAddress    String?
+  emergencyContactPhotoUrl   String?
+  emergencyContactNidPhotoUrl String?
+
+  truck Truck? @relation(fields: [truckId], references: [id])
+}
+
+model TruckInvite {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  email     String?
+  phone     String?
+  note      String?
+  createdBy String
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+}
+
+// ─── Wallet ───────────────────────────────────────────────────────────────────
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Float    @default(0)
+  currency  String   @default("BDT")
+  updatedAt DateTime @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id          String   @id @default(cuid())
+  walletId    String
+  type        String
+  amount      Float
+  description String
+  reference   String?
+  createdAt   DateTime @default(now())
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+}
+
+// ─── Disputes ─────────────────────────────────────────────────────────────────
+
+model Dispute {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  orderId     String?
+  orderCode   String
+  buyer       String
+  seller      String
+  product     String
+  reason      String
+  description String    @default("")
+  status      String    @default("OPEN")    // OPEN | IN_REVIEW | RESOLVED | ESCALATED
+  priority    String    @default("MEDIUM")  // LOW | MEDIUM | HIGH
+  resolution  String?
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+  createdBy   String?
+}
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+
+model PaymentRequest {
+  id              String    @id @default(cuid())
+  paymentCode     String    @unique
+  sellerId        String?
+  sellerName      String
+  amount          Float
+  method          String    @default("Bank Transfer") // Bank Transfer | bKash | Nagad | Cash
+  bankDetails     String?   // free-text bank/mobile details
+  note            String?
+  status          String    @default("PENDING")  // PENDING | APPROVED | PAID | REJECTED
+  rejectedReason  String?
+  transactionRef  String?   // bank transaction reference entered by admin on payment
+  requestedAt     DateTime  @default(now())
+  processedAt     DateTime?
+  processedBy     String?   // admin name
+
+  seller User? @relation(fields: [sellerId], references: [id])
+}
+
+// ─── Notifications ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // LOT_RECEIVED | QC_ASSIGNED | QC_SUBMITTED | QC_APPROVED | QC_REJECTED | ORDER_PLACED | ORDER_ACCEPTED | ORDER_DECLINED | ORDER_DISPATCHED
+  title     String
+  message   String
+  link      String   @default("/")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
