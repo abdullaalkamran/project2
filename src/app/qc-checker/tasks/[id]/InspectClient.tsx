@@ -27,9 +27,12 @@ import {
   CheckCheck,
   XCircle,
   PencilLine,
+  Tag,
+  Gavel,
 } from "lucide-react";
 import api from "@/lib/api";
 import type { FlowLot, LotUnit } from "@/lib/product-flow";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 
 /* ─── types ─── */
 type Grade = "A" | "B" | "C";
@@ -47,46 +50,8 @@ type FieldStatus = "unset" | "confirmed" | "wrong" | "modified";
 const GRADES = ["A", "B", "C"] as const;
 const VERDICTS = ["PASSED", "FAILED", "CONDITIONAL"] as const;
 
-// ↓ EXACT same list as CreateLotClient.tsx
-const PRODUCT_NAMES = [
-  "Miniket Rice", "BRRI Dhan 28", "BRRI Dhan 29", "Najirshail Rice", "Chinigura Rice",
-  "Tomato", "Potato", "Onion", "Garlic", "Ginger",
-  "Brinjal / Eggplant", "Cauliflower", "Cabbage", "Bitter Gourd", "Bottle Gourd",
-  "Mango", "Banana", "Papaya", "Jackfruit", "Pineapple", "Lychee", "Guava",
-  "Hilsa Fish", "Rohu Fish", "Catla Fish", "Prawn / Shrimp",
-  "Mustard Oil", "Soybean Oil", "Coconut",
-  "Red Lentil (Masoor Dal)", "Chickpea (Chola)", "Black Gram (Mashkalai)",
-  "Coriander / Dhania", "Turmeric", "Chili (Dry)", "Black Pepper", "Cumin",
-  "Jute", "Cotton", "Wheat", "Maize / Corn",
-  "Milk (Cow)", "Egg (Poultry)", "Honey",
-  "Other",
-];
-// ↓ EXACT same list as CreateLotClient.tsx
-const CATEGORIES = ["Rice", "Vegetables", "Fruits", "Garments", "Electronics", "Dry goods", "Spices", "Oil", "Pulses", "Other"];
+// Dropdown options are loaded dynamically from /api/cms/lot-options (managed in Admin → Lot Field Options)
 const UNITS: LotUnit[] = ["kg", "piece", "dozen", "crate", "bag", "box"];
-// ↓ EXACT same list as CreateLotClient.tsx
-const STORAGE_TYPES = [
-  "Ambient / Room Temperature",
-  "Cool & Dry Warehouse",
-  "Cold Storage (0–4 °C)",
-  "Frozen Storage (≤ −18 °C)",
-  "Ventilated Shed",
-  "Humidity-Controlled Room",
-  "Silo / Bulk Grain Store",
-];
-// ↓ EXACT same list as CreateLotClient.tsx
-const BAGGAGE_TYPES = [
-  "Jute Bag (50 kg)",
-  "Polypropylene (PP) Bag",
-  "HDPE Woven Sack",
-  "Cardboard Box",
-  "Wooden Crate",
-  "Plastic Crate",
-  "Gunny Bag",
-  "Vacuum Pack",
-  "Net Bag",
-  "Loose / Bulk (no packaging)",
-];
 
 const VERDICT_LABELS: Record<Verdict, { label: string; desc: string; color: string; icon: typeof CheckCircle2 }> = {
   PASSED:      { label: "Passed",      desc: "Meets quality standards",  color: "border-emerald-500 bg-emerald-50 text-emerald-700", icon: CheckCircle2  },
@@ -190,6 +155,24 @@ export default function InspectClient() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [checkerName, setCheckerName] = useState("");
 
+  /* ── dynamic dropdown options ── */
+  const [dropProductNames, setDropProductNames] = useState<string[]>([]);
+  const [dropCategories, setDropCategories]     = useState<string[]>([]);
+  const [dropStorageTypes, setDropStorageTypes] = useState<string[]>([]);
+  const [dropBaggageTypes, setDropBaggageTypes] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/cms/lot-options")
+      .then((r) => r.json())
+      .then((d: { productNames: string[]; categories: string[]; storageTypes: string[]; baggageTypes: string[] }) => {
+        setDropProductNames(d.productNames ?? []);
+        setDropCategories(d.categories ?? []);
+        setDropStorageTypes(d.storageTypes ?? []);
+        setDropBaggageTypes(d.baggageTypes ?? []);
+      })
+      .catch(() => {});
+  }, []);
+
   /* ── seller fields (pre-filled from DB) ── */
   const [productName, setProductName]           = useState("");
   const [category, setCategory]                 = useState("");
@@ -227,6 +210,13 @@ export default function InspectClient() {
       },
     []
   );
+
+  /* ── Sale type & schedule fields ── */
+  const [saleType, setSaleType]               = useState<"AUCTION" | "FIXED_PRICE">("AUCTION");
+  const [auctionStartsAt, setAuctionStartsAt] = useState("");
+  const [auctionEndsAt, setAuctionEndsAt]     = useState("");
+  const [fixedAskingPrice, setFixedAskingPrice] = useState("");
+  const [saleTypeStatus, setSaleTypeStatus]   = useState<FieldStatus>("unset");
 
   /* ── QC-only fields ── */
   const [grade, setGrade]         = useState<Grade>("B");
@@ -269,6 +259,10 @@ export default function InspectClient() {
       setAskingPricePerKg(String(found.askingPricePerKg ?? ""));
       setMinBidRate(String(found.minBidRate ?? ""));
       setTransportCost(String(found.sellerTransportCost ?? ""));
+      setSaleType((found.saleType as "AUCTION" | "FIXED_PRICE") || "AUCTION");
+      if (found.auctionStartsAt) setAuctionStartsAt(found.auctionStartsAt.slice(0, 16));
+      if (found.auctionEndsAt) setAuctionEndsAt(found.auctionEndsAt.slice(0, 16));
+      if (found.fixedAskingPrice != null) setFixedAskingPrice(String(found.fixedAskingPrice));
       setGrade((found.grade as Grade) || "B");
       if (found.verdict) setVerdict(found.verdict as Verdict);
       if (found.qcNotes) setNotes(found.qcNotes);
@@ -349,6 +343,10 @@ export default function InspectClient() {
         inspectionLat: gpsCoords?.lat,
         inspectionLng: gpsCoords?.lng,
         inspectionAddress: manualLocation || undefined,
+        saleType,
+        auctionStartsAt: saleType === "AUCTION" && auctionStartsAt ? auctionStartsAt : undefined,
+        auctionEndsAt: saleType === "AUCTION" && auctionEndsAt ? auctionEndsAt : undefined,
+        fixedAskingPrice: saleType === "FIXED_PRICE" && fixedAskingPrice ? parseFloat(fixedAskingPrice) : undefined,
       });
 
       // ── Save seller vs QC diff to the approvals store so the Leader can see it ──
@@ -366,6 +364,10 @@ export default function InspectClient() {
           "Asking price/kg": String(lot.askingPricePerKg      ?? ""),
           "Base price":      String(lot.basePrice             ?? ""),
           "Transport cost":  String(lot.sellerTransportCost   ?? ""),
+          "Sale type":       lot.saleType === "FIXED_PRICE" ? "Fixed Price" : "Live Auction",
+          "Auction starts":  lot.saleType !== "FIXED_PRICE" ? (lot.auctionStartsAt ? new Date(lot.auctionStartsAt).toLocaleString() : "") : "",
+          "Auction ends":    lot.saleType !== "FIXED_PRICE" ? (lot.auctionEndsAt   ? new Date(lot.auctionEndsAt).toLocaleString()   : "") : "",
+          "Fixed ask price": lot.saleType === "FIXED_PRICE" ? String(lot.fixedAskingPrice ?? "") : "",
         };
         const qcSnap: Record<string, string> = {
           "Product name":    productName   || lot.title        || "",
@@ -380,6 +382,10 @@ export default function InspectClient() {
           "Asking price/kg": askingPricePerKg || String(lot.askingPricePerKg ?? ""),
           "Base price":      basePrice     || String(lot.basePrice ?? ""),
           "Transport cost":  transportCost || String(lot.sellerTransportCost ?? ""),
+          "Sale type":       saleType === "FIXED_PRICE" ? "Fixed Price" : "Live Auction",
+          "Auction starts":  saleType !== "FIXED_PRICE" ? (auctionStartsAt ? new Date(auctionStartsAt).toLocaleString() : (lot.auctionStartsAt ? new Date(lot.auctionStartsAt).toLocaleString() : "")) : "",
+          "Auction ends":    saleType !== "FIXED_PRICE" ? (auctionEndsAt   ? new Date(auctionEndsAt).toLocaleString()   : (lot.auctionEndsAt   ? new Date(lot.auctionEndsAt).toLocaleString()   : "")) : "",
+          "Fixed ask price": saleType === "FIXED_PRICE" ? (fixedAskingPrice || String(lot.fixedAskingPrice ?? "")) : "",
         };
         const changes = Object.keys(sellerSnap)
           .filter((key) => sellerSnap[key] !== qcSnap[key])
@@ -488,6 +494,28 @@ export default function InspectClient() {
 
       {/* ── Seller info bar ── */}
       <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+        {/* Sale type badge row */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {lot.saleType === "FIXED_PRICE" ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+              <Tag size={11} /> Fixed Price Sale
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">
+              <Gavel size={11} /> Live Auction
+            </span>
+          )}
+          {lot.saleType !== "FIXED_PRICE" && lot.auctionStartsAt && (
+            <span className="text-xs text-slate-500">
+              {new Date(lot.auctionStartsAt).toLocaleString()} – {lot.auctionEndsAt ? new Date(lot.auctionEndsAt).toLocaleString() : "TBD"}
+            </span>
+          )}
+          {lot.saleType === "FIXED_PRICE" && lot.fixedAskingPrice != null && (
+            <span className="text-xs text-slate-500">
+              Asking price: <span className="font-semibold text-slate-700">৳{lot.fixedAskingPrice.toLocaleString()}</span>
+            </span>
+          )}
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
           {[
             { icon: User,     label: "Seller",   value: lot.sellerName },
@@ -544,34 +572,26 @@ export default function InspectClient() {
           {/* Product name */}
           <div className="sm:col-span-2">
             <label className="mb-1 block text-sm font-medium text-slate-700">Product Name *</label>
-            <select
+            <SearchableSelect
               value={productName}
-              onChange={(e) => makeEditHandler("productName", setProductName)(e.target.value)}
+              onChange={(v) => makeEditHandler("productName", setProductName)(v)}
+              options={productName && !dropProductNames.includes(productName) ? [productName, ...dropProductNames] : dropProductNames}
+              placeholder="Select product name…"
               disabled={!canEdit("productName")}
-              className={inputCls(canEdit("productName"))}
-            >
-              <option value="">Select product name…</option>
-              {/* preserve seller's custom name if not in the standard list */}
-              {productName && !PRODUCT_NAMES.includes(productName) && (
-                <option value={productName}>{productName}</option>
-              )}
-              {PRODUCT_NAMES.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
+            />
             {isEditable && <FieldConfirm field="productName" status={fieldStatuses.productName} onChange={setFieldStatus} />}
           </div>
 
           {/* Category */}
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Category *</label>
-            <select
+            <SearchableSelect
               value={category}
-              onChange={(e) => makeEditHandler("category", setCategory)(e.target.value)}
+              onChange={(v) => makeEditHandler("category", setCategory)(v)}
+              options={dropCategories}
+              placeholder="Select category…"
               disabled={!canEdit("category")}
-              className={inputCls(canEdit("category"))}
-            >
-              <option value="">Select category</option>
-              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-            </select>
+            />
             {isEditable && <FieldConfirm field="category" status={fieldStatuses.category} onChange={setFieldStatus} />}
           </div>
 
@@ -605,27 +625,6 @@ export default function InspectClient() {
             </div>
           </div>
 
-          {/* Declared Grade */}
-          <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-slate-700">Declared Grade *</label>
-            <div className="flex gap-2">
-              {GRADES.map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  disabled={!isEditable}
-                  onClick={() => setGrade(g)}
-                  className={`flex-1 rounded-lg border-2 py-2 text-sm font-bold transition ${
-                    grade === g ? GRADE_COLORS[g] : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                  } disabled:cursor-not-allowed`}
-                >
-                  Grade {g}
-                </button>
-              ))}
-            </div>
-            <p className="mt-1 text-xs text-slate-400">A = Premium · B = Standard · C = Economy. QC sets the final grade here.</p>
-          </div>
-
           {/* Description */}
           <div className="sm:col-span-2">
             <label className="mb-1 block text-sm font-medium text-slate-700">Description</label>
@@ -649,29 +648,25 @@ export default function InspectClient() {
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Storage Type *</label>
-            <select
+            <SearchableSelect
               value={storageType}
-              onChange={(e) => makeEditHandler("storageType", setStorageType)(e.target.value)}
+              onChange={(v) => makeEditHandler("storageType", setStorageType)(v)}
+              options={dropStorageTypes}
+              placeholder="Select storage type…"
               disabled={!canEdit("storageType")}
-              className={inputCls(canEdit("storageType"))}
-            >
-              <option value="">Select storage type</option>
-              {STORAGE_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            />
             {isEditable && <FieldConfirm field="storageType" status={fieldStatuses.storageType} onChange={setFieldStatus} />}
           </div>
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Baggage / Packaging Type *</label>
-            <select
+            <SearchableSelect
               value={baggageType}
-              onChange={(e) => makeEditHandler("baggageType", setBaggageType)(e.target.value)}
+              onChange={(v) => makeEditHandler("baggageType", setBaggageType)(v)}
+              options={dropBaggageTypes}
+              placeholder="Select packaging type…"
               disabled={!canEdit("baggageType")}
-              className={inputCls(canEdit("baggageType"))}
-            >
-              <option value="">Select packaging type</option>
-              {BAGGAGE_TYPES.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
+            />
             {isEditable && <FieldConfirm field="baggageType" status={fieldStatuses.baggageType} onChange={setFieldStatus} />}
           </div>
 
@@ -756,6 +751,162 @@ export default function InspectClient() {
         </div>
       </section>
 
+      {/* ════════ SECTION 3b — Sale Type ════════ */}
+      <section className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Sale Type</h2>
+            <p className="text-xs text-slate-400 mt-0.5">How the seller chose to list this lot. Confirm or mark wrong to change.</p>
+          </div>
+          {/* status badge */}
+          {saleTypeStatus === "confirmed" && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+              <CheckCheck size={11} /> Confirmed
+            </span>
+          )}
+          {saleTypeStatus === "modified" && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-yellow-300 bg-yellow-50 px-2 py-0.5 text-[11px] font-semibold text-yellow-700">
+              <PencilLine size={11} /> Modified
+            </span>
+          )}
+        </div>
+
+        {/* Sale type cards */}
+        {(() => {
+          const canEditSaleType = isEditable && (saleTypeStatus === "wrong" || saleTypeStatus === "modified");
+          return (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!canEditSaleType) return;
+                    setSaleType("AUCTION");
+                    setSaleTypeStatus("modified");
+                  }}
+                  className={`flex flex-col gap-1.5 rounded-xl border-2 p-5 text-left transition ${
+                    saleType === "AUCTION"
+                      ? "border-violet-500 bg-violet-50"
+                      : "border-slate-200 bg-slate-50 opacity-50"
+                  } ${canEditSaleType ? "cursor-pointer hover:border-violet-400" : "cursor-default"}`}
+                >
+                  <span className="text-xl">🔨</span>
+                  <p className="font-semibold text-slate-900">Live Auction</p>
+                  <p className="text-xs text-slate-500">Buyers bid competitively. Highest bid wins.</p>
+                  {saleType === "AUCTION" && (
+                    <span className="mt-1 inline-block rounded-full bg-violet-500 px-2 py-0.5 text-[10px] font-bold text-white">Selected</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!canEditSaleType) return;
+                    setSaleType("FIXED_PRICE");
+                    setSaleTypeStatus("modified");
+                  }}
+                  className={`flex flex-col gap-1.5 rounded-xl border-2 p-5 text-left transition ${
+                    saleType === "FIXED_PRICE"
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-slate-200 bg-slate-50 opacity-50"
+                  } ${canEditSaleType ? "cursor-pointer hover:border-blue-400" : "cursor-default"}`}
+                >
+                  <span className="text-xl">🏷️</span>
+                  <p className="font-semibold text-slate-900">Fixed Price</p>
+                  <p className="text-xs text-slate-500">Single asking price; order created at that price after QC approval.</p>
+                  {saleType === "FIXED_PRICE" && (
+                    <span className="mt-1 inline-block rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-bold text-white">Selected</span>
+                  )}
+                </button>
+              </div>
+
+              {/* Auction schedule (editable when wrong/modified) */}
+              {saleType === "AUCTION" && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">Auction starts at</label>
+                    <input
+                      type="datetime-local"
+                      value={auctionStartsAt}
+                      onChange={(e) => { setAuctionStartsAt(e.target.value); setSaleTypeStatus((s) => s === "wrong" ? "modified" : s); }}
+                      disabled={!canEditSaleType}
+                      className={inputCls(canEditSaleType)}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">Auction ends at</label>
+                    <input
+                      type="datetime-local"
+                      value={auctionEndsAt}
+                      onChange={(e) => { setAuctionEndsAt(e.target.value); setSaleTypeStatus((s) => s === "wrong" ? "modified" : s); }}
+                      disabled={!canEditSaleType}
+                      className={inputCls(canEditSaleType)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Fixed asking price (editable when wrong/modified) */}
+              {saleType === "FIXED_PRICE" && (
+                <div className="max-w-xs">
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Fixed asking price / unit (৳)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={fixedAskingPrice}
+                    onChange={(e) => { setFixedAskingPrice(e.target.value); setSaleTypeStatus((s) => s === "wrong" ? "modified" : s); }}
+                    disabled={!canEditSaleType}
+                    placeholder="65.00"
+                    className={inputCls(canEditSaleType)}
+                  />
+                </div>
+              )}
+
+              {/* Confirm / Wrong buttons (same pattern as other fields) */}
+              {isEditable && (
+                <div>
+                  {saleTypeStatus === "confirmed" ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        <CheckCheck size={11} /> Confirmed
+                      </span>
+                      <button type="button" onClick={() => setSaleTypeStatus("unset")} className="text-[11px] text-slate-400 hover:text-slate-600 underline transition">Undo</button>
+                    </div>
+                  ) : saleTypeStatus === "modified" ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="inline-flex items-center gap-1 rounded-md border border-yellow-300 bg-yellow-50 px-2 py-0.5 text-[11px] font-semibold text-yellow-700">
+                        <PencilLine size={11} /> Modified
+                      </span>
+                      <button type="button" onClick={() => setSaleTypeStatus("unset")} className="text-[11px] text-slate-400 hover:text-slate-600 underline transition">Reset</button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-1.5 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setSaleTypeStatus("confirmed")}
+                        className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 transition hover:border-emerald-400 hover:text-emerald-600"
+                      >
+                        <CheckCheck size={11} /> Confirm
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSaleTypeStatus("wrong")}
+                        className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition ${
+                          saleTypeStatus === "wrong"
+                            ? "border-red-500 bg-red-50 text-red-700"
+                            : "border-slate-200 bg-white text-slate-500 hover:border-red-400 hover:text-red-600"
+                        }`}
+                      >
+                        <XCircle size={11} /> Wrong
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          );
+        })()}
+      </section>
+
       {/* ════════ SECTION 4 — Product Location ════════ */}
       <section className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Product Location</h2>
@@ -827,27 +978,52 @@ export default function InspectClient() {
           </div>
         </div>
 
-        {/* Final grade */}
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Final Grade <span className="text-slate-400 font-normal">(QC determined)</span>
-          </label>
-          <div className="flex gap-2">
-            {GRADES.map((g) => (
-              <button
-                key={g}
-                type="button"
-                disabled={!isEditable}
-                onClick={() => setGrade(g)}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border-2 py-2.5 text-sm font-bold transition ${
-                  grade === g ? GRADE_COLORS[g] : "border-slate-200 text-slate-500 hover:border-slate-300"
-                } disabled:cursor-not-allowed`}
-              >
-                <Scale size={14} /> Grade {g}
-              </button>
-            ))}
+        {/* Grade — seller declared vs QC final */}
+        <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Grade</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Seller's declared grade (read-only reference) */}
+            <div>
+              <p className="mb-2 text-xs font-medium text-slate-500">Seller declared</p>
+              <div className="flex gap-2">
+                {GRADES.map((g) => (
+                  <div
+                    key={g}
+                    className={`flex-1 rounded-lg border-2 py-2 text-center text-sm font-bold ${
+                      lot.grade === g ? GRADE_COLORS[g] : "border-slate-200 bg-white text-slate-300"
+                    }`}
+                  >
+                    Grade {g}
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* QC final grade (editable) */}
+            <div>
+              <p className="mb-2 text-xs font-medium text-slate-500">QC final grade <span className="text-slate-400">(set by you)</span></p>
+              <div className="flex gap-2">
+                {GRADES.map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    disabled={!isEditable}
+                    onClick={() => setGrade(g)}
+                    className={`flex-1 flex items-center justify-center gap-1 rounded-lg border-2 py-2 text-sm font-bold transition ${
+                      grade === g ? GRADE_COLORS[g] : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                    } disabled:cursor-not-allowed`}
+                  >
+                    <Scale size={13} /> {g}
+                  </button>
+                ))}
+              </div>
+              {lot.grade !== grade && (
+                <p className="mt-1.5 text-[11px] text-amber-600 font-medium">
+                  ⚠ Changed from seller&apos;s declared grade ({lot.grade})
+                </p>
+              )}
+            </div>
           </div>
-          <p className="mt-1 text-xs text-slate-400">A = Premium · B = Standard · C = Below standard</p>
+          <p className="text-xs text-slate-400">A = Premium · B = Standard · C = Below standard</p>
         </div>
 
         {/* Notes */}

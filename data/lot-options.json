@@ -1,0 +1,41 @@
+{
+  "productNames": [
+    "Miniket Rice", "BRRI Dhan 28", "BRRI Dhan 29", "Najirshail Rice", "Chinigura Rice",
+    "Tomato", "Potato", "Onion", "Garlic", "Ginger",
+    "Brinjal / Eggplant", "Cauliflower", "Cabbage", "Bitter Gourd", "Bottle Gourd",
+    "Mango", "Banana", "Papaya", "Jackfruit", "Pineapple", "Lychee", "Guava",
+    "Hilsa Fish", "Rohu Fish", "Catla Fish", "Prawn / Shrimp",
+    "Mustard Oil", "Soybean Oil", "Coconut",
+    "Red Lentil (Masoor Dal)", "Chickpea (Chola)", "Black Gram (Mashkalai)",
+    "Coriander / Dhania", "Turmeric", "Chili (Dry)", "Black Pepper", "Cumin",
+    "Jute", "Cotton", "Wheat", "Maize / Corn",
+    "Milk (Cow)", "Egg (Poultry)", "Honey",
+    "Other"
+  ],
+  "categories": [
+    "Rice", "Vegetables", "Fruits", "Garments", "Electronics",
+    "Dry goods", "Spices", "Oil", "Pulses", "Fish & Seafood",
+    "Dairy & Eggs", "Grains & Cereals", "Other"
+  ],
+  "storageTypes": [
+    "Ambient / Room Temperature",
+    "Cool & Dry Warehouse",
+    "Cold Storage (0–4 °C)",
+    "Frozen Storage (≤ −18 °C)",
+    "Ventilated Shed",
+    "Humidity-Controlled Room",
+    "Silo / Bulk Grain Store"
+  ],
+  "baggageTypes": [
+    "Jute Bag (50 kg)",
+    "Polypropylene (PP) Bag",
+    "HDPE Woven Sack",
+    "Cardboard Box",
+    "Wooden Crate",
+    "Plastic Crate",
+    "Gunny Bag",
+    "Vacuum Pack",
+    "Net Bag",
+    "Loose / Bulk (no packaging)"
+  ]
+}

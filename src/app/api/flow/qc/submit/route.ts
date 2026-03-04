@@ -31,6 +31,10 @@ export async function POST(req: NextRequest) {
       inspectionLng?: number;
       inspectionAddress?: string;
       listOnMarketplace?: boolean;
+      saleType?: "AUCTION" | "FIXED_PRICE";
+      auctionStartsAt?: string;
+      auctionEndsAt?: string;
+      fixedAskingPrice?: number;
     };
 
     const lot = await prisma.lot.findUnique({ where: { lotCode: body.lotId } });
@@ -90,6 +94,10 @@ export async function POST(req: NextRequest) {
         qcSubmittedAt: new Date(),
         leaderDecision: "Pending",
         listOnMarketplace: typeof body.listOnMarketplace === "boolean" ? body.listOnMarketplace : null,
+        ...(body.saleType ? { saleType: body.saleType } : {}),
+        ...(body.auctionStartsAt ? { auctionStartsAt: new Date(body.auctionStartsAt) } : {}),
+        ...(body.auctionEndsAt   ? { auctionEndsAt:   new Date(body.auctionEndsAt)   } : {}),
+        ...(typeof body.fixedAskingPrice === "number" ? { fixedAskingPrice: body.fixedAskingPrice } : {}),
       },
     });
 

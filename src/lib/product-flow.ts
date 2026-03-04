@@ -42,6 +42,10 @@ export type FlowLot = {
   sellerTransportCost?: number;
   sellerPhotoUrls?: string[];
   qcPhotoUrls?: string[];
+  saleType?: "AUCTION" | "FIXED_PRICE";
+  auctionStartsAt?: string;
+  auctionEndsAt?: string;
+  fixedAskingPrice?: number;
 };
 
 export type FlowOrderStatus = "CONFIRMED" | "DISPATCHED" | "ARRIVED" | "PICKED_UP";

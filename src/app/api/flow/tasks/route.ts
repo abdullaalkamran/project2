@@ -53,6 +53,10 @@ export async function GET(req: NextRequest) {
         qcSubmittedAt: l.qcSubmittedAt?.toISOString(),
         qcNotes: l.qcNotes,
         leaderDecision: l.leaderDecision,
+        saleType: (l.saleType ?? "AUCTION") as "AUCTION" | "FIXED_PRICE",
+        auctionStartsAt: l.auctionStartsAt?.toISOString(),
+        auctionEndsAt: l.auctionEndsAt?.toISOString(),
+        fixedAskingPrice: l.fixedAskingPrice ?? undefined,
       };
     })
   );

@@ -5,114 +5,43 @@ import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { ChevronDown, Search, UploadCloud, X } from "lucide-react";
+import { UploadCloud, X } from "lucide-react";
 import { createLotSchema, CreateLotFormData } from "@/lib/schemas";
 import { DEFAULT_HUB, HUB_OPTIONS } from "@/lib/hubs";
 import api from "@/lib/api";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 
-const PRODUCT_NAMES = [
-  "Miniket Rice", "BRRI Dhan 28", "BRRI Dhan 29", "Najirshail Rice", "Chinigura Rice",
-  "Tomato", "Potato", "Onion", "Garlic", "Ginger",
-  "Brinjal / Eggplant", "Cauliflower", "Cabbage", "Bitter Gourd", "Bottle Gourd",
-  "Mango", "Banana", "Papaya", "Jackfruit", "Pineapple", "Lychee", "Guava",
-  "Hilsa Fish", "Rohu Fish", "Catla Fish", "Prawn / Shrimp",
-  "Mustard Oil", "Soybean Oil", "Coconut",
-  "Red Lentil (Masoor Dal)", "Chickpea (Chola)", "Black Gram (Mashkalai)",
-  "Coriander / Dhania", "Turmeric", "Chili (Dry)", "Black Pepper", "Cumin",
-  "Jute", "Cotton", "Wheat", "Maize / Corn",
-  "Milk (Cow)", "Egg (Poultry)", "Honey",
-  "Other",
-];
-const CATEGORIES = ["Rice", "Vegetables", "Fruits", "Garments", "Electronics", "Dry goods", "Spices", "Oil", "Pulses", "Other"];
+// Dropdown options are loaded dynamically from /api/cms/lot-options (managed in Admin → Lot Field Options)
 const UNITS = ["kg", "piece", "dozen", "crate", "bag", "box"] as const;
 const GRADES = ["A", "B", "C"] as const;
-const STORAGE_TYPES = ["Ambient / Room Temperature", "Cool & Dry Warehouse", "Cold Storage (0–4 °C)", "Frozen Storage (≤ −18 °C)", "Ventilated Shed", "Humidity-Controlled Room", "Silo / Bulk Grain Store"];
-const BAGGAGE_TYPES = ["Jute Bag (50 kg)", "Polypropylene (PP) Bag", "HDPE Woven Sack", "Cardboard Box", "Wooden Crate", "Plastic Crate", "Gunny Bag", "Vacuum Pack", "Net Bag", "Loose / Bulk (no packaging)"];
 
 type LotsResponse = {
   preferredHub?: string;
 };
-
-function ProductCombobox({ value, onChange, error }: { value: string; onChange: (v: string) => void; error?: string }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  const filtered = query.trim()
-    ? PRODUCT_NAMES.filter((p) => p.toLowerCase().includes(query.toLowerCase()))
-    : PRODUCT_NAMES;
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 ${
-          error ? "border-red-300 bg-red-50" : "border-slate-200 bg-white"
-        }`}
-      >
-        <span className={value ? "text-slate-800" : "text-slate-400"}>{value || "Search and select product…"}</span>
-        <div className="flex items-center gap-1">
-          {value && (
-            <span
-              role="button"
-              onClick={(e) => { e.stopPropagation(); onChange(""); setQuery(""); }}
-              className="rounded p-0.5 hover:bg-slate-100"
-            >
-              <X size={13} className="text-slate-400" />
-            </span>
-          )}
-          <ChevronDown size={15} className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
-        </div>
-      </button>
-
-      {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg">
-          <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
-            <Search size={14} className="shrink-0 text-slate-400" />
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Type to search…"
-              className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-            />
-          </div>
-          <ul className="max-h-56 overflow-y-auto py-1">
-            {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-slate-400">No products found</li>
-            ) : (
-              filtered.map((p) => (
-                <li
-                  key={p}
-                  onClick={() => { onChange(p); setOpen(false); setQuery(""); }}
-                  className={`cursor-pointer px-3 py-2 text-sm transition hover:bg-emerald-50 hover:text-emerald-700 ${value === p ? "bg-emerald-50 font-medium text-emerald-700" : "text-slate-700"}`}
-                >
-                  {p}
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-      )}
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
-    </div>
-  );
-}
 
 export default function CreateLotPage() {
   const router = useRouter();
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+
+  /* ── dynamic dropdown options (admin-managed) ── */
+  const [productNames, setProductNames] = useState<string[]>([]);
+  const [categories, setCategories]     = useState<string[]>([]);
+  const [storageTypes, setStorageTypes] = useState<string[]>([]);
+  const [baggageTypes, setBaggageTypes] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/cms/lot-options")
+      .then((r) => r.json())
+      .then((d: { productNames: string[]; categories: string[]; storageTypes: string[]; baggageTypes: string[] }) => {
+        setProductNames(d.productNames ?? []);
+        setCategories(d.categories ?? []);
+        setStorageTypes(d.storageTypes ?? []);
+        setBaggageTypes(d.baggageTypes ?? []);
+      })
+      .catch(() => { /* fallback: stays empty — user can still type */ });
+  }, []);
 
   const {
     register,
@@ -256,9 +185,11 @@ export default function CreateLotPage() {
                 name="title"
                 control={control}
                 render={({ field }) => (
-                  <ProductCombobox
+                  <SearchableSelect
                     value={field.value ?? ""}
                     onChange={field.onChange}
+                    options={productNames}
+                    placeholder="Search and select product…"
                     error={errors.title?.message}
                   />
                 )}
@@ -267,11 +198,19 @@ export default function CreateLotPage() {
 
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Category *</label>
-              <select {...register("category")} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500">
-                <option value="">Select category</option>
-                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-              </select>
-              {errors.category && <p className="mt-1 text-xs text-red-500">{errors.category.message}</p>}
+              <Controller
+                name="category"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    options={categories}
+                    placeholder="Select category…"
+                    error={errors.category?.message}
+                  />
+                )}
+              />
             </div>
 
             <div className="flex gap-2">
@@ -379,20 +318,36 @@ export default function CreateLotPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Storage type *</label>
-              <select {...register("storageType")} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500">
-                <option value="">Select storage type</option>
-                {STORAGE_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-              {errors.storageType && <p className="mt-1 text-xs text-red-500">{errors.storageType.message}</p>}
+              <Controller
+                name="storageType"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    options={storageTypes}
+                    placeholder="Select storage type…"
+                    error={errors.storageType?.message}
+                  />
+                )}
+              />
             </div>
 
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Baggage / Packaging type *</label>
-              <select {...register("baggageType")} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500">
-                <option value="">Select packaging type</option>
-                {BAGGAGE_TYPES.map((b) => <option key={b} value={b}>{b}</option>)}
-              </select>
-              {errors.baggageType && <p className="mt-1 text-xs text-red-500">{errors.baggageType.message}</p>}
+              <Controller
+                name="baggageType"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    options={baggageTypes}
+                    placeholder="Select packaging type…"
+                    error={errors.baggageType?.message}
+                  />
+                )}
+              />
             </div>
 
             <div>

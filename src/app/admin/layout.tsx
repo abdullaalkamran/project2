@@ -17,6 +17,7 @@ const nav = [
   { label: "Dispute Centre", href: "/admin/disputes", badge: "3" },
   { label: "Settings", href: "/admin/settings" },
   { label: "Landing Page", href: "/admin/cms" },
+  { label: "Lot Field Options", href: "/admin/cms/lot-options" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
