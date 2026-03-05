@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, PackageCheck, Truck } from "lucide-react";
 import api from "@/lib/api";
@@ -11,17 +12,44 @@ type Order = {
   distributorAssignedAt: string | null;
 };
 
+type ScanResponse = {
+  id: string;
+  status: string;
+  hubReceivedAt: string | null;
+  scannedCount?: number;
+  totalPackets?: number;
+  completed?: boolean;
+  message?: string;
+};
+
 export default function PickupClient() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [scanCode, setScanCode] = useState("");
+  const [scanBusy, setScanBusy] = useState(false);
+  const [queryScanHandled, setQueryScanHandled] = useState(false);
+  const searchParams = useSearchParams();
 
-  useEffect(() => {
+  const load = () =>
     api.get<Order[]>("/api/delivery-distributor/orders?status=active")
       .then((all) => setOrders(all.filter((o) => o.status === "HUB_RECEIVED")))
       .catch(() => setOrders([]))
       .finally(() => setLoading(false));
+
+  useEffect(() => {
+    void load();
   }, []);
+
+  useEffect(() => {
+    if (queryScanHandled) return;
+    const fromQuery = searchParams.get("scan");
+    if (!fromQuery) return;
+    setQueryScanHandled(true);
+    setScanCode(fromQuery);
+    void submitScan(fromQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryScanHandled, searchParams]);
 
   async function pickup(orderId: string) {
     setBusy(orderId);
@@ -36,6 +64,30 @@ export default function PickupClient() {
     }
   }
 
+  async function submitScan(codeFromParam?: string) {
+    const code = (codeFromParam ?? scanCode).trim();
+    if (!code) {
+      toast.error("Enter shipment scan code");
+      return;
+    }
+    setScanBusy(true);
+    try {
+      const res = await api.post<ScanResponse>("/api/delivery-hub/orders/scan", { scanCode: code });
+      if (typeof res.scannedCount === "number" && typeof res.totalPackets === "number") {
+        const base = `Scanned ${res.scannedCount}/${res.totalPackets} packet(s)`;
+        toast.success(res.completed ? `${base}. All packets reached.` : base);
+      } else {
+        toast.success(res.message ?? "Scanned successfully.");
+      }
+      setScanCode("");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Scan failed");
+    } finally {
+      setScanBusy(false);
+    }
+  }
+
   if (loading) return (
     <div className="space-y-4">
       {Array.from({ length: 3 }).map((_, i) => (
@@ -46,6 +98,28 @@ export default function PickupClient() {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+        <p className="text-sm font-bold text-violet-800">Scan Shipment Document</p>
+        <p className="mt-0.5 text-xs text-violet-700">
+          Scan each packet QR one by one. Order updates to hub-received after all packets are scanned.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <input
+            value={scanCode}
+            onChange={(e) => setScanCode(e.target.value)}
+            placeholder="PKT-ORD-XXXXXX-001"
+            className="min-w-[240px] flex-1 rounded-xl border border-violet-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
+          />
+          <button
+            onClick={() => void submitScan()}
+            disabled={scanBusy}
+            className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+          >
+            {scanBusy ? "Scanning…" : "Scan & Update"}
+          </button>
+        </div>
+      </div>
+
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Pickup Requests</h1>

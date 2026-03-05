@@ -567,8 +567,17 @@ function OrderCard({ order: o, showSellerStatus, showProgress }: { order: OrderI
         </div>
       )}
 
-      {o.status === "Delivered" && (
-        <div className="border-t border-slate-100 px-1 pt-3 flex justify-end">
+      <div className="border-t border-slate-100 px-1 pt-3 flex flex-wrap justify-end gap-2">
+        {(o.sellerStatus === "ACCEPTED" || o.sellerStatus === "CONFIRMED") && (
+          <Link
+            href={`/order-confirmation/${o.id}`}
+            target="_blank"
+            className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition"
+          >
+            <Download size={11} /> Seller Confirmation PDF
+          </Link>
+        )}
+        {o.status === "Delivered" && (
           <Link
             href={`/delivery-receipt/${o.id}`}
             target="_blank"
@@ -576,8 +585,8 @@ function OrderCard({ order: o, showSellerStatus, showProgress }: { order: OrderI
           >
             <Download size={11} /> Download Delivery Receipt
           </Link>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

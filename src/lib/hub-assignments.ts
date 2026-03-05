@@ -14,9 +14,18 @@ export async function getAssignedHubNames(
     where: { userId, role },
     include: { hub: { select: { name: true, isActive: true } } },
   });
-  return assignments
+
+  const assigned = assignments
     .filter((a) => a.hub.isActive)
     .map((a) => a.hub.name);
+  if (assigned.length > 0) return assigned;
+
+  // Fallback: legacy accounts may only have User.hubId set (no assignment row yet).
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { hubId: true },
+  });
+  return user?.hubId ? [user.hubId] : [];
 }
 
 /**
@@ -27,5 +36,21 @@ export async function getAssignedHubs(userId: string, role: string) {
     where: { userId, role },
     include: { hub: true },
   });
-  return assignments.filter((a) => a.hub.isActive).map((a) => a.hub);
+  const hubs = assignments.filter((a) => a.hub.isActive).map((a) => a.hub);
+  if (hubs.length > 0) return hubs;
+
+  // Same fallback as getAssignedHubNames for legacy user->hub mapping.
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { hubId: true },
+  });
+  if (!user?.hubId) return [];
+
+  const hub = await prisma.hub.findFirst({
+    where: {
+      isActive: true,
+      OR: [{ id: user.hubId }, { name: user.hubId }],
+    },
+  });
+  return hub ? [hub] : [];
 }

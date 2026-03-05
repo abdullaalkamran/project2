@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notify, notifyMany, userIdByName, getLotParties } from "@/lib/notifications";
+import { getPreDispatchCheck } from "@/lib/pre-dispatch-store";
+import { getShipmentPacketManifest } from "@/lib/shipment-packets-store";
 
 export async function PATCH(
   req: NextRequest,
@@ -22,6 +24,37 @@ export async function PATCH(
         { message: "Order is not ready for dispatch yet. Seller acceptance is pending." },
         { status: 400 }
       );
+    }
+
+    const wantsDispatchAction =
+      body.assignedTruck !== undefined || body.loadConfirmed === true || body.dispatched === true;
+    if (wantsDispatchAction) {
+      const check = await getPreDispatchCheck(order.orderCode);
+      const gatePassed = !!(
+        check?.physicallyReceived &&
+        check?.hubManagerConfirmed &&
+        check?.qcLeadConfirmed &&
+        check?.qualityChecked &&
+        check?.packetQty > 0 &&
+        check?.grossWeightKg > 0
+      );
+      if (!gatePassed) {
+        return NextResponse.json(
+          {
+            message:
+              "Complete physical receive confirmation, QC confirmation, quality check, packet qty, and weight before truck assignment.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const manifest = await getShipmentPacketManifest(order.orderCode);
+      if (!manifest || manifest.totalPackets < 1) {
+        return NextResponse.json(
+          { message: "Generate packet QR codes before truck assignment." },
+          { status: 400 },
+        );
+      }
     }
 
     const updated = await prisma.order.update({

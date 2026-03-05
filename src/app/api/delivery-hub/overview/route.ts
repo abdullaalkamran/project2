@@ -8,8 +8,31 @@ export async function GET() {
   if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
   const hubNames = await getAssignedHubNames(session.userId, "delivery_hub_manager");
+  const hubKeywords = Array.from(
+    new Set(
+      hubNames
+        .map((name) =>
+          name
+            .toLowerCase()
+            .replace(/[—-]/g, " ")
+            .replace(/\bhub\b/g, " ")
+            .replace(/\bdelivery point\b/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .split(" ")[0]
+        )
+        .filter(Boolean)
+    )
+  );
   const hubFilter = hubNames.length > 0
-    ? { lot: { hubId: { in: hubNames } } }
+    ? {
+        OR: [
+          { lot: { hubId: { in: hubNames } } },
+          { deliveryPoint: { in: hubNames } },
+          ...hubKeywords.map((k) => ({ lot: { hubId: { contains: k } } })),
+          ...hubKeywords.map((k) => ({ deliveryPoint: { contains: k } })),
+        ],
+      }
     : {};
 
   const [incoming, hubReceived, outForDelivery, delivered] = await Promise.all([

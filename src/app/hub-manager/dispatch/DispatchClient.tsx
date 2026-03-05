@@ -31,6 +31,27 @@ type DispatchOrder = {
   loadConfirmed: boolean;
   dispatched: boolean;
   status: string;
+  preDispatch: {
+    physicallyReceived: boolean;
+    hubManagerConfirmed: boolean;
+    qcLeadConfirmed: boolean;
+    qualityChecked: boolean;
+    packetQty: number;
+    grossWeightKg: number;
+  };
+  packetQr: {
+    total: number;
+    scanned: number;
+  };
+};
+
+type PreDispatchForm = {
+  physicallyReceived: boolean;
+  hubManagerConfirmed: boolean;
+  qcLeadConfirmed: boolean;
+  qualityChecked: boolean;
+  packetQty: string;
+  grossWeightKg: string;
 };
 
 // ─── Mini step progress inside each order card ─────────────────────────────────
@@ -100,6 +121,8 @@ export default function DispatchClient() {
   const [selectedTruck, setSelectedTruck] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [preForm, setPreForm] = useState<Record<string, PreDispatchForm>>({});
+  const [gateSaving, setGateSaving] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     Promise.all([
@@ -109,6 +132,18 @@ export default function DispatchClient() {
       .then(([ordersData, trucksData]) => {
         setOrders(ordersData ?? []);
         setTrucks(trucksData ?? []);
+        const nextForm: Record<string, PreDispatchForm> = {};
+        (ordersData ?? []).forEach((o) => {
+          nextForm[o.id] = {
+            physicallyReceived: o.preDispatch?.physicallyReceived ?? false,
+            hubManagerConfirmed: o.preDispatch?.hubManagerConfirmed ?? false,
+            qcLeadConfirmed: o.preDispatch?.qcLeadConfirmed ?? false,
+            qualityChecked: o.preDispatch?.qualityChecked ?? false,
+            packetQty: String(o.preDispatch?.packetQty ?? 0),
+            grossWeightKg: String(o.preDispatch?.grossWeightKg ?? 0),
+          };
+        });
+        setPreForm(nextForm);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -153,6 +188,34 @@ export default function DispatchClient() {
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...updated } : o)));
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function savePreDispatch(orderId: string, form?: PreDispatchForm) {
+    const effectiveForm = form ?? preForm[orderId];
+    if (!effectiveForm) return;
+    setGateSaving((prev) => ({ ...prev, [orderId]: true }));
+    try {
+      const saved = await api.patch<{
+        physicallyReceived: boolean;
+        hubManagerConfirmed: boolean;
+        qcLeadConfirmed: boolean;
+        qualityChecked: boolean;
+        packetQty: number;
+        grossWeightKg: number;
+      }>(`/api/flow/dispatch/orders/${orderId}/pre-dispatch`, {
+        physicallyReceived: effectiveForm.physicallyReceived,
+        hubManagerConfirmed: effectiveForm.hubManagerConfirmed,
+        qcLeadConfirmed: effectiveForm.qcLeadConfirmed,
+        qualityChecked: effectiveForm.qualityChecked,
+        packetQty: Number(effectiveForm.packetQty || 0),
+        grossWeightKg: Number(effectiveForm.grossWeightKg || 0),
+      });
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, preDispatch: saved } : o)),
+      );
+    } finally {
+      setGateSaving((prev) => ({ ...prev, [orderId]: false }));
     }
   }
 
@@ -210,6 +273,22 @@ export default function DispatchClient() {
           const step = loadStep(order);
           const truck = trucks.find((t) => t.id === order.assignedTruck);
           const isBusy = busy === order.id;
+          const form = preForm[order.id] ?? {
+            physicallyReceived: false,
+            hubManagerConfirmed: false,
+            qcLeadConfirmed: false,
+            qualityChecked: false,
+            packetQty: "0",
+            grossWeightKg: "0",
+          };
+          const gateReady =
+            form.physicallyReceived &&
+            form.hubManagerConfirmed &&
+            form.qcLeadConfirmed &&
+            form.qualityChecked &&
+            Number(form.packetQty) > 0 &&
+            Number(form.grossWeightKg) > 0;
+          const qrReady = (order.packetQr?.total ?? 0) > 0;
 
           return (
             <div
@@ -268,6 +347,88 @@ export default function DispatchClient() {
                 <LoadProgress order={order} />
               </div>
 
+              <div className="mx-5 mb-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                  Physical Receive & QC Gate (Required before truck selection)
+                </p>
+                <div className="grid gap-2 sm:grid-cols-4">
+                  {[
+                    ["physicallyReceived", "Physically Reached Hub"],
+                    ["hubManagerConfirmed", "Hub Manager Confirmed"],
+                    ["qcLeadConfirmed", "QC Lead Confirmed"],
+                    ["qualityChecked", "Quality Checked"],
+                  ].map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(form[key as keyof PreDispatchForm])}
+                        onChange={(e) => {
+                          const next = { ...form, [key]: e.target.checked } as PreDispatchForm;
+                          setPreForm((prev) => ({ ...prev, [order.id]: next }));
+                          void savePreDispatch(order.id, next);
+                        }}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.packetQty}
+                    onChange={(e) =>
+                      setPreForm((prev) => ({
+                        ...prev,
+                        [order.id]: { ...form, packetQty: e.target.value },
+                      }))
+                    }
+                    onBlur={() => void savePreDispatch(order.id)}
+                    placeholder="Packet Qty"
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-emerald-400"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={form.grossWeightKg}
+                    onChange={(e) =>
+                      setPreForm((prev) => ({
+                        ...prev,
+                        [order.id]: { ...form, grossWeightKg: e.target.value },
+                      }))
+                    }
+                    onBlur={() => void savePreDispatch(order.id)}
+                    placeholder="Gross Weight (kg)"
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-emerald-400"
+                  />
+                  <div className="flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+                    {gateSaving[order.id] ? "Saving gate..." : "Gate auto-saves"}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs">
+                  <p className="text-violet-700">
+                    Packet QR: <span className="font-semibold">{order.packetQr?.total ?? 0}</span> generated,
+                    {" "}scanned <span className="font-semibold">{order.packetQr?.scanned ?? 0}</span>
+                  </p>
+                  <a
+                    href={`/hub-shipment/${order.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md border border-violet-300 bg-white px-2.5 py-1 font-semibold text-violet-700 hover:bg-violet-100"
+                  >
+                    Generate / Print Packet QR
+                  </a>
+                </div>
+                {(!gateReady || !qrReady) && (
+                  <p className="text-[11px] text-amber-700">
+                    Complete gate checks and generate packet QR before assigning truck.
+                  </p>
+                )}
+              </div>
+
               {/* ── Truck info (if assigned) ── */}
               {order.assignedTruck && (
                 <div className="mx-5 mb-4 flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
@@ -321,7 +482,7 @@ export default function DispatchClient() {
                     </select>
                     <button
                       onClick={() => assignTruck(order.id)}
-                      disabled={isBusy || !selectedTruck[order.id]}
+                      disabled={isBusy || !selectedTruck[order.id] || !gateReady || !qrReady}
                       className="rounded-xl bg-slate-800 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-900 disabled:opacity-40"
                     >
                       {isBusy ? "Assigning…" : "Assign Truck"}

@@ -8,6 +8,7 @@ import api from "@/lib/api";
 type HubOrder = {
   id: string; product: string; qty: string; buyer: string; seller: string;
   deliveryPoint: string; assignedTruck: string | null; status: string;
+  loadConfirmed: boolean; dispatched: boolean;
   confirmedAt: string; hubReceivedAt: string | null;
   distributorName: string | null; totalAmount: number;
 };
@@ -95,7 +96,9 @@ export default function HubIncomingClient() {
                 { label: "Buyer", value: o.buyer },
                 { label: "Seller", value: o.seller },
                 { label: "Delivery Point", value: o.deliveryPoint },
-                ...(o.assignedTruck ? [{ label: "Truck", value: o.assignedTruck }] : []),
+                { label: "Truck", value: o.assignedTruck ?? "Not assigned yet" },
+                { label: "Dispatch", value: o.dispatched ? "Dispatched from source hub" : "Pending dispatch" },
+                { label: "Load", value: o.loadConfirmed ? "Loaded on truck" : "Load not confirmed" },
               ].map(({ label, value }) => (
                 <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
                   <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{label}</p>

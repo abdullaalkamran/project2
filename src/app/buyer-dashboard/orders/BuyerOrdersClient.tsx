@@ -481,15 +481,26 @@ export default function BuyerOrdersClient() {
                     <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-300">Order ID</span>
                     <span className="font-mono text-xs text-slate-400">{o.id}</span>
                   </div>
-                  {o.status === "PICKED_UP" && (
-                    <Link
-                      href={`/delivery-receipt/${o.id}`}
-                      target="_blank"
-                      className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
-                    >
-                      <Download size={11} /> Download Receipt
-                    </Link>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {(o.sellerStatus === "ACCEPTED" || o.sellerStatus === "CONFIRMED") && (
+                      <Link
+                        href={`/order-confirmation/${o.id}`}
+                        target="_blank"
+                        className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition"
+                      >
+                        <Download size={11} /> Confirmation PDF
+                      </Link>
+                    )}
+                    {o.status === "PICKED_UP" && (
+                      <Link
+                        href={`/delivery-receipt/${o.id}`}
+                        target="_blank"
+                        className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
+                      >
+                        <Download size={11} /> Delivery Receipt
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
             );

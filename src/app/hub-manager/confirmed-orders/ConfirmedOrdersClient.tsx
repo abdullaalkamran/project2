@@ -165,9 +165,18 @@ export default function ConfirmedOrdersClient() {
                 )}
 
                 {isReady && !o.dispatched && (
-                  <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-700">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-700">
+                    <div className="flex items-center gap-2">
                     <Truck size={13} />
                     <span>Ready for dispatch. Go to the <Link href="/hub-manager/dispatch" className="font-semibold underline">Dispatch page</Link> to assign a truck.</span>
+                    </div>
+                    <Link
+                      href={`/hub-shipment/${o.id}`}
+                      target="_blank"
+                      className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-[11px] font-semibold text-violet-700 hover:bg-violet-100"
+                    >
+                      Print Shipment PDF
+                    </Link>
                   </div>
                 )}
 
