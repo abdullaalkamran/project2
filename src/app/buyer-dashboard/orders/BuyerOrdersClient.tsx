@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { Search, SlidersHorizontal, X, ChevronDown, Download } from "lucide-react";
 import api from "@/lib/api";
 
 type OrderItem = {
@@ -25,10 +26,12 @@ type OrderItem = {
 
 // ── Step progress ─────────────────────────────────────────────────────────────
 const DELIVERY_STEPS = [
-  { key: "CONFIRMED",  label: "Confirmed"  },
-  { key: "DISPATCHED", label: "Dispatched" },
-  { key: "ARRIVED",   label: "Arrived"    },
-  { key: "PICKED_UP", label: "Delivered"  },
+  { key: "CONFIRMED",        label: "Confirmed"  },
+  { key: "DISPATCHED",       label: "Dispatched" },
+  { key: "HUB_RECEIVED",    label: "At Hub"     },
+  { key: "OUT_FOR_DELIVERY", label: "In Transit" },
+  { key: "ARRIVED",          label: "Arrived"    },
+  { key: "PICKED_UP",        label: "Delivered"  },
 ];
 
 function deliveryStepIndex(status: string) {
@@ -46,7 +49,9 @@ const STATUS_CHIP: Record<string, string> = {
   AWAITING_SELLER: "bg-amber-50 text-amber-700",
   CONFIRMED:       "bg-orange-50 text-orange-600",
   DISPATCHED:      "bg-violet-50 text-violet-700",
-  ARRIVED:         "bg-blue-50 text-blue-700",
+  HUB_RECEIVED:    "bg-blue-50 text-blue-700",
+  OUT_FOR_DELIVERY:"bg-indigo-50 text-indigo-700",
+  ARRIVED:         "bg-teal-50 text-teal-700",
   PICKED_UP:       "bg-emerald-50 text-emerald-700",
   CANCELLED:       "bg-red-50 text-red-600",
 };
@@ -55,6 +60,8 @@ const STATUS_LABEL: Record<string, string> = {
   AWAITING_SELLER: "Awaiting Seller",
   CONFIRMED:       "Confirmed",
   DISPATCHED:      "Dispatched",
+  HUB_RECEIVED:    "At Delivery Hub",
+  OUT_FOR_DELIVERY:"Out for Delivery",
   ARRIVED:         "Arrived",
   PICKED_UP:       "Delivered",
   CANCELLED:       "Cancelled",
@@ -64,7 +71,9 @@ const STATUS_ACTIVE_CHIP: Record<string, string> = {
   AWAITING_SELLER: "ring-2 ring-amber-400 bg-amber-100 text-amber-800",
   CONFIRMED:       "ring-2 ring-orange-400 bg-orange-100 text-orange-700",
   DISPATCHED:      "ring-2 ring-violet-400 bg-violet-100 text-violet-700",
-  ARRIVED:         "ring-2 ring-blue-400 bg-blue-100 text-blue-700",
+  HUB_RECEIVED:    "ring-2 ring-blue-400 bg-blue-100 text-blue-700",
+  OUT_FOR_DELIVERY:"ring-2 ring-indigo-400 bg-indigo-100 text-indigo-700",
+  ARRIVED:         "ring-2 ring-teal-400 bg-teal-100 text-teal-700",
   PICKED_UP:       "ring-2 ring-emerald-500 bg-emerald-100 text-emerald-800",
   CANCELLED:       "ring-2 ring-red-400 bg-red-100 text-red-700",
 };
@@ -142,7 +151,7 @@ function StepBar({ status, sellerStatus }: { status: string; sellerStatus: strin
 }
 
 // ── Filter helpers ────────────────────────────────────────────────────────────
-type StatusFilter = "ALL" | "AWAITING_SELLER" | "CONFIRMED" | "DISPATCHED" | "ARRIVED" | "PICKED_UP" | "CANCELLED";
+type StatusFilter = "ALL" | "AWAITING_SELLER" | "CONFIRMED" | "DISPATCHED" | "HUB_RECEIVED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "PICKED_UP" | "CANCELLED";
 type DateFilter   = "ALL" | "7D" | "30D" | "90D";
 type SortOption   = "NEWEST" | "OLDEST" | "AMOUNT_HIGH" | "AMOUNT_LOW";
 
@@ -154,6 +163,8 @@ const STATUS_FILTER_ITEMS: { key: StatusFilter; label: string }[] = [
   { key: "AWAITING_SELLER", label: "Awaiting Seller" },
   { key: "CONFIRMED",       label: "Confirmed" },
   { key: "DISPATCHED",      label: "Dispatched" },
+  { key: "HUB_RECEIVED",    label: "At Hub" },
+  { key: "OUT_FOR_DELIVERY", label: "Out for Delivery" },
   { key: "ARRIVED",         label: "Arrived" },
   { key: "PICKED_UP",       label: "Delivered" },
   { key: "CANCELLED",       label: "Cancelled" },
@@ -222,6 +233,9 @@ export default function BuyerOrdersClient() {
     AWAITING_SELLER: orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "AWAITING_SELLER").length,
     CONFIRMED:       orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "CONFIRMED").length,
     DISPATCHED:      orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "DISPATCHED").length,
+    HUB_RECEIVED:    orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "HUB_RECEIVED").length,
+    OUT_FOR_DELIVERY:orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "OUT_FOR_DELIVERY").length,
+    ARRIVED:         orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "ARRIVED").length,
     PICKED_UP:       orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "PICKED_UP").length,
     CANCELLED:       orders.filter((o) => resolveDisplayStatus(o.status, o.sellerStatus) === "CANCELLED").length,
   }), [orders]);
@@ -328,11 +342,14 @@ export default function BuyerOrdersClient() {
             <SlidersHorizontal size={10} /> All <span className="opacity-60">({orders.length})</span>
           </button>
           {([
-            { key: "AWAITING_SELLER", label: "Awaiting Seller", count: counts.AWAITING_SELLER },
-            { key: "CONFIRMED",       label: "Confirmed",       count: counts.CONFIRMED       },
-            { key: "DISPATCHED",      label: "Dispatched",      count: counts.DISPATCHED       },
-            { key: "PICKED_UP",       label: "Delivered",       count: counts.PICKED_UP        },
-            { key: "CANCELLED",       label: "Cancelled",       count: counts.CANCELLED        },
+            { key: "AWAITING_SELLER",  label: "Awaiting Seller",  count: counts.AWAITING_SELLER  },
+            { key: "CONFIRMED",        label: "Confirmed",         count: counts.CONFIRMED        },
+            { key: "DISPATCHED",       label: "Dispatched",        count: counts.DISPATCHED       },
+            { key: "HUB_RECEIVED",     label: "At Hub",            count: counts.HUB_RECEIVED     },
+            { key: "OUT_FOR_DELIVERY", label: "Out for Delivery",  count: counts.OUT_FOR_DELIVERY },
+            { key: "ARRIVED",          label: "Arrived",           count: counts.ARRIVED          },
+            { key: "PICKED_UP",        label: "Delivered",         count: counts.PICKED_UP        },
+            { key: "CANCELLED",        label: "Cancelled",         count: counts.CANCELLED        },
           ] as { key: StatusFilter; label: string; count: number }[]).map((c) => (
             <button
               key={c.key}
@@ -459,9 +476,20 @@ export default function BuyerOrdersClient() {
                 </div>
 
                 {/* Order ID footer */}
-                <div className="border-t border-slate-50 px-5 py-2 flex items-center gap-2">
-                  <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-300">Order ID</span>
-                  <span className="font-mono text-xs text-slate-400">{o.id}</span>
+                <div className="border-t border-slate-50 px-5 py-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-300">Order ID</span>
+                    <span className="font-mono text-xs text-slate-400">{o.id}</span>
+                  </div>
+                  {o.status === "PICKED_UP" && (
+                    <Link
+                      href={`/delivery-receipt/${o.id}`}
+                      target="_blank"
+                      className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
+                    >
+                      <Download size={11} /> Download Receipt
+                    </Link>
+                  )}
                 </div>
               </div>
             );

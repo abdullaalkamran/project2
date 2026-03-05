@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import { emitLotEvent } from "@/lib/bid-broadcaster";
 
 export async function POST(
   req: NextRequest,
@@ -10,9 +11,12 @@ export async function POST(
   const session = await getSessionUser();
   if (!session) return NextResponse.json({ message: "Unauthorised" }, { status: 401 });
 
-  const body = (await req.json()) as { amount: number };
+  const body = (await req.json()) as { amount: number; deliveryPoint?: string };
   if (!body.amount || isNaN(body.amount) || body.amount <= 0) {
     return NextResponse.json({ message: "Invalid bid amount" }, { status: 400 });
+  }
+  if (!body.deliveryPoint?.trim()) {
+    return NextResponse.json({ message: "Please select a delivery hub before placing a bid." }, { status: 400 });
   }
 
   const lot = await prisma.lot.findUnique({
@@ -35,7 +39,17 @@ export async function POST(
       bidderId: session.userId,
       bidderName: session.name ?? "Buyer",
       amount: body.amount,
+      deliveryPoint: body.deliveryPoint!.trim(),
     },
+  });
+
+  // Broadcast to all SSE subscribers watching this auction
+  emitLotEvent(lot.lotCode, {
+    type: "bid",
+    id: bid.id,
+    bidderName: bid.bidderName,
+    amount: bid.amount,
+    timestamp: bid.createdAt.toISOString(),
   });
 
   return NextResponse.json({ bidId: bid.id, amount: bid.amount, lotCode }, { status: 201 });

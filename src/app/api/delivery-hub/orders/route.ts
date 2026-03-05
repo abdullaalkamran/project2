@@ -1,0 +1,47 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getSessionUser } from "@/lib/session";
+import { getAssignedHubNames } from "@/lib/hub-assignments";
+
+const HUB_STATUSES = ["DISPATCHED", "HUB_RECEIVED", "OUT_FOR_DELIVERY"];
+const HISTORY_STATUSES = ["ARRIVED", "PICKED_UP"];
+
+export async function GET(req: NextRequest) {
+  const session = await getSessionUser();
+  if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+  const statusFilter = req.nextUrl.searchParams.get("status");
+  const statuses =
+    statusFilter === "history" ? HISTORY_STATUSES :
+    statusFilter ? [statusFilter] : HUB_STATUSES;
+
+  const hubNames = await getAssignedHubNames(session.userId, "delivery_hub_manager");
+  const hubFilter = hubNames.length > 0 ? { lot: { hubId: { in: hubNames } } } : {};
+
+  const orders = await prisma.order.findMany({
+    where: { status: { in: statuses }, ...hubFilter },
+    orderBy: { confirmedAt: "desc" },
+  });
+
+  return NextResponse.json(
+    orders.map((o) => ({
+      id: o.orderCode,
+      product: o.product,
+      qty: o.qty,
+      buyer: o.buyerName,
+      seller: o.sellerName,
+      deliveryPoint: o.deliveryPoint,
+      assignedTruck: o.assignedTruck,
+      status: o.status,
+      confirmedAt: o.confirmedAt.toISOString(),
+      hubReceivedAt: o.hubReceivedAt?.toISOString() ?? null,
+      distributorName: o.distributorName ?? null,
+      distributorPhone: o.distributorPhone ?? null,
+      distributorAssignedAt: o.distributorAssignedAt?.toISOString() ?? null,
+      pickedUpFromHubAt: o.pickedUpFromHubAt?.toISOString() ?? null,
+      arrivedAt: o.arrivedAt?.toISOString() ?? null,
+      totalAmount: o.totalAmount,
+      winningBid: o.winningBid,
+    }))
+  );
+}

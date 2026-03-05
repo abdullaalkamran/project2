@@ -15,7 +15,7 @@ const ALL_ROLES = [
   { value: "qc_leader",            label: "QC Leader" },
   { value: "qc_checker",           label: "QC Checker" },
   { value: "delivery_hub_manager", label: "Delivery Hub Mgr" },
-  { value: "delivery_distributor", label: "Distributor" },
+  { value: "delivery_distributor", label: "Delivery Man" },
 ];
 
 const ROLE_LABELS: Record<string, string> = Object.fromEntries(

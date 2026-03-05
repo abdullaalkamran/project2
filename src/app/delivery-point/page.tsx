@@ -9,21 +9,21 @@ const stats = [
   { label: "Incoming Today", value: "4", sub: "En route to this point", href: "/delivery-point/incoming", color: "text-blue-700", bg: "bg-blue-50" },
   { label: "At Point", value: "7", sub: "Ready for pickup", href: "/delivery-point/arrivals", color: "text-emerald-700", bg: "bg-emerald-50" },
   { label: "Pending Pickup", value: "3", sub: "Buyer not yet collected", href: "/delivery-point/pickup", color: "text-orange-600", bg: "bg-orange-50" },
-  { label: "Courier Dispatch", value: "2", sub: "Awaiting courier", href: "/delivery-point/courier", color: "text-purple-700", bg: "bg-purple-50" },
+  { label: "Pickup Completed", value: "2", sub: "Collected from delivery point", href: "/delivery-point/pickup", color: "text-purple-700", bg: "bg-purple-50" },
 ];
 
 const orders = [
   { orderId: "ORD-2026-009", buyer: "Karim Traders", lot: "Wheat Flour — 3,000 kg", status: "En Route", eta: "Feb 20, 4:00 PM" },
   { orderId: "ORD-2026-008", buyer: "Mizan Foods", lot: "Soybean Oil — 1,000 L", status: "At Point", eta: "Arrived" },
   { orderId: "ORD-2026-007", buyer: "Ahmed Wholesale", lot: "Cotton Saree — 100 pcs", status: "Pending Pickup", eta: "Arrived Feb 19" },
-  { orderId: "ORD-2026-005", buyer: "Alam Traders", lot: "Refined Oil — 500 L", status: "Dispatched to Courier", eta: "BD123456" },
+  { orderId: "ORD-2026-005", buyer: "Alam Traders", lot: "Refined Oil — 500 L", status: "Picked Up", eta: "Collected Feb 19" },
 ];
 
 const statusColors: Record<string, string> = {
   "En Route": "bg-blue-50 text-blue-700",
   "At Point": "bg-emerald-50 text-emerald-700",
   "Pending Pickup": "bg-orange-50 text-orange-600",
-  "Dispatched to Courier": "bg-purple-50 text-purple-700",
+  "Picked Up": "bg-purple-50 text-purple-700",
 };
 
 export default function DeliveryPointOverviewPage() {

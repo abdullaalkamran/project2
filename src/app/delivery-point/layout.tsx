@@ -19,7 +19,6 @@ const nav = [
     group: "Handover",
     items: [
       { label: "Buyer Pickup", href: "/delivery-point/pickup" },
-      { label: "Dispatch to Courier", href: "/delivery-point/courier" },
     ],
   },
   {

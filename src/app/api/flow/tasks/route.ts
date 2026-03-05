@@ -5,10 +5,11 @@ import { readLotMedia } from "@/lib/lot-media-store";
 export async function GET(req: NextRequest) {
   const checker = req.nextUrl.searchParams.get("checker");
 
-  // SQLite is case-sensitive; fetch all and filter in JS
   const [lots, lotMedia] = await Promise.all([
     prisma.lot.findMany({
-      where: { qcCheckerName: { not: null } },
+      where: checker
+        ? { qcCheckerName: { equals: checker, mode: "insensitive" } }
+        : { qcCheckerName: { not: null } },
       orderBy: { createdAt: "desc" },
     }),
     readLotMedia(),
@@ -16,9 +17,7 @@ export async function GET(req: NextRequest) {
 
   const photoMap = new Map(lotMedia.map((m) => [m.lotId, m]));
 
-  const filtered = checker
-    ? lots.filter((l) => l.qcCheckerName?.toLowerCase() === checker.toLowerCase())
-    : lots;
+  const filtered = lots;
 
   return NextResponse.json(
     filtered.map((l) => {

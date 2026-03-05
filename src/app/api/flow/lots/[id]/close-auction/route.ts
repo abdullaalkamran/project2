@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { notify, notifyMany, getLotParties } from "@/lib/notifications";
+import { emitLotEvent } from "@/lib/bid-broadcaster";
 
 /**
  * POST /api/flow/lots/[id]/close-auction
@@ -29,6 +30,12 @@ export async function POST(
       return NextResponse.json({ message: "Lot is not LIVE" }, { status: 400 });
     }
 
+    // Idempotency guard: if pick-winner already created an order, skip
+    const existingOrder = await prisma.order.findFirst({ where: { lotId: lot.id } });
+    if (existingOrder) {
+      return NextResponse.json({ result: "already_closed" });
+    }
+
     const topBid = lot.bids[0] ?? null;
     const parties = await getLotParties(lot.id);
 
@@ -49,7 +56,7 @@ export async function POST(
           sellerName: lot.sellerName,
           product: lot.title,
           qty: `${lot.quantity} ${lot.unit}`,
-          deliveryPoint: "To be confirmed",
+          deliveryPoint: topBid.deliveryPoint || "To be confirmed",
           winningBid: topBid.amount,
           totalAmount: topBid.amount * lot.quantity,
           status: "CONFIRMED",
@@ -71,6 +78,14 @@ export async function POST(
           link: "/seller-dashboard/orders",
         });
       }
+
+      // Broadcast auction-closed event to all SSE subscribers
+      emitLotEvent(lot.lotCode, {
+        type: "closed",
+        result: "sold",
+        winningBid: topBid.amount,
+        winner: winnerUser?.name ?? topBid.bidderName,
+      });
 
       return NextResponse.json({ result: "sold", winningBid: topBid.amount, buyer: winnerUser?.name ?? topBid.bidderName });
     } else {
@@ -97,6 +112,9 @@ export async function POST(
         message: `Lot "${lot.title}" (${lot.lotCode}) auction ended with no bids. Waiting for seller to reschedule or convert to fixed price.`,
         link: "/hub-manager/lots",
       });
+
+      // Broadcast auction-closed event to all SSE subscribers
+      emitLotEvent(lot.lotCode, { type: "closed", result: "unsold" });
 
       return NextResponse.json({ result: "unsold" });
     }

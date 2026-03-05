@@ -4,10 +4,12 @@ import { getSessionUser } from "@/lib/session";
 
 function mapStatus(status: string): string {
   switch (status) {
-    case "CONFIRMED": return "Confirmed";
-    case "DISPATCHED": return "Dispatched";
-    case "ARRIVED": return "Arrived";
-    case "PICKED_UP": return "Delivered";
+    case "CONFIRMED":        return "Confirmed";
+    case "DISPATCHED":       return "Dispatched";
+    case "HUB_RECEIVED":     return "At Hub";
+    case "OUT_FOR_DELIVERY": return "Out for Delivery";
+    case "ARRIVED":          return "Arrived";
+    case "PICKED_UP":        return "Delivered";
     default: return status;
   }
 }

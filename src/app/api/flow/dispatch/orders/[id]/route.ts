@@ -17,9 +17,9 @@ export async function PATCH(
     const order = await prisma.order.findUnique({ where: { orderCode: id } });
     if (!order) return NextResponse.json({ message: "Order not found" }, { status: 404 });
 
-    if (order.sellerStatus !== "ACCEPTED") {
+    if (!["ACCEPTED", "CONFIRMED"].includes(order.sellerStatus)) {
       return NextResponse.json(
-        { message: "Seller has not accepted this order yet. Truck assignment and dispatch are blocked." },
+        { message: "Order is not ready for dispatch yet. Seller acceptance is pending." },
         { status: 400 }
       );
     }

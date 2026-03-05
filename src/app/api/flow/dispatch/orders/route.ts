@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  // Only show seller-accepted orders in dispatch — pending/declined orders cannot be dispatched
+  // Show orders ready for dispatch: seller-accepted (ACCEPTED) or auto-confirmed (CONFIRMED)
   const orders = await prisma.order.findMany({
-    where: { sellerStatus: "ACCEPTED", status: { not: "CANCELLED" } },
+    where: {
+      sellerStatus: { in: ["ACCEPTED", "CONFIRMED"] },
+      status: { not: "CANCELLED" },
+    },
     orderBy: { confirmedAt: "desc" },
   });
 

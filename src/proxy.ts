@@ -13,8 +13,9 @@ const PROTECTED: { prefix: string; roles?: string[] }[] = [
   { prefix: "/delivery-hub",         roles: ["delivery_hub_manager"] },
   { prefix: "/delivery-distributor", roles: ["delivery_distributor"] },
   { prefix: "/running-bids",         roles: ["buyer"] },
-  { prefix: "/marketplace" },   // any logged-in user
-  { prefix: "/live" },          // any logged-in user
+  { prefix: "/marketplace" },      // any logged-in user
+  { prefix: "/live" },             // any logged-in user
+  { prefix: "/delivery-receipt" }, // any logged-in user
 ];
 
 // Paths that redirect to dashboard if already logged in
@@ -79,6 +80,7 @@ export const config = {
     "/running-bids/:path*",
     "/marketplace/:path*",
     "/live/:path*",
+    "/delivery-receipt/:path*",
     "/auth/:path*",
   ],
 };

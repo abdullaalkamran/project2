@@ -51,6 +51,51 @@ async function main() {
   await seedUser("qcchecker@paikari.com", "Mamun Hossain", "qccheck1", ["qc_checker"]);
   console.log("✅ qcchecker@paikari.com / qccheck1  (qc_checker)");
 
+  const deliveryHubUser = await seedUser("deliveryhub@paikari.com", "Gazipur Delivery Hub", "hub12345", ["delivery_hub_manager"]);
+  console.log("✅ deliveryhub@paikari.com / hub12345  (delivery_hub_manager)");
+
+  await seedUser("distributor@paikari.com", "Karim Distributor", "dist1234", ["delivery_distributor"]);
+  console.log("✅ distributor@paikari.com / dist1234  (delivery_distributor)");
+
+  // ── Hubs ───────────────────────────────────────────────────────────────────
+  console.log("\n🏭 Seeding hubs...");
+  const hubDefs = [
+    { name: "Mirpur Hub - Dhaka", location: "Mirpur, Dhaka", type: "BOTH" },
+    { name: "Rajshahi Hub", location: "Rajshahi City", type: "BOTH" },
+    { name: "Sylhet Hub", location: "Zindabazar, Sylhet", type: "RECEIVING" },
+  ];
+  const createdHubs: Record<string, string> = {};
+  for (const h of hubDefs) {
+    const hub = await prisma.hub.upsert({
+      where: { name: h.name },
+      update: { location: h.location, type: h.type },
+      create: { name: h.name, location: h.location, type: h.type },
+    });
+    createdHubs[h.name] = hub.id;
+    console.log(`✅ Hub: ${h.name}`);
+  }
+
+  // Assign hub@paikari.com → Mirpur Hub - Dhaka (hub_manager)
+  const hubUser = await prisma.user.findUnique({ where: { email: "hub@paikari.com" } });
+  if (hubUser && createdHubs["Mirpur Hub - Dhaka"]) {
+    await prisma.hubManagerAssignment.upsert({
+      where: { hubId_userId_role: { hubId: createdHubs["Mirpur Hub - Dhaka"], userId: hubUser.id, role: "hub_manager" } },
+      update: {},
+      create: { hubId: createdHubs["Mirpur Hub - Dhaka"], userId: hubUser.id, role: "hub_manager" },
+    });
+    console.log("✅ hub@paikari.com → Mirpur Hub - Dhaka (hub_manager)");
+  }
+
+  // Assign deliveryhub@paikari.com → Mirpur Hub - Dhaka (delivery_hub_manager)
+  if (deliveryHubUser && createdHubs["Mirpur Hub - Dhaka"]) {
+    await prisma.hubManagerAssignment.upsert({
+      where: { hubId_userId_role: { hubId: createdHubs["Mirpur Hub - Dhaka"], userId: deliveryHubUser.id, role: "delivery_hub_manager" } },
+      update: {},
+      create: { hubId: createdHubs["Mirpur Hub - Dhaka"], userId: deliveryHubUser.id, role: "delivery_hub_manager" },
+    });
+    console.log("✅ deliveryhub@paikari.com → Mirpur Hub - Dhaka (delivery_hub_manager)");
+  }
+
   // ── Trucks & Drivers ───────────────────────────────────────────────────────
   console.log("\n🚛 Seeding trucks and drivers...");
 

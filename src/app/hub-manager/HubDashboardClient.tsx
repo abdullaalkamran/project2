@@ -14,15 +14,21 @@ type StatItem = {
   border: string;
 };
 
+type Hub = { id: string; name: string; location: string; type: string };
+
 export default function HubManagerOverviewPage() {
   const [stats, setStats] = useState<StatItem[]>([]);
+  const [myHubs, setMyHubs] = useState<Hub[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api
-      .get<{ stats: StatItem[] }>("/api/hub-manager/overview")
-      .then((data) => {
+    Promise.all([
+      api.get<{ stats: StatItem[] }>("/api/hub-manager/overview"),
+      api.get<{ hubs: Hub[] }>("/api/hub-manager/my-hubs"),
+    ])
+      .then(([data, hubData]) => {
         setStats(data.stats);
+        setMyHubs(hubData.hubs ?? []);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -50,6 +56,18 @@ export default function HubManagerOverviewPage() {
         <h1 className="text-2xl font-bold text-slate-900">Hub Overview</h1>
         <p className="text-slate-500">Full pipeline from seller submission to dispatch.</p>
       </div>
+
+      {/* Your Hubs banner */}
+      {myHubs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-5 py-3">
+          <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">Your Hubs</span>
+          {myHubs.map((h) => (
+            <span key={h.id} className="rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700">
+              {h.name} <span className="text-indigo-400">· {h.location}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* stats */}
       <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">

@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
-import { notifyMany, getLotParties } from "@/lib/notifications";
+import { notifyMany, notify, getLotParties } from "@/lib/notifications";
 
 /**
  * POST /api/seller-dashboard/lots/[id]/reschedule
  * Body: { auctionEndsAt: string }  — ISO datetime for new auction end
  *
- * Seller reschedules an unsold auction lot. Status goes back to LIVE.
+ * Seller reschedules an unsold auction lot.
+ * Status goes back to QC_PASSED so hub manager + QC leader can re-approve
+ * before the lot goes LIVE again (same approval cycle as the first time).
  */
 export async function POST(
   req: NextRequest,
@@ -42,19 +44,33 @@ export async function POST(
 
     await prisma.lot.update({
       where: { id: lot.id },
-      data: { status: "LIVE", auctionEndsAt: newEndDate },
+      data: {
+        status: "QC_PASSED",          // back to approval queue — not directly LIVE
+        auctionEndsAt: newEndDate,
+        auctionStartsAt: null,         // will be set when leader approves
+        leaderDecision: "Pending",     // reset approval decision
+      },
     });
 
-    // Notify hub managers of the reschedule
+    // Notify hub managers AND QC leaders so they can re-approve → LIVE
     const parties = await getLotParties(lot.id);
     await notifyMany(parties.hubManagerIds, {
       type: "LOT_RECEIVED",
-      title: "Auction Rescheduled",
-      message: `Seller rescheduled lot "${lot.title}" (${lot.lotCode}) auction to end on ${newEndDate.toLocaleString("en-BD")}.`,
+      title: "Auction Rescheduled — Approval Required",
+      message: `Seller rescheduled lot "${lot.title}" (${lot.lotCode}) with new auction end time ${newEndDate.toLocaleString("en-BD")}. Please review and forward for QC leader approval.`,
       link: "/hub-manager/lots",
     });
 
-    return NextResponse.json({ status: "LIVE", auctionEndsAt: newEndDate.toISOString() });
+    if (parties.qcLeaderId) {
+      await notify(parties.qcLeaderId, {
+        type: "QC_SUBMITTED",
+        title: "Lot Rescheduled — Re-Approval Required",
+        message: `Lot "${lot.title}" (${lot.lotCode}) was rescheduled for a new auction (ends ${newEndDate.toLocaleString("en-BD")}). Please approve to make it LIVE again.`,
+        link: "/qc-leader/approvals",
+      });
+    }
+
+    return NextResponse.json({ status: "QC_PASSED", auctionEndsAt: newEndDate.toISOString() });
   } catch (err) {
     console.error("[reschedule]", err);
     return NextResponse.json({ message: String(err) }, { status: 500 });

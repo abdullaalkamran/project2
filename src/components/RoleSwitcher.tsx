@@ -12,7 +12,7 @@ const ROLE_LABELS: Record<Role, string> = {
   qc_leader:            "QC Team Leader",
   qc_checker:           "QC Checker",
   delivery_hub_manager: "Delivery Hub Manager",
-  delivery_distributor: "Delivery Distributor",
+  delivery_distributor: "Delivery Man",
 };
 
 const ROLE_DASHBOARDS: Record<Role, string> = {

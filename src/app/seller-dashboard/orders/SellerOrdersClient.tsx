@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import api from "@/lib/api";
-import { Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, Download } from "lucide-react";
 
 type OrderItem = {
   id: string;
@@ -26,6 +27,7 @@ type OrderItem = {
   assignedTruck: string | null;
   loadConfirmed: boolean;
   dispatched: boolean;
+  delivered: boolean;
 };
 
 type LotGroup = {
@@ -40,21 +42,28 @@ type LotGroup = {
 const SELLER_STATUS_CHIP: Record<string, string> = {
   PENDING_SELLER: "bg-amber-100 text-amber-700",
   ACCEPTED:       "bg-emerald-100 text-emerald-700",
+  CONFIRMED:      "bg-emerald-100 text-emerald-700",
   DECLINED:       "bg-red-100 text-red-600",
 };
 const SELLER_STATUS_LABEL: Record<string, string> = {
   PENDING_SELLER: "Pending",
   ACCEPTED:       "Accepted",
+  CONFIRMED:      "Auto-confirmed",
   DECLINED:       "Declined",
 };
 
 const ORDER_STATUS_CHIP: Record<string, string> = {
-  Confirmed: "bg-orange-50 text-orange-600",
-  Dispatched: "bg-violet-50 text-violet-700",
-  Arrived: "bg-blue-50 text-blue-700",
-  Delivered: "bg-slate-100 text-slate-600",
-  CANCELLED: "bg-red-50 text-red-600",
+  Confirmed:          "bg-orange-50 text-orange-600",
+  Dispatched:         "bg-violet-50 text-violet-700",
+  "At Hub":           "bg-blue-50 text-blue-700",
+  "Out for Delivery": "bg-indigo-50 text-indigo-700",
+  Arrived:            "bg-teal-50 text-teal-700",
+  Delivered:          "bg-emerald-50 text-emerald-700",
+  CANCELLED:          "bg-red-50 text-red-600",
 };
+
+// Ordered for step-index comparisons
+const STATUS_ORDER = ["Confirmed", "Dispatched", "At Hub", "Out for Delivery", "Arrived", "Delivered"];
 
 type Tab = "pending" | "active" | "all";
 
@@ -105,7 +114,10 @@ export default function SellerOrdersClient() {
   };
 
   const pendingOrders = orders.filter((o) => o.sellerStatus === "PENDING_SELLER");
-  const activeOrders  = orders.filter((o) => o.sellerStatus === "ACCEPTED" && o.status !== "Delivered" && o.status !== "CANCELLED");
+  const activeOrders  = orders.filter((o) =>
+    (o.sellerStatus === "ACCEPTED" || o.sellerStatus === "CONFIRMED") &&
+    o.status !== "Delivered" && o.status !== "CANCELLED"
+  );
 
   const lotGroups: LotGroup[] = [];
   for (const o of pendingOrders) {
@@ -183,7 +195,7 @@ export default function SellerOrdersClient() {
         ))}
       </div>
 
-      {/* Error toast */}
+      {/* Error */}
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
@@ -245,7 +257,6 @@ export default function SellerOrdersClient() {
 
                 return (
                   <div key={group.lotId} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                    {/* Lot header — clickable to collapse */}
                     <button
                       type="button"
                       onClick={() => toggleLot(group.lotId)}
@@ -257,15 +268,9 @@ export default function SellerOrdersClient() {
                           <p className="mt-0.5 font-mono text-xs text-slate-400">{group.lotId}</p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-600">
-                            Total: {group.lotQuantity} {group.lotUnit}
-                          </span>
-                          <span className="rounded-full bg-emerald-100 px-3 py-1 font-medium text-emerald-700">
-                            Accepted: {effectiveAccepted} {group.lotUnit}
-                          </span>
-                          <span className="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-700">
-                            Available: {remaining} {group.lotUnit}
-                          </span>
+                          <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-600">Total: {group.lotQuantity} {group.lotUnit}</span>
+                          <span className="rounded-full bg-emerald-100 px-3 py-1 font-medium text-emerald-700">Accepted: {effectiveAccepted} {group.lotUnit}</span>
+                          <span className="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-700">Available: {remaining} {group.lotUnit}</span>
                           <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-500">
                             {group.orders.length} request{group.orders.length !== 1 ? "s" : ""}
                           </span>
@@ -282,14 +287,12 @@ export default function SellerOrdersClient() {
                       </div>
                     </button>
 
-                    {/* Buyer requests */}
                     {!isCollapsed && (
                       <div className="divide-y divide-slate-50">
                         {group.orders.map((o, idx) => {
                           const wouldExceed = effectiveAccepted + o.qtyNum > group.lotQuantity;
                           const currentOrder = orders.find((x) => x.id === o.id) ?? o;
                           const isDecided = currentOrder.sellerStatus !== "PENDING_SELLER";
-
                           return (
                             <div
                               key={o.id}
@@ -306,13 +309,12 @@ export default function SellerOrdersClient() {
                                   <p className="mt-0.5 font-mono text-[11px] text-slate-400">{o.id}</p>
                                 </div>
                               </div>
-
                               <div className="flex flex-wrap items-center gap-2 text-xs sm:ml-4">
                                 {[
-                                  { label: "Qty",   value: o.qty },
-                                  { label: "Rate",  value: o.winningBid,  em: true },
+                                  { label: "Qty", value: o.qty },
+                                  { label: "Rate", value: o.winningBid, em: true },
                                   { label: "Total", value: o.totalAmount },
-                                  { label: "Hub",   value: o.hub },
+                                  { label: "Hub", value: o.hub },
                                 ].map((d) => (
                                   <div key={d.label} className="rounded-lg bg-slate-50 px-3 py-2 text-center">
                                     <p className="text-slate-400">{d.label}</p>
@@ -320,7 +322,6 @@ export default function SellerOrdersClient() {
                                   </div>
                                 ))}
                               </div>
-
                               <div className="shrink-0">
                                 {currentOrder.sellerStatus === "ACCEPTED" ? (
                                   <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700">✓ Accepted</span>
@@ -379,7 +380,6 @@ export default function SellerOrdersClient() {
       {/* ── ALL ORDERS TAB ── */}
       {tab === "all" && (
         <div className="space-y-4">
-          {/* Search + filter bar */}
           <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm space-y-3">
             <div className="flex flex-wrap gap-3">
               <div className="relative flex-1 min-w-[200px]">
@@ -402,7 +402,6 @@ export default function SellerOrdersClient() {
                 <option value="amount_asc">Amount ↑</option>
               </select>
             </div>
-            {/* Status chips */}
             <div className="flex flex-wrap gap-1.5">
               {allStatuses.map((s) => (
                 <button
@@ -427,7 +426,14 @@ export default function SellerOrdersClient() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredAll.map((o) => <OrderCard key={o.id} order={o} showSellerStatus />)}
+              {filteredAll.map((o) => (
+                <OrderCard
+                  key={o.id}
+                  order={o}
+                  showSellerStatus
+                  showProgress={o.sellerStatus !== "DECLINED" && o.status !== "CANCELLED"}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -436,68 +442,85 @@ export default function SellerOrdersClient() {
   );
 }
 
-// ── Dispatch progress bar ─────────────────────────────────────────────────────
-function DispatchProgress({ order: o }: { order: OrderItem }) {
+// ── Delivery step progress bar ────────────────────────────────────────────────
+function DeliveryProgress({ order: o }: { order: OrderItem }) {
+  const accepted = o.sellerStatus === "ACCEPTED" || o.sellerStatus === "CONFIRMED";
+  const statusIdx = STATUS_ORDER.indexOf(o.status);
+
   const steps = [
-    { label: "Accepted",      done: true },
-    { label: "Truck Assigned", done: !!o.assignedTruck },
-    { label: "Load Confirmed", done: o.loadConfirmed },
-    { label: "Dispatched",    done: o.dispatched || o.status === "Dispatched" },
-    { label: "Arrived",       done: o.status === "Arrived" || o.status === "Delivered" },
-    { label: "Delivered",     done: o.status === "Delivered" },
+    { label: "Confirmed",   done: true },
+    { label: "Accepted",    done: accepted },
+    { label: "Dispatched",  done: accepted && statusIdx >= STATUS_ORDER.indexOf("Dispatched") },
+    { label: "At Hub",      done: accepted && statusIdx >= STATUS_ORDER.indexOf("At Hub") },
+    { label: "In Transit",  done: accepted && statusIdx >= STATUS_ORDER.indexOf("Out for Delivery") },
+    { label: "Arrived",     done: accepted && statusIdx >= STATUS_ORDER.indexOf("Arrived") },
+    { label: "Delivered",   done: o.delivered || o.status === "Delivered" },
   ];
+
+  const activeIdx = steps.findIndex((s) => !s.done);
   const completedCount = steps.filter((s) => s.done).length;
-  const pct = Math.round((completedCount / steps.length) * 100);
+  // Progress line width: reaches the active dot, or 100% if all done
+  const pct = completedCount === steps.length
+    ? 100
+    : activeIdx <= 0
+      ? 0
+      : Math.round((activeIdx / (steps.length - 1)) * 100);
 
   return (
     <div className="space-y-2 pt-1">
-      {/* Step dots row */}
       <div className="relative flex items-center justify-between">
-        {/* connecting line behind dots */}
         <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-slate-200" />
         <div
-          className="absolute left-0 top-1/2 h-0.5 -translate-y-1/2 bg-emerald-500 transition-all"
+          className="absolute left-0 top-1/2 h-0.5 -translate-y-1/2 bg-emerald-500 transition-all duration-500"
           style={{ width: `${pct}%` }}
         />
-        {steps.map((step, i) => (
-          <div key={i} className="relative flex flex-col items-center gap-1" style={{ flex: "1 1 0", minWidth: 0 }}>
-            <div
-              className={`z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 transition
-                ${step.done
-                  ? "border-emerald-500 bg-emerald-500 text-white"
-                  : "border-slate-300 bg-white"}`}
-            >
-              {step.done && (
-                <svg viewBox="0 0 10 8" fill="none" className="h-2.5 w-2.5">
-                  <path d="M1 4l2.5 2.5L9 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
+        {steps.map((step, i) => {
+          const isActive = i === activeIdx;
+          return (
+            <div key={i} className="relative flex flex-col items-center" style={{ flex: "1 1 0", minWidth: 0 }}>
+              <div
+                className={`z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 transition
+                  ${step.done
+                    ? "border-emerald-500 bg-emerald-500 text-white"
+                    : isActive
+                      ? "border-emerald-400 bg-white ring-2 ring-emerald-100"
+                      : "border-slate-300 bg-white"}`}
+              >
+                {step.done ? (
+                  <svg viewBox="0 0 10 8" fill="none" className="h-2.5 w-2.5">
+                    <path d="M1 4l2.5 2.5L9 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : isActive ? (
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                ) : null}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      {/* Labels */}
       <div className="flex items-start justify-between">
-        {steps.map((step, i) => (
-          <p
-            key={i}
-            className={`text-center text-[9px] font-medium leading-tight transition
-              ${step.done ? "text-emerald-700" : "text-slate-400"}`}
-            style={{ flex: "1 1 0", minWidth: 0 }}
-          >
-            {step.label}
-          </p>
-        ))}
+        {steps.map((step, i) => {
+          const isActive = i === activeIdx;
+          return (
+            <p
+              key={i}
+              className={`text-center text-[9px] font-medium leading-tight transition
+                ${step.done ? "text-emerald-700" : isActive ? "text-emerald-500 font-semibold" : "text-slate-400"}`}
+              style={{ flex: "1 1 0", minWidth: 0 }}
+            >
+              {step.label}
+            </p>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ── Order card (used in Active + All tabs) ───────────────────────────────────
+// ── Order card ────────────────────────────────────────────────────────────────
 function OrderCard({ order: o, showSellerStatus, showProgress }: { order: OrderItem; showSellerStatus?: boolean; showProgress?: boolean }) {
   return (
     <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm hover:shadow-md transition space-y-3">
-      {/* Top row */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-semibold text-slate-900">{o.product}</p>
@@ -516,7 +539,6 @@ function OrderCard({ order: o, showSellerStatus, showProgress }: { order: OrderI
         </div>
       </div>
 
-      {/* Details grid */}
       <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
         <div className="rounded-lg bg-slate-50 px-3 py-2">
           <p className="text-slate-400">Buyer</p>
@@ -539,10 +561,21 @@ function OrderCard({ order: o, showSellerStatus, showProgress }: { order: OrderI
         </div>
       </div>
 
-      {/* Dispatch progress */}
       {showProgress && (
         <div className="border-t border-slate-100 pt-3">
-          <DispatchProgress order={o} />
+          <DeliveryProgress order={o} />
+        </div>
+      )}
+
+      {o.status === "Delivered" && (
+        <div className="border-t border-slate-100 px-1 pt-3 flex justify-end">
+          <Link
+            href={`/delivery-receipt/${o.id}`}
+            target="_blank"
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
+          >
+            <Download size={11} /> Download Delivery Receipt
+          </Link>
         </div>
       )}
     </div>

@@ -229,7 +229,7 @@ export default function LotsClient() {
     setActionError(null);
     try {
       await api.post(`/api/seller-dashboard/lots/${actionLot.id}/reschedule`, { auctionEndsAt: newAuctionEnd });
-      setActive((prev) => prev.map((l) => l.id === actionLot.id ? { ...l, status: "Approved in Marketplace" } : l));
+      setActive((prev) => prev.map((l) => l.id === actionLot.id ? { ...l, status: "QC Passed" } : l));
       setActionLot(null);
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : "Failed to reschedule");
@@ -290,7 +290,7 @@ export default function LotsClient() {
             <div className="px-6 py-5 space-y-4">
               {actionTab === "reschedule" ? (
                 <>
-                  <p className="text-sm text-slate-600">Set a new end time for the live auction. The lot will go back to <strong>Live</strong> status.</p>
+                  <p className="text-sm text-slate-600">Set a new end time for the live auction. The lot will be sent for <strong>hub manager and QC leader re-approval</strong> before going live again.</p>
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 mb-1">New Auction End Date & Time</label>
                     <input

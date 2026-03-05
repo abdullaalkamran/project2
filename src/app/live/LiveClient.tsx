@@ -4,37 +4,165 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
-const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1518977676601-b53f82aba655";
+const FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1518977676601-b53f82aba655";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Bid = {
+  id?: string;
+  bidderId?: string | null;
   name: string;
   price: number;
   time: string;
   leading: boolean;
 };
 
-const MAX_BIDS = 10;
+type DeliveryHub = { id: string; name: string; location: string };
+
+interface LotState {
+  lotCode: string;
+  title: string;
+  category: string;
+  status: string;
+  saleType: string;
+  auctionStartsAt: string | null;
+  auctionEndsAt: string | null;
+  minBidRate: number | null;
+  basePrice: number;
+  quantity: number;
+  unit: string;
+  grade: string;
+  hubId: string;
+  sellerName: string;
+  sellerId: string | null;
+  qcVerdict: string | null;
+}
+
+const MAX_BIDS = 20;
 
 export function LiveClient() {
   const searchParams = useSearchParams();
+  const lotCode = (searchParams.get("lot") || "").toUpperCase();
 
-  // Build gallery from the product image passed via URL param
+  // ── API-driven state ─────────────────────────────────────────────────────
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lotData, setLotData] = useState<LotState | null>(null);
+  const [apiImage, setApiImage] = useState<string | null>(null);
+  const [auctionClosed, setAuctionClosed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [deliveryHubs, setDeliveryHubs] = useState<DeliveryHub[]>([]);
+  const [selectedDeliveryHub, setSelectedDeliveryHub] = useState("");
+  const auctionDurationRef = useRef<number>(180);
+  const closeCalledRef = useRef(false);
+
+  // Declare early so load effect and SSE effect can use the setters
+  const [bids, setBids] = useState<Bid[]>([]);
+  const [countdown, setCountdown] = useState(0);
+
+  // Load delivery hubs once
+  useEffect(() => {
+    fetch("/api/hubs/delivery")
+      .then((r) => r.json())
+      .then((data: DeliveryHub[]) => setDeliveryHubs(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  // Load initial lot state from API
+  useEffect(() => {
+    if (!lotCode) { setError("No lot code provided."); setLoading(false); return; }
+    fetch(`/api/live/${lotCode}/state`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.message && !data.lot) { setError(data.message); setLoading(false); return; }
+        setLotData(data.lot);
+        setApiImage(data.image || null);
+        if (Array.isArray(data.bids)) {
+          setBids(
+            (data.bids as { id: string; bidderId?: string | null; bidderName: string; amount: number; createdAt: string }[])
+              .map((b, i) => ({
+                id: b.id,
+                bidderId: b.bidderId ?? null,
+                name: b.bidderName,
+                price: b.amount,
+                time: new Date(b.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                leading: i === 0,
+              }))
+          );
+        }
+        if (data.lot.auctionEndsAt) {
+          const remaining = Math.max(0, Math.floor((new Date(data.lot.auctionEndsAt).getTime() - Date.now()) / 1000));
+          const total = data.lot.auctionStartsAt
+            ? Math.max(1, Math.floor((new Date(data.lot.auctionEndsAt).getTime() - new Date(data.lot.auctionStartsAt).getTime()) / 1000))
+            : 180;
+          auctionDurationRef.current = total;
+          setCountdown(remaining);
+        }
+        if (data.lot.status === "AUCTION_ENDED" || data.lot.status === "AUCTION_UNSOLD") {
+          setAuctionClosed(true);
+          setCountdown(0);
+        }
+        setLoading(false);
+      })
+      .catch(() => { setError("Failed to load auction data. Please refresh."); setLoading(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lotCode]);
+
+  // SSE subscription for real-time updates
+  useEffect(() => {
+    if (!lotData?.lotCode || auctionClosed) return;
+    const es = new EventSource(`/api/live/${lotData.lotCode}/stream`);
+    es.onmessage = (e) => {
+      try {
+        const evt = JSON.parse(e.data) as { type: string; id?: string; bidderName?: string; amount?: number; timestamp?: string; result?: string; winner?: string; winningBid?: number };
+        if (evt.type === "bid") {
+          setBids((prev) => [
+            {
+              id: evt.id,
+              name: evt.bidderName ?? "Unknown",
+              price: evt.amount ?? 0,
+              time: evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "now",
+              leading: true,
+            },
+            ...prev.map((b) => ({ ...b, leading: false })),
+          ].slice(0, MAX_BIDS));
+        } else if (evt.type === "closed") {
+          setAuctionClosed(true);
+          setCountdown(0);
+          if (evt.result === "sold" && evt.winner) {
+            toast.success(`Auction closed! Winner: ${evt.winner} at ৳${Number(evt.winningBid).toFixed(2)}/kg`);
+          } else {
+            toast(`Auction ended with no winner.`);
+          }
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    return () => es.close();
+  }, [lotData?.lotCode, auctionClosed]);
+
+  // Build gallery from API image or URL param fallback
   const productGallery = useMemo(() => {
-    const raw = searchParams.get("image") || FALLBACK_IMAGE;
+    const raw = apiImage || searchParams.get("image") || FALLBACK_IMAGE;
     const base = raw.split("?")[0];
+    const isLocal = base.startsWith("/");
+    const q = isLocal ? "" : "?auto=format&fit=crop&w=800&q=80";
+    const qTop = isLocal ? "" : "?auto=format&fit=crop&w=800&q=80&crop=top";
+    const qBot = isLocal ? "" : "?auto=format&fit=crop&w=800&q=80&crop=bottom";
     return [
-      { type: "image" as const, src: `${base}?auto=format&fit=crop&w=800&q=80`, alt: "Product view 1" },
-      { type: "image" as const, src: `${base}?auto=format&fit=crop&w=800&q=80&crop=top`, alt: "Product view 2" },
-      { type: "image" as const, src: `${base}?auto=format&fit=crop&w=800&q=80&crop=bottom`, alt: "Product view 3" },
+      { type: "image" as const, src: `${base}${q}`, alt: "Product view 1" },
+      { type: "image" as const, src: `${base}${qTop}`, alt: "Product view 2" },
+      { type: "image" as const, src: `${base}${qBot}`, alt: "Product view 3" },
       { type: "video" as const, src: "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4", alt: "Product video" },
     ];
-  }, [searchParams]);
+  }, [apiImage, searchParams]);
 
   const [selectedMedia, setSelectedMedia] = useState(() => productGallery[0]);
 
-  // Reset to first image whenever the gallery changes (new product navigated to)
+  // Reset to first image whenever the gallery changes
   useEffect(() => {
     setSelectedMedia(productGallery[0]);
   }, [productGallery]);
@@ -42,24 +170,23 @@ export function LiveClient() {
   const [watching, setWatching] = useState(false);
   const [autoBid, setAutoBid] = useState(false);
   const [snipe, setSnipe] = useState(false);
-  const [countdown, setCountdown] = useState(180); // seconds
   const [shrinkCard, setShrinkCard] = useState(false);
 
   const { user } = useAuth();
 
-  const [lotMeta] = useState(() => {
-    const title = searchParams.get("product") || "Potatoes | আলু";
-    const hub = searchParams.get("hub") || "Dhaka North";
-    const qty = Number(searchParams.get("qty")) || 1500;
-    const lot = searchParams.get("lot") || "A2026-001";
-    const grade = searchParams.get("grade") || "A";
-    const seller = searchParams.get("seller") || "Rahim Traders";
-    const rating = searchParams.get("rating") || "4.8";
-    const sellerId = searchParams.get("sellerId") || "";
-    return { title, hub, qty, lot, grade, seller, rating, sellerId };
-  });
+  // Derive lotMeta from API data with URL param fallbacks
+  const lotMeta = useMemo(() => ({
+    title: lotData?.title ?? searchParams.get("product") ?? "Potatoes | আলু",
+    hub: searchParams.get("hub") ?? "Dhaka North",
+    qty: (lotData?.quantity ?? Number(searchParams.get("qty"))) || 1500,
+    lot: lotData?.lotCode ?? searchParams.get("lot") ?? "A2026-001",
+    grade: lotData?.grade ?? searchParams.get("grade") ?? "A",
+    seller: lotData?.sellerName ?? searchParams.get("seller") ?? "Rahim Traders",
+    rating: searchParams.get("rating") ?? "4.8",
+    sellerId: lotData?.sellerId ?? searchParams.get("sellerId") ?? "",
+  }), [lotData, searchParams]);
 
-  // A seller cannot bid on their own product — check by DB user id (reliable) or name fallback
+  // A seller cannot bid on their own product
   const isOwnProduct = !!user && (
     (!!lotMeta.sellerId && user.id === lotMeta.sellerId) ||
     (!lotMeta.sellerId && user.name === lotMeta.seller)
@@ -70,23 +197,10 @@ export function LiveClient() {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
-  const [bids, setBids] = useState<Bid[]>(() => {
-    const currentPrice = Number(searchParams.get("price")) || 15.67;
-    const seed: Bid[] = Array.from({ length: MAX_BIDS }, (_, idx) => {
-      const price = Number((currentPrice - idx * 0.12).toFixed(2));
-      const time = idx === 0 ? "now" : `${idx * 6}s ago`;
-      const name = idx === 0 ? "Rahim Traders" : idx % 2 === 0 ? "Aminur Rahman" : "Sumon Traders";
-      return { name, price, time, leading: idx === 0 };
-    });
-    return seed;
-  });
-
-  const currentBid = bids[0]?.price || 0;
+  const currentBid = bids[0]?.price || (lotData?.minBidRate ?? lotData?.basePrice ?? 0);
   const totalPrice = useMemo(() => Math.round(currentBid * lotMeta.qty), [currentBid, lotMeta.qty]);
-  const maxBidPrice = useMemo(() => {
-    const max = bids.length ? Math.max(...bids.map((b) => b.price)) : 0;
-    return max > 0 ? max : 1;
-  }, [bids]);
+  const [pickingWinner, setPickingWinner] = useState<string | null>(null);
+  const [pendingWinner, setPendingWinner] = useState<Bid | null>(null);
   const chartPoints = useMemo(() => {
     if (bids.length === 0) return [] as { x: number; y: number; price: number; diff: number; color: string; gradientFrom: string; gradientTo: string; heightPercent: number }[];
     const displayBids = bids.slice(0, MAX_BIDS);
@@ -164,12 +278,20 @@ export function LiveClient() {
     setBidInput(Number((currentBid + step).toFixed(2)));
   }, [currentBid, step]);
 
+  // Real countdown tick — decrements every second until 0 or auction closed
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown((sec) => Math.max(0, sec - 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    if (auctionClosed || countdown <= 0) return;
+    const timer = setTimeout(() => setCountdown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown, auctionClosed]);
+
+  // Auto-close auction when the timer reaches 0
+  useEffect(() => {
+    if (countdown === 0 && lotData?.status === "LIVE" && !auctionClosed && !closeCalledRef.current) {
+      closeCalledRef.current = true;
+      fetch(`/api/flow/lots/${lotCode}/close-auction`, { method: "POST" }).catch(() => { /* another client may have already triggered close */ });
+    }
+  }, [countdown, lotData?.status, auctionClosed, lotCode]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -181,40 +303,68 @@ export function LiveClient() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => {
-    const names = ["Rahim Traders", "Aminur Rahman", "Sumon Traders", "Demo Buyer"];
-    const steps = [0.1, 0.25, 0.5];
-    const interval = setInterval(() => {
-      setBids((prev) => {
-        if (prev.length === 0) return prev;
-        const stepUp = steps[Math.floor(Math.random() * steps.length)];
-        const newPrice = Number((prev[0].price + stepUp).toFixed(2));
-        const name = names[Math.floor(Math.random() * names.length)];
-        const timeLabel = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        return [
-          { name, price: newPrice, time: timeLabel, leading: true },
-          ...prev.map((b) => ({ ...b, leading: false })),
-        ].slice(0, MAX_BIDS);
-      });
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
   const placeBid = useCallback(
-    (price?: number) => {
+    async (price?: number) => {
       const amount = price ?? bidInput;
       const minNext = currentBid + step;
       if (!amount || amount < minNext) return;
+      if (auctionClosed) { toast.error("This auction has already ended."); return; }
+      if (!user) { toast.error("You must be signed in to bid."); return; }
+      if (!selectedDeliveryHub) { toast.error("Please select a delivery hub before placing a bid."); return; }
 
-      const name = (typeof window !== "undefined" && localStorage.getItem("userName")) || "You";
-      const timeLabel = "just now";
-
-      setBids((prev) => [{ name, price: amount, time: timeLabel, leading: true }, ...prev.map((b) => ({ ...b, leading: false }))]);
+      setSubmitting(true);
+      try {
+        const res = await fetch(`/api/buyer-dashboard/bids/${lotCode}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount, deliveryPoint: selectedDeliveryHub }),
+        });
+        const data = await res.json() as { message?: string; bidId?: string };
+        if (!res.ok) {
+          toast.error(data.message || "Failed to place bid.");
+        } else {
+          toast.success(`Bid of ৳${amount.toFixed(2)}/kg placed!`);
+          // Optimistic local update; SSE stream will confirm and deduplicate
+          setBids((prev) => [
+            { id: data.bidId, name: user.name ?? "You", price: amount, time: "just now", leading: true },
+            ...prev.map((b) => ({ ...b, leading: false })),
+          ].slice(0, MAX_BIDS));
+        }
+      } catch {
+        toast.error("Network error. Please try again.");
+      } finally {
+        setSubmitting(false);
+      }
     },
-    [bidInput, currentBid, step]
+    [bidInput, currentBid, step, auctionClosed, user, lotCode, selectedDeliveryHub]
   );
 
+  const pickWinner = async (bidId: string) => {
+    closeCalledRef.current = true; // prevent timer auto-close from racing
+    setPickingWinner(bidId);
+    try {
+      const res = await fetch(`/api/flow/lots/${lotCode}/pick-winner`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bidId }),
+      });
+      const data = await res.json() as { message?: string; buyer?: string; winningBid?: number };
+      if (!res.ok) {
+        toast.error(data.message || "Failed to pick winner.");
+      } else {
+        toast.success(`${data.buyer} selected as winner at ৳${Number(data.winningBid).toFixed(2)}/kg. Order confirmed!`);
+        setAuctionClosed(true);
+        setCountdown(0);
+      }
+    } catch {
+      toast.error("Network error. Please try again.");
+    } finally {
+      setPickingWinner(null);
+    }
+  };
+
   const formattedCountdown = useMemo(() => {
+    if (auctionClosed) return "Closed";
     const m = Math.floor(countdown / 60)
       .toString()
       .padStart(2, "0");
@@ -222,10 +372,35 @@ export function LiveClient() {
       .toString()
       .padStart(2, "0");
     return `${m}:${s}`;
-  }, [countdown]);
+  }, [countdown, auctionClosed]);
 
   const stepOptions = [0.1, 0.25, 0.5, 1];
-  const countdownPercent = Math.max(0, Math.min(100, Math.round((countdown / 180) * 100)));
+  const countdownPercent = Math.max(0, Math.min(100, Math.round((countdown / auctionDurationRef.current) * 100)));
+
+  // ── Loading / error gates ────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="space-y-8 animate-pulse">
+        <div className="h-8 w-64 rounded-lg bg-slate-200" />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="h-96 rounded-2xl bg-slate-200" />
+          <div className="h-96 rounded-2xl bg-slate-200" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center">
+        <p className="text-sm font-semibold text-rose-700">{error}</p>
+        <Link href="/marketplace" className="mt-4 inline-block text-sm font-semibold text-emerald-700 underline">
+          Back to marketplace
+        </Link>
+      </div>
+    );
+  }
+
 
   return (
     <div className="space-y-8">
@@ -234,9 +409,15 @@ export function LiveClient() {
         <h1 className="text-2xl font-bold text-slate-900">Join bidding in real time</h1>
         <p className="text-slate-600">Track active lots, place bids, and get notified when you are outbid.</p>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-rose-600" /> Live auction
-          </span>
+          {auctionClosed ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              <span className="h-2 w-2 rounded-full bg-slate-400" /> Auction ended
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-rose-600" /> Live auction
+            </span>
+          )}
           <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">Lot {lotMeta.lot}</span>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{lotMeta.hub}</span>
         </div>
@@ -281,9 +462,9 @@ export function LiveClient() {
                   </div>
                 </div>
                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-                  {productGallery.map((item) => (
+                  {productGallery.map((item, i) => (
                     <button
-                      key={item.src}
+                      key={`${item.alt}-${i}`}
                       type="button"
                       onClick={() => setSelectedMedia(item)}
                       className={`overflow-hidden rounded-lg border text-left transition ${
@@ -583,17 +764,96 @@ export function LiveClient() {
                 />
               </div>
               <span className="text-xs font-semibold text-slate-600">{countdownPercent}%</span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> Live
-              </span>
+              {auctionClosed ? (
+                <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600">
+                  <span className="h-2 w-2 rounded-full bg-slate-400" /> Closed
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> Live
+                </span>
+              )}
             </div>
 
             <div className="mt-4 space-y-3">
               {isOwnProduct ? (
-                <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600">
-                  You cannot bid on your own product.
-                </p>
+                auctionClosed ? (
+                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
+                    Auction ended.{" "}
+                    <Link href="/seller-dashboard/orders" className="text-emerald-700 underline">View orders</Link>
+                  </div>
+                ) : bids.length === 0 ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <p className="font-semibold">No bids yet</p>
+                    <p className="mt-0.5 text-xs font-normal text-amber-600">Waiting for buyers to place bids. You can pick any bidder as the winner.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">
+                      Pick a Winner — Select any bidder to confirm the order instantly
+                    </p>
+                    <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-hidden">
+                      {bids.slice(0, MAX_BIDS).map((bid, idx) => (
+                        <div key={bid.id ?? idx} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">{bid.name}</p>
+                            <p className="text-xs text-slate-500">৳ {bid.price.toFixed(2)}/kg · total ৳{Math.round(bid.price * lotMeta.qty).toLocaleString()}</p>
+                          </div>
+                          {idx === 0 && (
+                            <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Highest</span>
+                          )}
+                          <button
+                            onClick={() => bid.id && setPendingWinner(bid)}
+                            disabled={!bid.id || pickingWinner !== null}
+                            className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
+                          >
+                            {pickingWinner === bid.id ? "Confirming…" : "Select Winner"}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      If you don&apos;t pick, the highest bidder wins automatically when the timer ends and will require your order acceptance.
+                    </p>
+                  </div>
+                )
+              ) : auctionClosed ? (
+                <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
+                  This auction has ended.{" "}
+                  <Link href="/marketplace" className="text-emerald-700 underline">Browse marketplace</Link>
+                </div>
               ) : (
+              <>
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  Delivery Hub <span className="text-rose-500">*</span>
+                </p>
+                {deliveryHubs.length === 0 ? (
+                  <p className="text-xs text-slate-400">Loading hubs…</p>
+                ) : (
+                  <select
+                    value={selectedDeliveryHub}
+                    onChange={(e) => setSelectedDeliveryHub(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  >
+                    <option value="">— Select delivery hub —</option>
+                    {deliveryHubs.map((h) => (
+                      <option key={h.id} value={h.name}>
+                        {h.name} · {h.location}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!selectedDeliveryHub && (
+                  <p className="text-[11px] text-amber-600">Select where you want the goods delivered if you win.</p>
+                )}
+                {selectedDeliveryHub && (
+                  <p className="text-[11px] text-emerald-700">
+                    ✓ Delivery to <span className="font-semibold">{selectedDeliveryHub}</span>
+                  </p>
+                )}
+              </div>
+
               <form
                 className="space-y-2"
                 onSubmit={(e) => {
@@ -610,12 +870,14 @@ export function LiveClient() {
                     onChange={(e) => setBidInput(Number(e.target.value))}
                     min={currentBid + step}
                     step={0.01}
-                    className="min-w-0 w-full flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-emerald-100 focus:border-emerald-500 focus:ring-2"
+                    disabled={submitting}
+                    className="min-w-0 w-full flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-emerald-100 focus:border-emerald-500 focus:ring-2 disabled:opacity-60"
                   />
                   <select
                     value={step}
                     onChange={(e) => setStep(Number(e.target.value))}
-                    className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    disabled={submitting}
+                    className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 disabled:opacity-60"
                   >
                     {stepOptions.map((s) => (
                       <option key={s} value={s}>
@@ -625,9 +887,10 @@ export function LiveClient() {
                   </select>
                   <button
                     type="submit"
-                    className="shrink-0 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                    disabled={submitting}
+                    className="shrink-0 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-60"
                   >
-                    Bid
+                    {submitting ? "Placing…" : "Bid"}
                   </button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
@@ -637,8 +900,9 @@ export function LiveClient() {
                   </p>
                   <button
                     type="button"
+                    disabled={submitting}
                     onClick={() => placeBid(currentBid + step)}
-                    className="text-emerald-700 underline underline-offset-2"
+                    className="text-emerald-700 underline underline-offset-2 disabled:opacity-60"
                   >
                     Quick +{step.toFixed(2)}
                   </button>
@@ -675,6 +939,7 @@ export function LiveClient() {
                   </button>
                 </div>
               </form>
+              </>
               )}
             </div>
           </div>
@@ -684,6 +949,71 @@ export function LiveClient() {
       <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50 px-6 py-5 text-sm text-emerald-900">
         Want your inventory listed? <Link href="/seller-dashboard" className="font-semibold underline">Open seller dashboard</Link> to create a live auction.
       </div>
+
+      {/* Winner confirmation modal */}
+      {pendingWinner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="bg-emerald-600 px-6 py-4">
+              <p className="text-lg font-bold text-white">Confirm Winner Selection</p>
+              <p className="text-xs text-emerald-100 mt-0.5">This will close the auction and auto-confirm the order.</p>
+            </div>
+
+            {/* Details */}
+            <div className="px-6 py-5 space-y-4">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 divide-y divide-slate-100">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Bidder</span>
+                  <span className="text-sm font-bold text-slate-900">{pendingWinner.name}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Bid Price</span>
+                  <span className="text-sm font-bold text-emerald-700">৳ {pendingWinner.price.toFixed(2)} / kg</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Value</span>
+                  <span className="text-sm font-bold text-slate-900">৳ {Math.round(pendingWinner.price * lotMeta.qty).toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Quantity</span>
+                  <span className="text-sm font-semibold text-slate-700">{lotMeta.qty.toLocaleString()} kg</span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Product</span>
+                  <span className="text-sm font-semibold text-slate-700 truncate max-w-[160px]">{lotMeta.title}</span>
+                </div>
+              </div>
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Once confirmed, the auction will close immediately and the order will be auto-confirmed without requiring further acceptance.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 border-t border-slate-100 px-6 py-4">
+              <button
+                onClick={() => setPendingWinner(null)}
+                disabled={pickingWinner !== null}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingWinner.id) {
+                    setPendingWinner(null);
+                    void pickWinner(pendingWinner.id);
+                  }
+                }}
+                disabled={!pendingWinner.id || pickingWinner !== null}
+                className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
+              >
+                {pickingWinner ? "Confirming…" : "Confirm Winner"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

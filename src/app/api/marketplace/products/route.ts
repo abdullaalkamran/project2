@@ -1,16 +1,31 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { Product } from "@/lib/products";
-import { MARKETPLACE_VISIBLE_STATUSES } from "@/lib/lot-status";
 import { readLotMedia } from "@/lib/lot-media-store";
 
 export async function GET() {
   const [flowLots, lotMedia] = await Promise.all([
     prisma.lot.findMany({
-      where: { status: { in: [...MARKETPLACE_VISIBLE_STATUSES] } },
+      where: {
+        // Only show lots that should be publicly visible:
+        // • LIVE auctions (any saleType)
+        // • AUCTION_ENDED (auction concluded — top bidder selected)
+        // • SOLD
+        // • QC_PASSED with FIXED_PRICE saleType only (approved fixed-price listings)
+        // Excluded: AUCTION lots at QC_PASSED (waiting to start — not yet live)
+        //           AUCTION_UNSOLD (seller must act — hidden from buyers)
+        //           FIXED_PRICE_REVIEW (under 2nd approval cycle)
+        OR: [
+          { status: "LIVE" },
+          { status: "AUCTION_ENDED" },
+          { status: "SOLD" },
+          { status: "QC_PASSED", saleType: "FIXED_PRICE" },
+        ],
+      },
       orderBy: { createdAt: "desc" },
       include: {
         orders: { select: { qty: true, status: true, sellerStatus: true } },
+        _count: { select: { bids: true } },
       },
     }),
     readLotMedia(),
@@ -74,7 +89,7 @@ export async function GET() {
       delivery: "normal" as const,
       trend: "stable" as const,
       rating: 4.6,
-      bids: 0,
+      bids: l._count.bids,
       seller: l.sellerName,
       grade: (l.grade === "C" ? "B" : l.grade) as "A" | "B",
       lot: l.lotCode,

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   const orders = await prisma.order.findMany({
-    where: { status: { in: ["DISPATCHED", "ARRIVED"] } },
+    where: { status: { in: ["DISPATCHED", "HUB_RECEIVED", "OUT_FOR_DELIVERY", "ARRIVED"] } },
     orderBy: { confirmedAt: "desc" },
   });
 

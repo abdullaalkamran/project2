@@ -9,9 +9,10 @@ const nav = [
   { label: "Overview", href: "/delivery-hub" },
   { label: "Incoming Shipments", href: "/delivery-hub/incoming" },
   { label: "Confirm Arrival", href: "/delivery-hub/incoming/confirm" },
-  { label: "Assign Distributors", href: "/delivery-hub/distribution" },
+  { label: "Assign Delivery Man", href: "/delivery-hub/distribution" },
   { label: "Dispatch Orders", href: "/delivery-hub/dispatch" },
   { label: "Vehicles & Drivers", href: "/delivery-hub/fleet" },
+  { label: "Delivery History", href: "/delivery-hub/history" },
   { label: "Delivery Reports", href: "/delivery-hub/reports" },
 ];
 

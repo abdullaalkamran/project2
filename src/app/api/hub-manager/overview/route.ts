@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSessionUser } from "@/lib/session";
+import { getAssignedHubNames } from "@/lib/hub-assignments";
 
 function statusToStage(status: string): string {
   switch (status) {
@@ -22,8 +24,15 @@ function statusToStage(status: string): string {
 }
 
 export async function GET() {
+  const session = await getSessionUser();
+  const hubNames = session
+    ? await getAssignedHubNames(session.userId, "hub_manager")
+    : [];
+
+  const hubFilter = hubNames.length > 0 ? { hubId: { in: hubNames } } : {};
+
   const [lots, trucks] = await Promise.all([
-    prisma.lot.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.lot.findMany({ where: hubFilter, orderBy: { createdAt: "desc" } }),
     prisma.truck.count({ where: { status: "Available" } }),
   ]);
 

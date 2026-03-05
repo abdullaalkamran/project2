@@ -13,12 +13,16 @@ export type LotWorkflowStatus =
   | "DELIVERED";
 
 export const MARKETPLACE_VISIBLE_STATUSES: readonly LotWorkflowStatus[] = [
-  "QC_PASSED",
+  // LIVE auction lots
   "LIVE",
+  // Completed auctions (top bidder selected, order pending)
   "AUCTION_ENDED",
-  "AUCTION_UNSOLD",
-  "FIXED_PRICE_REVIEW",
+  // Approved fixed-price listings
+  // Note: AUCTION lots at QC_PASSED are NOT visible — they haven't started yet
+  "QC_PASSED",
+  // Sold lots
   "SOLD",
+  // Excluded: AUCTION_UNSOLD (seller must re-list), FIXED_PRICE_REVIEW (under 2nd approval)
 ] as const;
 
 export const SELLER_ACTIVE_STATUSES: readonly LotWorkflowStatus[] = [

@@ -55,7 +55,14 @@ async function request<T>(
   if (!res.ok) {
     let errorBody: ApiError = { message: `Request failed: ${res.status}` };
     try {
-      errorBody = await res.json();
+      const parsed = (await res.json()) as ApiError & { error?: string };
+      errorBody = {
+        ...parsed,
+        message:
+          parsed.message ??
+          parsed.error ??
+          `Request failed: ${res.status}`,
+      };
     } catch {
       // ignore JSON parse failure
     }

@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./paikari.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ─── Users & Auth ─────────────────────────────────────────────────────────────
@@ -46,6 +46,10 @@ model User {
   qcReports     QCReport[]
   notifications Notification[]
   paymentRequests PaymentRequest[]
+  hubAssignments HubManagerAssignment[]
+
+  @@index([email])
+  @@index([status])
 }
 
 model UserRole {
@@ -58,6 +62,8 @@ model UserRole {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, role])
+  @@index([userId])
+  @@index([role])
 }
 
 // ─── Product Flow: Lots ───────────────────────────────────────────────────────
@@ -106,6 +112,13 @@ model Lot {
   qcReport QCReport?
   orders   Order[]
   bids     Bid[]
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([hubId])
+  @@index([saleType])
+  @@index([createdAt])
+  @@index([qcCheckerName])
 }
 
 model QCReport {
@@ -120,8 +133,8 @@ model QCReport {
   notes          String?
   submittedAt    DateTime @default(now())
 
-  // Field confirmation by QC checker (JSON string: Record<field, "confirmed"|"wrong"|"unset">)
-  fieldConfirmations String?
+  // Field confirmation by QC checker (native JSON: Record<field, "confirmed"|"wrong"|"unset">)
+  fieldConfirmations Json?
 
   // GPS & manual location recorded during inspection
   inspectionLat     Float?
@@ -130,6 +143,8 @@ model QCReport {
 
   lot     Lot   @relation(fields: [lotId], references: [id], onDelete: Cascade)
   checker User? @relation(fields: [checkerId], references: [id])
+
+  @@index([checkerId])
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
@@ -165,9 +180,23 @@ model Order {
   pickedUpAt       DateTime?
   deliveredAt      DateTime?                // when order is fully delivered
 
+  // Delivery Hub & Distributor tracking
+  hubReceivedAt         DateTime?           // delivery hub confirms receipt
+  distributorId         String?
+  distributorName       String?
+  distributorPhone      String?
+  distributorAssignedAt DateTime?
+  pickedUpFromHubAt     DateTime?           // distributor picks up from delivery hub
+
   lot    Lot   @relation(fields: [lotId], references: [id])
   buyer  User? @relation("BuyerOrders", fields: [buyerId], references: [id])
   seller User? @relation("SellerOrders", fields: [sellerId], references: [id])
+
+  @@index([lotId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([confirmedAt])
 }
 
 // ─── Bids ─────────────────────────────────────────────────────────────────────
@@ -178,11 +207,16 @@ model Bid {
   bidderId        String?
   bidderName      String
   amount          Float
+  deliveryPoint   String   @default("")   // delivery hub selected by buyer before bidding
   transportCost   Float?    // buyer's proposed transportation cost
   createdAt       DateTime @default(now())
 
   lot    Lot   @relation(fields: [lotId], references: [id], onDelete: Cascade)
   bidder User? @relation(fields: [bidderId], references: [id])
+
+  @@index([lotId])
+  @@index([bidderId])
+  @@index([createdAt])
 }
 
 // ─── Fleet ────────────────────────────────────────────────────────────────────
@@ -208,6 +242,9 @@ model Truck {
   hubName             String?
 
   driver Driver?
+
+  @@index([status])
+  @@index([hubId])
 }
 
 model Driver {
@@ -270,6 +307,9 @@ model WalletTransaction {
   createdAt   DateTime @default(now())
 
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([createdAt])
 }
 
 // ─── Disputes ─────────────────────────────────────────────────────────────────
@@ -290,6 +330,9 @@ model Dispute {
   createdAt   DateTime  @default(now())
   resolvedAt  DateTime?
   createdBy   String?
+
+  @@index([status])
+  @@index([createdAt])
 }
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
@@ -311,6 +354,37 @@ model PaymentRequest {
   processedBy     String?   // admin name
 
   seller User? @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId])
+  @@index([status])
+}
+
+// ─── Hubs ─────────────────────────────────────────────────────────────────────
+
+model Hub {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  location    String
+  type        String   @default("BOTH") // RECEIVING | DELIVERY | BOTH
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  assignments HubManagerAssignment[]
+
+  @@index([isActive])
+}
+
+model HubManagerAssignment {
+  id     String @id @default(cuid())
+  hubId  String
+  userId String
+  role   String // "hub_manager" | "delivery_hub_manager"
+
+  hub  Hub  @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([hubId, userId, role])
+  @@index([userId, role])
 }
 
 // ─── Notifications ─────────────────────────────────────────────────────────────
@@ -326,4 +400,8 @@ model Notification {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
 }

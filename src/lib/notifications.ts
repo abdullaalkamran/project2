@@ -16,6 +16,9 @@ export type NotificationType =
   | "TRUCK_SUBMITTED"
   | "TRUCK_APPROVED"
   | "TRUCK_REJECTED"
+  | "ORDER_HUB_RECEIVED"
+  | "ORDER_DISTRIBUTOR_ASSIGNED"
+  | "ORDER_OUT_FOR_DELIVERY"
   | "MESSAGE";
 
 export const NOTIF_ICONS: Record<NotificationType, string> = {
@@ -32,9 +35,12 @@ export const NOTIF_ICONS: Record<NotificationType, string> = {
   FIXED_PRICE_SUBMITTED: "🏷️",
   FIXED_PRICE_APPROVED:  "✅",
   TRUCK_SUBMITTED:       "🚛",
-  TRUCK_APPROVED:        "✅",
-  TRUCK_REJECTED:        "🚫",
-  MESSAGE:               "💬",
+  TRUCK_APPROVED:              "✅",
+  TRUCK_REJECTED:              "🚫",
+  ORDER_HUB_RECEIVED:          "🏭",
+  ORDER_DISTRIBUTOR_ASSIGNED:  "🧑‍💼",
+  ORDER_OUT_FOR_DELIVERY:      "🏍️",
+  MESSAGE:                     "💬",
 };
 
 interface NotifParams {
