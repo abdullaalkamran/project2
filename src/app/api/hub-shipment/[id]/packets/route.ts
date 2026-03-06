@@ -9,7 +9,7 @@ import { buildPacketScanCode } from "@/lib/shipment-scan";
 import { getPreDispatchCheck } from "@/lib/pre-dispatch-store";
 
 function canManage(activeRole: string): boolean {
-  return ["hub_manager", "delivery_hub_manager", "admin"].includes(activeRole);
+  return ["hub_manager", "qc_leader", "delivery_hub_manager", "admin"].includes(activeRole);
 }
 
 export async function GET(

@@ -32,17 +32,18 @@ export async function PATCH(
       const check = await getPreDispatchCheck(order.orderCode);
       const gatePassed = !!(
         check?.physicallyReceived &&
-        check?.hubManagerConfirmed &&
-        check?.qcLeadConfirmed &&
         check?.qualityChecked &&
         check?.packetQty > 0 &&
-        check?.grossWeightKg > 0
+        check?.grossWeightKg > 0 &&
+        (check?.truckPriceBDT ?? 0) > 0 &&
+        check?.hubManagerConfirmed &&
+        check?.qcLeadConfirmed
       );
       if (!gatePassed) {
         return NextResponse.json(
           {
             message:
-              "Complete physical receive confirmation, QC confirmation, quality check, packet qty, and weight before truck assignment.",
+              "All 5 pre-dispatch steps must be complete before truck assignment: physical arrival, weight/quality check, truck price, manager confirmation, and QC leader confirmation.",
           },
           { status: 400 },
         );

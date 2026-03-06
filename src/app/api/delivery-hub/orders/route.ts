@@ -72,6 +72,10 @@ export async function GET(req: NextRequest) {
       distributorAssignedAt: o.distributorAssignedAt?.toISOString() ?? null,
       pickedUpFromHubAt: o.pickedUpFromHubAt?.toISOString() ?? null,
       arrivedAt: o.arrivedAt?.toISOString() ?? null,
+      handoverScannedAt: o.handoverScannedAt?.toISOString() ?? null,
+      deliveryWeightKg: o.deliveryWeightKg ?? null,
+      hasDamage: o.hasDamage,
+      damageNotes: o.damageNotes ?? null,
       totalAmount: o.totalAmount,
       winningBid: o.winningBid,
     }))

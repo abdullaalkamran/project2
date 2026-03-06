@@ -72,7 +72,7 @@ export default function SellerConfirmationReceiptClient({ id }: { id: string }) 
         </div>
       </div>
 
-      <div id="receipt" className="mx-auto my-5 max-w-4xl space-y-4 border border-slate-200 bg-white p-6 text-slate-900 shadow-sm">
+      <div id="receipt" className="mx-auto my-5 max-w-4xl space-y-3 border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
         <div className="flex items-start justify-between border-b border-slate-300 pb-4">
           <div>
             <p className="text-xs font-semibold tracking-[0.2em] text-slate-500">PAIKARI</p>
@@ -136,17 +136,17 @@ export default function SellerConfirmationReceiptClient({ id }: { id: string }) 
           </div>
         </div>
 
-        <div className="grid gap-8 border-t border-slate-300 pt-6 text-xs sm:grid-cols-3">
+        <div className="grid gap-4 border-t border-slate-300 pt-4 text-xs sm:grid-cols-3">
           <div>
-            <p className="mb-8 border-b border-slate-300 pb-1">Seller Signature</p>
+            <p className="mb-5 border-b border-slate-300 pb-1">Seller Signature</p>
             <p className="text-slate-500">{data.sellerName}</p>
           </div>
           <div>
-            <p className="mb-8 border-b border-slate-300 pb-1">Buyer Acknowledgement</p>
+            <p className="mb-5 border-b border-slate-300 pb-1">Buyer Acknowledgement</p>
             <p className="text-slate-500">{data.buyerName}</p>
           </div>
           <div>
-            <p className="mb-8 border-b border-slate-300 pb-1">Hub Verification</p>
+            <p className="mb-5 border-b border-slate-300 pb-1">Hub Verification</p>
             <p className="text-slate-500">{data.hubId ?? "—"}</p>
           </div>
         </div>
@@ -159,6 +159,15 @@ export default function SellerConfirmationReceiptClient({ id }: { id: string }) 
       <style>{`
         @media print {
           .no-print { display: none !important; }
+          html, body { margin: 0; padding: 0; }
+          #receipt {
+            margin: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            page-break-inside: avoid;
+          }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          @page { size: A4 portrait; margin: 10mm; }
         }
       `}</style>
     </>

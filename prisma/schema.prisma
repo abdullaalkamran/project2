@@ -187,6 +187,10 @@ model Order {
   distributorPhone      String?
   distributorAssignedAt DateTime?
   pickedUpFromHubAt     DateTime?           // distributor picks up from delivery hub
+  handoverScannedAt     DateTime?           // hub manager scans QR to confirm delivery man received
+  deliveryWeightKg      Float?              // confirmed weight at delivery handover
+  hasDamage             Boolean  @default(false)  // damage recorded at handover
+  damageNotes           String?             // description of damage if any
 
   lot    Lot   @relation(fields: [lotId], references: [id])
   buyer  User? @relation("BuyerOrders", fields: [buyerId], references: [id])

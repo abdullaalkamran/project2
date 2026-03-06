@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import { getPreDispatchCheck } from "@/lib/pre-dispatch-store";
 
 function mapStatus(status: string): string {
   switch (status) {
@@ -48,9 +49,15 @@ export async function GET() {
     },
   });
 
-  const result = orders.map((o) => {
+  const result = await Promise.all(orders.map(async (o) => {
     const acceptedQty = o.lot?.orders.reduce((sum, ao) => sum + parseQty(ao.qty), 0) ?? 0;
     const lotQty = o.lot?.quantity ?? 0;
+    const pd = await getPreDispatchCheck(o.orderCode);
+    // productAmount defaults to 0 in old orders; derive from totalAmount (set at creation = product price only)
+    const productAmount = o.productAmount > 0 ? o.productAmount : o.totalAmount;
+    const platformFeeRate = o.platformFeeRate ?? 5;
+    const platformFee = o.platformFee > 0 ? o.platformFee : Math.round(productAmount * platformFeeRate) / 100;
+    const sellerPayable = o.sellerPayable > 0 ? o.sellerPayable : productAmount - platformFee;
     return {
       id: o.orderCode,
       lotId: o.lot?.lotCode ?? "—",
@@ -82,13 +89,15 @@ export async function GET() {
       delivered: o.delivered ?? false,
       deliveredAt: o.deliveredAt?.toISOString() ?? null,
       // Financial breakdown
-      productAmount: o.productAmount,
+      productAmount,
       transportCost: o.transportCost,
-      platformFeeRate: o.platformFeeRate,
-      platformFee: o.platformFee,
-      sellerPayable: o.sellerPayable,
+      platformFeeRate,
+      platformFee,
+      sellerPayable,
+      // Actual weight from pre-dispatch check
+      actualWeightKg: pd?.grossWeightKg ?? null,
     };
-  });
+  }));
 
   return NextResponse.json({ orders: result });
 }

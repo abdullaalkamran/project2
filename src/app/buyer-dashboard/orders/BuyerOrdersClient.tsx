@@ -22,6 +22,10 @@ type OrderItem = {
   assignedTruck: string | null;
   loadConfirmed: boolean;
   dispatched: boolean;
+  productAmount: number;
+  transportCost: number;
+  platformFee: number;
+  actualWeightKg: number | null;
 };
 
 // ── Step progress ─────────────────────────────────────────────────────────────
@@ -489,6 +493,45 @@ export default function BuyerOrdersClient() {
                     </div>
                   </div>
                 </div>
+
+                {/* Financial breakdown — shown when transport cost is available */}
+                {(o.transportCost > 0 || o.actualWeightKg) && (
+                  <div className="border-t border-slate-50 px-5 py-3">
+                    <p className="mb-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">Cost Breakdown</p>
+                    <div className="flex flex-wrap gap-3 text-xs">
+                      {o.productAmount > 0 && (
+                        <div className="rounded-lg bg-slate-50 px-3 py-2 min-w-[90px]">
+                          <p className="text-[10px] text-slate-400">Product</p>
+                          <p className="font-semibold text-slate-700">৳ {o.productAmount.toLocaleString()}</p>
+                        </div>
+                      )}
+                      {o.transportCost > 0 && (
+                        <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 min-w-[90px]">
+                          <p className="text-[10px] text-amber-600">Truck Price</p>
+                          <p className="font-semibold text-amber-700">৳ {o.transportCost.toLocaleString()}</p>
+                          <p className="text-[9px] text-amber-500">Deducted from wallet</p>
+                        </div>
+                      )}
+                      {o.platformFee > 0 && (
+                        <div className="rounded-lg bg-slate-50 px-3 py-2 min-w-[90px]">
+                          <p className="text-[10px] text-slate-400">Platform Fee</p>
+                          <p className="font-semibold text-slate-700">৳ {o.platformFee.toLocaleString()}</p>
+                        </div>
+                      )}
+                      {o.actualWeightKg != null && o.actualWeightKg > 0 && (
+                        <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 min-w-[90px]">
+                          <p className="text-[10px] text-emerald-600">Actual Weight</p>
+                          <p className="font-semibold text-emerald-700">{o.actualWeightKg} kg</p>
+                          <p className="text-[9px] text-emerald-500">Verified at hub</p>
+                        </div>
+                      )}
+                      <div className="rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2 min-w-[90px]">
+                        <p className="text-[10px] text-indigo-600">Total Payable</p>
+                        <p className="font-bold text-indigo-700">৳ {(o.productAmount + o.transportCost + o.platformFee).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Order ID footer */}
                 <div className="border-t border-slate-50 px-5 py-2 flex items-center justify-between gap-2">

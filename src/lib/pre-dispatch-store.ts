@@ -3,12 +3,18 @@ import path from "node:path";
 
 export type PreDispatchCheck = {
   orderCode: string;
+  // Step 1: physical arrival (hub_manager)
   physicallyReceived: boolean;
-  hubManagerConfirmed: boolean;
-  qcLeadConfirmed: boolean;
+  // Step 2: weight & quality check (hub_manager / qc_leader / qc_checker)
   qualityChecked: boolean;
   packetQty: number;
-  grossWeightKg: number;
+  grossWeightKg: number;        // actual confirmed weight (editable, may differ from ordered)
+  // Step 3: truck price (qc_leader)
+  truckPriceBDT: number;
+  // Step 4: manager final confirmation (hub_manager)
+  hubManagerConfirmed: boolean;
+  // Step 5: QC leader final confirmation (qc_leader)
+  qcLeadConfirmed: boolean;
   updatedAt: string;
   updatedBy: string;
 };
@@ -48,7 +54,9 @@ export async function getPreDispatchCheck(orderCode: string): Promise<PreDispatc
 
 export async function upsertPreDispatchCheck(row: PreDispatchCheck): Promise<PreDispatchCheck> {
   const all = await readPreDispatchChecks();
-  const next = [row, ...all.filter((r) => r.orderCode !== row.orderCode)];
+  // Ensure backward compat: migrate old records missing truckPriceBDT
+  const normalized: PreDispatchCheck = { ...row, truckPriceBDT: row.truckPriceBDT ?? 0 };
+  const next = [normalized, ...all.filter((r) => r.orderCode !== normalized.orderCode)];
   await writePreDispatchChecks(next);
-  return row;
+  return normalized;
 }

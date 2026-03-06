@@ -38,12 +38,13 @@ export async function GET() {
       status: o.status,
       sellerStatus: o.sellerStatus,
       preDispatch: {
-        physicallyReceived: check?.physicallyReceived ?? false,
+        physicallyReceived:  check?.physicallyReceived  ?? false,
+        qualityChecked:      check?.qualityChecked      ?? false,
+        packetQty:           check?.packetQty           ?? 0,
+        grossWeightKg:       check?.grossWeightKg       ?? 0,
+        truckPriceBDT:       check?.truckPriceBDT       ?? 0,
         hubManagerConfirmed: check?.hubManagerConfirmed ?? false,
-        qcLeadConfirmed: check?.qcLeadConfirmed ?? false,
-        qualityChecked: check?.qualityChecked ?? false,
-        packetQty: check?.packetQty ?? 0,
-        grossWeightKg: check?.grossWeightKg ?? 0,
+        qcLeadConfirmed:     check?.qcLeadConfirmed     ?? false,
       },
       packetQr: {
         total: manifest?.totalPackets ?? 0,

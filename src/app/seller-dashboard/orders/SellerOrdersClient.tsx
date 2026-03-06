@@ -28,6 +28,12 @@ type OrderItem = {
   loadConfirmed: boolean;
   dispatched: boolean;
   delivered: boolean;
+  productAmount: number;
+  transportCost: number;
+  platformFeeRate: number;
+  platformFee: number;
+  sellerPayable: number;
+  actualWeightKg: number | null;
 };
 
 type LotGroup = {
@@ -564,6 +570,47 @@ function OrderCard({ order: o, showSellerStatus, showProgress }: { order: OrderI
       {showProgress && (
         <div className="border-t border-slate-100 pt-3">
           <DeliveryProgress order={o} />
+        </div>
+      )}
+
+      {/* Financial breakdown */}
+      {(o.transportCost > 0 || o.actualWeightKg !== null) && (
+        <div className="border-t border-slate-100 pt-3 space-y-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Financial Breakdown</p>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+            {o.productAmount > 0 && (
+              <div className="rounded-lg bg-slate-50 px-3 py-2">
+                <p className="text-[10px] text-slate-400">Product Amount</p>
+                <p className="text-xs font-semibold text-slate-800">৳ {o.productAmount.toLocaleString()}</p>
+              </div>
+            )}
+            {o.transportCost > 0 && (
+              <div className="rounded-lg bg-amber-50 px-3 py-2">
+                <p className="text-[10px] text-amber-600">Truck Price</p>
+                <p className="text-xs font-semibold text-amber-700">৳ {o.transportCost.toLocaleString()}</p>
+                <p className="text-[9px] text-amber-500">Deducted from buyer</p>
+              </div>
+            )}
+            {o.platformFee > 0 && (
+              <div className="rounded-lg bg-slate-50 px-3 py-2">
+                <p className="text-[10px] text-slate-400">Platform Fee ({o.platformFeeRate}%)</p>
+                <p className="text-xs font-semibold text-slate-700">৳ {o.platformFee.toLocaleString()}</p>
+              </div>
+            )}
+            {o.sellerPayable > 0 && (
+              <div className="rounded-lg bg-emerald-50 px-3 py-2">
+                <p className="text-[10px] text-emerald-600">You Receive</p>
+                <p className="text-xs font-bold text-emerald-700">৳ {o.sellerPayable.toLocaleString()}</p>
+              </div>
+            )}
+          </div>
+          {o.actualWeightKg !== null && (
+            <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5">
+              <span className="text-[10px] font-semibold text-emerald-600">Verified Weight:</span>
+              <span className="text-[10px] font-bold text-emerald-700">{o.actualWeightKg} kg</span>
+              <span className="text-[9px] text-emerald-500 ml-1">confirmed at hub</span>
+            </div>
+          )}
         </div>
       )}
 

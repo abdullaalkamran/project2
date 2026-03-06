@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "orderCode": "ORD-BKKN8Y",
+    "totalPackets": 1,
+    "packetCodes": [
+      "PKT-ORD-BKKN8Y-001"
+    ],
+    "scannedCodes": [],
+    "createdBy": "cmmdiufte000ctrzt7rahvv4p",
+    "createdAt": "2026-03-06T15:39:55.916Z",
+    "updatedAt": "2026-03-06T15:39:55.916Z"
+  }
+]

@@ -31,15 +31,17 @@ export async function GET(
     distributorPhone:order.distributorPhone ?? null,
     lotCode:         order.lot?.lotCode ?? null,
     hubId:           order.lot?.hubId ?? null,
-    // financials
+    // financials — derive on-the-fly for older orders where productAmount was never set
     winningBid:      order.winningBid,
     qty_raw:         order.qty,
-    productAmount:   order.productAmount,
-    transportCost:   order.transportCost,
-    platformFeeRate: order.platformFeeRate,
-    platformFee:     order.platformFee,
-    sellerPayable:   order.sellerPayable,
-    totalAmount:     order.totalAmount,
+    ...(() => {
+      const productAmount   = order.productAmount > 0 ? order.productAmount : order.totalAmount;
+      const platformFeeRate = order.platformFeeRate ?? 5;
+      const platformFee     = order.platformFee > 0 ? order.platformFee : Math.round(productAmount * platformFeeRate) / 100;
+      const sellerPayable   = order.sellerPayable > 0 ? order.sellerPayable : productAmount - platformFee;
+      const totalAmount     = productAmount + order.transportCost + platformFee;
+      return { productAmount, transportCost: order.transportCost, platformFeeRate, platformFee, sellerPayable, totalAmount };
+    })(),
     // dates
     confirmedAt:     order.confirmedAt.toISOString(),
     arrivedAt:       order.arrivedAt?.toISOString() ?? null,

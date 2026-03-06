@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import Pagination from "@/components/Pagination";
+import PreDispatchGate, { type GateData } from "@/components/PreDispatchGate";
 
 const PAGE_SIZE = 15;
 
 type Truck = {
-  id: string;        // truckCode
+  id: string;
   reg: string;
   type: string;
   capacityKg: number;
@@ -17,7 +18,7 @@ type Truck = {
 };
 
 type DispatchOrder = {
-  id: string;        // orderCode
+  id: string;
   lotId: string;
   product: string;
   qty: string;
@@ -31,30 +32,11 @@ type DispatchOrder = {
   loadConfirmed: boolean;
   dispatched: boolean;
   status: string;
-  preDispatch: {
-    physicallyReceived: boolean;
-    hubManagerConfirmed: boolean;
-    qcLeadConfirmed: boolean;
-    qualityChecked: boolean;
-    packetQty: number;
-    grossWeightKg: number;
-  };
-  packetQr: {
-    total: number;
-    scanned: number;
-  };
+  preDispatch: GateData;
+  packetQr: { total: number; scanned: number };
 };
 
-type PreDispatchForm = {
-  physicallyReceived: boolean;
-  hubManagerConfirmed: boolean;
-  qcLeadConfirmed: boolean;
-  qualityChecked: boolean;
-  packetQty: string;
-  grossWeightKg: string;
-};
-
-// ─── Mini step progress inside each order card ─────────────────────────────────
+// ─── Load progress mini-bar ─────────────────────────────────────────────────
 
 const LOAD_STEPS = ["Truck Assigned", "Load Ready", "Dispatched"];
 
@@ -76,35 +58,19 @@ function LoadProgress({ order }: { order: DispatchOrder }) {
         return (
           <div key={label} className="flex flex-1 flex-col items-center">
             <div className="flex w-full items-center">
-              {i > 0 && (
-                <div className={`h-0.5 flex-1 ${step <= current ? "bg-emerald-400" : "bg-slate-200"}`} />
-              )}
-              <div
-                className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
-                  isCompleted
-                    ? "bg-emerald-500 text-white"
-                    : isCurrent
-                      ? "bg-amber-400 text-white ring-2 ring-amber-200 ring-offset-1"
-                      : "border-2 border-slate-200 bg-white text-slate-400"
-                }`}
-              >
+              {i > 0 && <div className={`h-0.5 flex-1 ${step <= current ? "bg-emerald-400" : "bg-slate-200"}`} />}
+              <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
+                isCompleted ? "bg-emerald-500 text-white"
+                  : isCurrent ? "bg-amber-400 text-white ring-2 ring-amber-200 ring-offset-1"
+                  : "border-2 border-slate-200 bg-white text-slate-400"
+              }`}>
                 {isCompleted ? "✓" : step}
               </div>
-              {i < LOAD_STEPS.length - 1 && (
-                <div className={`h-0.5 flex-1 ${step < current ? "bg-emerald-400" : "bg-slate-200"}`} />
-              )}
+              {i < LOAD_STEPS.length - 1 && <div className={`h-0.5 flex-1 ${step < current ? "bg-emerald-400" : "bg-slate-200"}`} />}
             </div>
-            <p
-              className={`mt-1 text-center text-[9px] font-medium leading-tight ${
-                isCompleted
-                  ? "text-emerald-600"
-                  : isCurrent
-                    ? "text-amber-700 font-semibold"
-                    : "text-slate-400"
-              }`}
-            >
-              {label}
-            </p>
+            <p className={`mt-1 text-center text-[9px] font-medium leading-tight ${
+              isCompleted ? "text-emerald-600" : isCurrent ? "text-amber-700 font-semibold" : "text-slate-400"
+            }`}>{label}</p>
           </div>
         );
       })}
@@ -112,7 +78,7 @@ function LoadProgress({ order }: { order: DispatchOrder }) {
   );
 }
 
-// ─── Main component ────────────────────────────────────────────────────────────
+// ─── Main ───────────────────────────────────────────────────────────────────
 
 export default function DispatchClient() {
   const [orders, setOrders] = useState<DispatchOrder[]>([]);
@@ -121,8 +87,6 @@ export default function DispatchClient() {
   const [selectedTruck, setSelectedTruck] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [preForm, setPreForm] = useState<Record<string, PreDispatchForm>>({});
-  const [gateSaving, setGateSaving] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     Promise.all([
@@ -132,18 +96,6 @@ export default function DispatchClient() {
       .then(([ordersData, trucksData]) => {
         setOrders(ordersData ?? []);
         setTrucks(trucksData ?? []);
-        const nextForm: Record<string, PreDispatchForm> = {};
-        (ordersData ?? []).forEach((o) => {
-          nextForm[o.id] = {
-            physicallyReceived: o.preDispatch?.physicallyReceived ?? false,
-            hubManagerConfirmed: o.preDispatch?.hubManagerConfirmed ?? false,
-            qcLeadConfirmed: o.preDispatch?.qcLeadConfirmed ?? false,
-            qualityChecked: o.preDispatch?.qualityChecked ?? false,
-            packetQty: String(o.preDispatch?.packetQty ?? 0),
-            grossWeightKg: String(o.preDispatch?.grossWeightKg ?? 0),
-          };
-        });
-        setPreForm(nextForm);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -155,10 +107,7 @@ export default function DispatchClient() {
     if (!truckId) return;
     setBusy(orderId);
     try {
-      const updated = await api.patch<DispatchOrder>(
-        `/api/flow/dispatch/orders/${orderId}`,
-        { assignedTruck: truckId }
-      );
+      const updated = await api.patch<DispatchOrder>(`/api/flow/dispatch/orders/${orderId}`, { assignedTruck: truckId });
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...updated } : o)));
     } finally {
       setBusy(null);
@@ -168,10 +117,7 @@ export default function DispatchClient() {
   async function confirmLoad(orderId: string) {
     setBusy(orderId);
     try {
-      const updated = await api.patch<DispatchOrder>(
-        `/api/flow/dispatch/orders/${orderId}`,
-        { loadConfirmed: true }
-      );
+      const updated = await api.patch<DispatchOrder>(`/api/flow/dispatch/orders/${orderId}`, { loadConfirmed: true });
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...updated } : o)));
     } finally {
       setBusy(null);
@@ -181,41 +127,10 @@ export default function DispatchClient() {
   async function dispatchOrder(orderId: string) {
     setBusy(orderId);
     try {
-      const updated = await api.patch<DispatchOrder>(
-        `/api/flow/dispatch/orders/${orderId}`,
-        { dispatched: true }
-      );
+      const updated = await api.patch<DispatchOrder>(`/api/flow/dispatch/orders/${orderId}`, { dispatched: true });
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...updated } : o)));
     } finally {
       setBusy(null);
-    }
-  }
-
-  async function savePreDispatch(orderId: string, form?: PreDispatchForm) {
-    const effectiveForm = form ?? preForm[orderId];
-    if (!effectiveForm) return;
-    setGateSaving((prev) => ({ ...prev, [orderId]: true }));
-    try {
-      const saved = await api.patch<{
-        physicallyReceived: boolean;
-        hubManagerConfirmed: boolean;
-        qcLeadConfirmed: boolean;
-        qualityChecked: boolean;
-        packetQty: number;
-        grossWeightKg: number;
-      }>(`/api/flow/dispatch/orders/${orderId}/pre-dispatch`, {
-        physicallyReceived: effectiveForm.physicallyReceived,
-        hubManagerConfirmed: effectiveForm.hubManagerConfirmed,
-        qcLeadConfirmed: effectiveForm.qcLeadConfirmed,
-        qualityChecked: effectiveForm.qualityChecked,
-        packetQty: Number(effectiveForm.packetQty || 0),
-        grossWeightKg: Number(effectiveForm.grossWeightKg || 0),
-      });
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, preDispatch: saved } : o)),
-      );
-    } finally {
-      setGateSaving((prev) => ({ ...prev, [orderId]: false }));
     }
   }
 
@@ -239,9 +154,7 @@ export default function DispatchClient() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-slate-900">Dispatch & Truck Loading</h1>
-          <p className="text-slate-500">
-            Assign trucks, confirm loading, and dispatch orders to delivery points.
-          </p>
+          <p className="text-slate-500">Assign trucks, confirm loading, and dispatch orders to delivery points.</p>
         </div>
         <div className="flex gap-3">
           <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-2 text-center">
@@ -262,9 +175,7 @@ export default function DispatchClient() {
       {orders.length === 0 && (
         <div className="rounded-2xl border border-slate-100 bg-white p-10 text-center shadow-sm">
           <p className="font-medium text-slate-500">No orders awaiting dispatch.</p>
-          <p className="mt-1 text-sm text-slate-400">
-            Orders appear here after QC approval and auction completion.
-          </p>
+          <p className="mt-1 text-sm text-slate-400">Orders appear here after QC approval and auction completion.</p>
         </div>
       )}
 
@@ -273,31 +184,16 @@ export default function DispatchClient() {
           const step = loadStep(order);
           const truck = trucks.find((t) => t.id === order.assignedTruck);
           const isBusy = busy === order.id;
-          const form = preForm[order.id] ?? {
-            physicallyReceived: false,
-            hubManagerConfirmed: false,
-            qcLeadConfirmed: false,
-            qualityChecked: false,
-            packetQty: "0",
-            grossWeightKg: "0",
-          };
+          const pd = order.preDispatch;
           const gateReady =
-            form.physicallyReceived &&
-            form.hubManagerConfirmed &&
-            form.qcLeadConfirmed &&
-            form.qualityChecked &&
-            Number(form.packetQty) > 0 &&
-            Number(form.grossWeightKg) > 0;
+            pd.physicallyReceived && pd.qualityChecked && pd.packetQty > 0 &&
+            pd.grossWeightKg > 0 && pd.truckPriceBDT > 0 &&
+            pd.hubManagerConfirmed && pd.qcLeadConfirmed;
           const qrReady = (order.packetQr?.total ?? 0) > 0;
 
           return (
-            <div
-              key={order.id}
-              className={`rounded-2xl border bg-white shadow-sm ${
-                order.dispatched ? "border-emerald-100" : "border-slate-100"
-              }`}
-            >
-              {/* ── Order info ── */}
+            <div key={order.id} className={`rounded-2xl border bg-white shadow-sm ${order.dispatched ? "border-emerald-100" : "border-slate-100"}`}>
+              {/* Order info */}
               <div className="flex flex-wrap items-start justify-between gap-4 p-5">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -325,7 +221,7 @@ export default function DispatchClient() {
                 </div>
               </div>
 
-              {/* ── Parties & delivery ── */}
+              {/* Parties & delivery */}
               <div className="flex flex-wrap gap-3 px-5 pb-4">
                 {[
                   { label: "Seller", value: order.seller },
@@ -339,79 +235,31 @@ export default function DispatchClient() {
                 ))}
               </div>
 
-              {/* ── Load progress steps ── */}
+              {/* Load progress */}
               <div className="border-t border-slate-50 px-5 py-4">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                  Load Progress
-                </p>
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Load Progress</p>
                 <LoadProgress order={order} />
               </div>
 
-              <div className="mx-5 mb-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-                  Physical Receive & QC Gate (Required before truck selection)
-                </p>
-                <div className="grid gap-2 sm:grid-cols-4">
-                  {[
-                    ["physicallyReceived", "Physically Reached Hub"],
-                    ["hubManagerConfirmed", "Hub Manager Confirmed"],
-                    ["qcLeadConfirmed", "QC Lead Confirmed"],
-                    ["qualityChecked", "Quality Checked"],
-                  ].map(([key, label]) => (
-                    <label key={key} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(form[key as keyof PreDispatchForm])}
-                        onChange={(e) => {
-                          const next = { ...form, [key]: e.target.checked } as PreDispatchForm;
-                          setPreForm((prev) => ({ ...prev, [order.id]: next }));
-                          void savePreDispatch(order.id, next);
-                        }}
-                      />
-                      <span>{label}</span>
-                    </label>
-                  ))}
-                </div>
+              {/* Pre-dispatch gate — 5-step progress */}
+              <div className="mx-5 mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <PreDispatchGate
+                  orderCode={order.id}
+                  orderedQty={order.qty}
+                  role="hub_manager"
+                  initialData={order.preDispatch}
+                  onUpdate={(updated) =>
+                    setOrders((prev) =>
+                      prev.map((o) => (o.id === order.id ? { ...o, preDispatch: updated } : o))
+                    )
+                  }
+                />
 
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <input
-                    type="number"
-                    min={0}
-                    value={form.packetQty}
-                    onChange={(e) =>
-                      setPreForm((prev) => ({
-                        ...prev,
-                        [order.id]: { ...form, packetQty: e.target.value },
-                      }))
-                    }
-                    onBlur={() => void savePreDispatch(order.id)}
-                    placeholder="Packet Qty"
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-emerald-400"
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={form.grossWeightKg}
-                    onChange={(e) =>
-                      setPreForm((prev) => ({
-                        ...prev,
-                        [order.id]: { ...form, grossWeightKg: e.target.value },
-                      }))
-                    }
-                    onBlur={() => void savePreDispatch(order.id)}
-                    placeholder="Gross Weight (kg)"
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-emerald-400"
-                  />
-                  <div className="flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
-                    {gateSaving[order.id] ? "Saving gate..." : "Gate auto-saves"}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs">
+                {/* Packet QR row */}
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs">
                   <p className="text-violet-700">
-                    Packet QR: <span className="font-semibold">{order.packetQr?.total ?? 0}</span> generated,
-                    {" "}scanned <span className="font-semibold">{order.packetQr?.scanned ?? 0}</span>
+                    Packet QR: <span className="font-semibold">{order.packetQr?.total ?? 0}</span> generated,{" "}
+                    scanned <span className="font-semibold">{order.packetQr?.scanned ?? 0}</span>
                   </p>
                   <a
                     href={`/hub-shipment/${order.id}`}
@@ -423,13 +271,13 @@ export default function DispatchClient() {
                   </a>
                 </div>
                 {(!gateReady || !qrReady) && (
-                  <p className="text-[11px] text-amber-700">
-                    Complete gate checks and generate packet QR before assigning truck.
+                  <p className="mt-2 text-[11px] text-amber-700">
+                    Complete all 5 gate steps and generate packet QR before assigning truck.
                   </p>
                 )}
               </div>
 
-              {/* ── Truck info (if assigned) ── */}
+              {/* Truck info (if assigned) */}
               {order.assignedTruck && (
                 <div className="mx-5 mb-4 flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
                   <span className="text-lg">🚛</span>
@@ -447,9 +295,7 @@ export default function DispatchClient() {
                           <>
                             <span className="mx-1.5 text-slate-300">·</span>
                             <span className="text-slate-600">Driver: {truck.driverName}</span>
-                            {truck.driverPhone && (
-                              <span className="text-slate-400"> ({truck.driverPhone})</span>
-                            )}
+                            {truck.driverPhone && <span className="text-slate-400"> ({truck.driverPhone})</span>}
                           </>
                         )}
                       </>
@@ -460,23 +306,19 @@ export default function DispatchClient() {
                 </div>
               )}
 
-              {/* ── Action area ── */}
+              {/* Action area */}
               <div className="border-t border-slate-100 px-5 py-3">
                 {step === 0 && (
-                  /* Stage 1: Assign truck */
                   <div className="flex flex-wrap items-center gap-3">
                     <select
                       value={selectedTruck[order.id] ?? ""}
-                      onChange={(e) =>
-                        setSelectedTruck((prev) => ({ ...prev, [order.id]: e.target.value }))
-                      }
+                      onChange={(e) => setSelectedTruck((prev) => ({ ...prev, [order.id]: e.target.value }))}
                       className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400 min-w-[200px]"
                     >
                       <option value="">— Select a truck —</option>
                       {availableTrucks.map((t) => (
                         <option key={t.id} value={t.id}>
-                          {t.id} · {t.reg} · {t.type} ({t.capacityKg} kg)
-                          {t.driverName ? ` · ${t.driverName}` : ""}
+                          {t.id} · {t.reg} · {t.type} ({t.capacityKg} kg){t.driverName ? ` · ${t.driverName}` : ""}
                         </option>
                       ))}
                     </select>
@@ -489,9 +331,7 @@ export default function DispatchClient() {
                     </button>
                   </div>
                 )}
-
                 {step === 1 && (
-                  /* Stage 2: Confirm load */
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => confirmLoad(order.id)}
@@ -503,9 +343,7 @@ export default function DispatchClient() {
                     <p className="text-xs text-slate-400">Verify the lot is physically loaded onto the truck.</p>
                   </div>
                 )}
-
                 {step === 2 && (
-                  /* Stage 3: Dispatch */
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => dispatchOrder(order.id)}
@@ -519,9 +357,7 @@ export default function DispatchClient() {
                     </p>
                   </div>
                 )}
-
                 {step === 3 && (
-                  /* Completed */
                   <p className="text-xs text-emerald-700 font-semibold">
                     ✓ Order dispatched — truck en route to {order.deliveryPoint}
                   </p>
