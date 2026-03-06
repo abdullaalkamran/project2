@@ -225,3 +225,21 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     })),
   });
 }
+
+export async function DELETE(_req: Request, context: { params: Promise<{ id: string }> }) {
+  const session = await getSessionUser();
+  const activeRole = (session?.activeRole || "").toLowerCase();
+  if (!session || activeRole !== "admin") {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
+
+  const { id } = await context.params;
+
+  // Prevent deleting yourself
+  if (session.userId === id) {
+    return NextResponse.json({ message: "Cannot delete your own account" }, { status: 400 });
+  }
+
+  await prisma.user.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}

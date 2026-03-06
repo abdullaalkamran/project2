@@ -47,6 +47,40 @@ export async function POST(
   return NextResponse.json({ assignment }, { status: 201 });
 }
 
+/** PATCH /api/admin/hubs/[id]/assign — transfer a manager to a different hub */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!(await requireAdmin())) {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
+
+  const { id: fromHubId } = await params;
+  const { userId, role, toHubId } = await req.json() as {
+    userId?: string; role?: string; toHubId?: string;
+  };
+
+  if (!userId || !role || !toHubId) {
+    return NextResponse.json({ message: "userId, role and toHubId are required" }, { status: 400 });
+  }
+
+  const toHub = await prisma.hub.findUnique({ where: { id: toHubId } });
+  if (!toHub) return NextResponse.json({ message: "Destination hub not found" }, { status: 404 });
+
+  // Remove from source hub, add to destination hub
+  await prisma.$transaction([
+    prisma.hubManagerAssignment.deleteMany({ where: { hubId: fromHubId, userId, role } }),
+    prisma.hubManagerAssignment.upsert({
+      where: { hubId_userId_role: { hubId: toHubId, userId, role } },
+      update: {},
+      create: { hubId: toHubId, userId, role },
+    }),
+  ]);
+
+  return NextResponse.json({ ok: true });
+}
+
 /** DELETE /api/admin/hubs/[id]/assign — remove a manager assignment */
 export async function DELETE(
   req: NextRequest,

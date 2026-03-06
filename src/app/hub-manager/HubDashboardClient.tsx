@@ -14,7 +14,7 @@ type StatItem = {
   border: string;
 };
 
-type Hub = { id: string; name: string; location: string; type: string };
+type Hub = { id: string; name: string; location: string; type: string; roles?: string[] };
 
 export default function HubManagerOverviewPage() {
   const [stats, setStats] = useState<StatItem[]>([]);
@@ -62,8 +62,20 @@ export default function HubManagerOverviewPage() {
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-indigo-100 bg-indigo-50 px-5 py-3">
           <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">Your Hubs</span>
           {myHubs.map((h) => (
-            <span key={h.id} className="rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700">
-              {h.name} <span className="text-indigo-400">· {h.location}</span>
+            <span key={h.id} className="rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 flex items-center gap-1.5">
+              {h.name}
+              <span className="text-indigo-400">· {h.location}</span>
+              {h.roles && h.roles.length > 0 && (
+                <span className="flex gap-1">
+                  {h.roles.map((r) => (
+                    <span key={r} className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                      r === "hub_manager" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
+                    }`}>
+                      {r === "hub_manager" ? "HM" : "DHM"}
+                    </span>
+                  ))}
+                </span>
+              )}
             </span>
           ))}
         </div>

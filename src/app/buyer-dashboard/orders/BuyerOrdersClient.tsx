@@ -216,6 +216,7 @@ function Dropdown<T extends string>({
 export default function BuyerOrdersClient() {
   const [orders,    setOrders]    = useState<OrderItem[]>([]);
   const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState<string | null>(null);
   const [search,    setSearch]    = useState("");
   const [status,    setStatus]    = useState<StatusFilter>("ALL");
   const [dateRange, setDateRange] = useState<DateFilter>("ALL");
@@ -225,6 +226,7 @@ export default function BuyerOrdersClient() {
     api
       .get<{ orders: OrderItem[] }>("/api/buyer-dashboard/orders")
       .then((data) => setOrders(data.orders ?? []))
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load orders"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -279,6 +281,19 @@ export default function BuyerOrdersClient() {
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-7 w-28 animate-pulse rounded-full bg-slate-100" />)}
         </div>
         {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-36 animate-pulse rounded-2xl bg-slate-100" />)}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-red-100 bg-red-50 py-16 text-center gap-2">
+        <p className="text-sm font-semibold text-red-600">Failed to load orders</p>
+        <p className="text-xs text-red-400">{error}</p>
+        <button type="button" onClick={() => { setError(null); setLoading(true); api.get<{ orders: OrderItem[] }>("/api/buyer-dashboard/orders").then(d => setOrders(d.orders ?? [])).catch(e => setError(e instanceof Error ? e.message : "Failed")).finally(() => setLoading(false)); }}
+          className="mt-2 rounded-lg border border-red-200 bg-white px-4 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition">
+          Retry
+        </button>
       </div>
     );
   }

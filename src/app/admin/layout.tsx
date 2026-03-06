@@ -2,33 +2,51 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Menu, X } from "lucide-react";
 
-const nav = [
-  { label: "Overview", href: "/admin" },
-  { label: "All Users", href: "/admin/users" },
-  { label: "All Auctions", href: "/admin/auctions" },
-  { label: "All Orders", href: "/admin/orders" },
-  { label: "Revenue & Payouts", href: "/admin/finance" },
-  { label: "QC Reports", href: "/admin/qc-reports" },
-  { label: "Hubs", href: "/admin/hubs" },
-  { label: "Delivery Points", href: "/admin/delivery-points" },
-  { label: "Dispute Centre", href: "/admin/disputes", badge: "3" },
-  { label: "Settings", href: "/admin/settings" },
-  { label: "Landing Page", href: "/admin/cms" },
-  { label: "Lot Field Options", href: "/admin/cms/lot-options" },
-];
+type Badges = { disputes: number; pendingUsers: number; pendingPayments: number; pendingQC: number };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [badges, setBadges] = useState<Badges>({ disputes: 0, pendingUsers: 0, pendingPayments: 0, pendingQC: 0 });
+
+  useEffect(() => {
+    const load = () => {
+      fetch("/api/admin/overview")
+        .then(r => r.json())
+        .then((d: { badges?: Badges }) => { if (d.badges) setBadges(d.badges); })
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const nav = [
+    { label: "Overview",          href: "/admin" },
+    { label: "All Users",         href: "/admin/users",          badge: badges.pendingUsers > 0 ? String(badges.pendingUsers) : undefined, badgeColor: "bg-orange-500" },
+    { label: "All Auctions",      href: "/admin/auctions" },
+    { label: "All Orders",        href: "/admin/orders" },
+    { label: "Revenue & Payouts", href: "/admin/finance",        badge: badges.pendingPayments > 0 ? String(badges.pendingPayments) : undefined, badgeColor: "bg-amber-500" },
+    { label: "QC Reports",        href: "/admin/qc-reports",     badge: badges.pendingQC > 0 ? String(badges.pendingQC) : undefined, badgeColor: "bg-teal-500" },
+    { label: "Hubs",              href: "/admin/hubs" },
+    { label: "Delivery Points",   href: "/admin/delivery-points" },
+    { label: "Dispute Centre",    href: "/admin/disputes",       badge: badges.disputes > 0 ? String(badges.disputes) : undefined, badgeColor: "bg-red-500" },
+    { label: "Settings",          href: "/admin/settings" },
+    { label: "Landing Page",      href: "/admin/cms" },
+    { label: "Lot Field Options", href: "/admin/cms/lot-options" },
+  ];
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
       <div className="mb-6 flex items-center justify-between px-3">
-        <p className="text-xs font-semibold uppercase tracking-widest text-indigo-400">Admin Panel</p>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-indigo-300">Super Admin</p>
+          <p className="text-xs font-bold text-indigo-600">Admin Panel</p>
+        </div>
         <button
           type="button"
           onClick={() => setSidebarHidden(true)}
@@ -38,7 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <ChevronLeft size={16} />
         </button>
       </div>
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 space-y-0.5">
         {nav.map((link) => {
           const active =
             pathname === link.href ||
@@ -53,7 +71,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               {link.label}
               {link.badge && (
-                <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                <span className={`rounded-full ${link.badgeColor ?? "bg-red-500"} px-1.5 py-0.5 text-[10px] font-bold text-white`}>
                   {link.badge}
                 </span>
               )}

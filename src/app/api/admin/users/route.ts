@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 
+async function requireAdmin() {
+  const session = await getSessionUser();
+  const activeRole = (session?.activeRole || "").toLowerCase();
+  if (!session || activeRole !== "admin") return null;
+  return session;
+}
+
 export async function GET() {
   try {
-    const session = await getSessionUser();
-    const activeRole = (session?.activeRole || "").toLowerCase();
-    if (!session || activeRole !== "admin") {
+    if (!(await requireAdmin())) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
@@ -30,6 +36,62 @@ export async function GET() {
     );
   } catch (error) {
     console.error("[admin/users GET]", error);
+    return NextResponse.json({ message: "Server error" }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    const { name, email, password, phone, roles } = await req.json() as {
+      name?: string; email?: string; password?: string;
+      phone?: string; roles?: string[];
+    };
+
+    if (!name?.trim() || !email?.trim() || !password) {
+      return NextResponse.json({ message: "Name, email and password are required" }, { status: 400 });
+    }
+    if (password.length < 6) {
+      return NextResponse.json({ message: "Password must be at least 6 characters" }, { status: 400 });
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (existing) {
+      return NextResponse.json({ message: "Email already in use" }, { status: 409 });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const user = await prisma.user.create({
+      data: {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        passwordHash,
+        phone: phone?.trim() || null,
+        status: "ACTIVE",
+        userRoles: roles?.length
+          ? { create: roles.map((role) => ({ role })) }
+          : undefined,
+      },
+      include: { userRoles: true },
+    });
+
+    return NextResponse.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      photo: null,
+      status: user.status,
+      isVerified: user.isVerified,
+      createdAt: user.createdAt,
+      roles: user.userRoles.map((r) => r.role),
+    }, { status: 201 });
+  } catch (error) {
+    console.error("[admin/users POST]", error);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }

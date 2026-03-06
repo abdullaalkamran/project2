@@ -18,15 +18,19 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  hub_manager: "Hub Manager",
+  hub_manager: "Hub Manager (Receiving)",
   delivery_hub_manager: "Delivery Hub Manager",
+};
+
+const ROLE_SHORT: Record<string, string> = {
+  hub_manager: "HM",
+  delivery_hub_manager: "DHM",
 };
 
 export default function AdminHubsPage() {
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [expandedHub, setExpandedHub] = useState<string | null>(null);
 
   // Create hub modal
   const [showCreate, setShowCreate] = useState(false);
@@ -41,9 +45,15 @@ export default function AdminHubsPage() {
   // Manager assignment panel per hub
   const [managingHub, setManagingHub] = useState<Hub | null>(null);
   const [eligibleUsers, setEligibleUsers] = useState<EligibleUser[]>([]);
-  const [assignRole, setAssignRole] = useState("hub_manager");
+  // Multi-role assignment
+  const [assignRoles, setAssignRoles] = useState<string[]>(["hub_manager"]);
   const [assignUserId, setAssignUserId] = useState("");
   const [assigning, setAssigning] = useState(false);
+
+  // Transfer modal
+  const [transferTarget, setTransferTarget] = useState<{ manager: HubManager; hub: Hub } | null>(null);
+  const [toHubId, setToHubId] = useState("");
+  const [transferring, setTransferring] = useState(false);
 
   const fetchHubs = () => {
     setLoading(true);
@@ -108,26 +118,34 @@ export default function AdminHubsPage() {
   const openManage = async (hub: Hub) => {
     setManagingHub(hub);
     setAssignUserId("");
-    setAssignRole("hub_manager");
+    setAssignRoles(["hub_manager"]);
     const data = await fetch(`/api/admin/hubs/${hub.id}/managers`).then((r) => r.json());
     setEligibleUsers(data.eligibleUsers ?? []);
   };
 
-  const assignManager = async () => {
-    if (!managingHub || !assignUserId) return;
-    setAssigning(true);
-    await fetch(`/api/admin/hubs/${managingHub.id}/assign`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: assignUserId, role: assignRole }),
-    });
-    setAssigning(false);
-    fetchHubs();
-    // refresh managing hub managers list
+  const refreshManagingHub = async (hubId: string) => {
     const updated = await fetch("/api/admin/hubs").then((r) => r.json());
-    const found = (updated.hubs ?? []).find((h: Hub) => h.id === managingHub.id);
+    const found = (updated.hubs ?? []).find((h: Hub) => h.id === hubId);
     if (found) setManagingHub(found);
+    setHubs(updated.hubs ?? []);
+  };
+
+  const assignManager = async () => {
+    if (!managingHub || !assignUserId || assignRoles.length === 0) return;
+    setAssigning(true);
+    // Assign each selected role
+    await Promise.all(
+      assignRoles.map((role) =>
+        fetch(`/api/admin/hubs/${managingHub.id}/assign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: assignUserId, role }),
+        })
+      )
+    );
+    setAssigning(false);
     setAssignUserId("");
+    await refreshManagingHub(managingHub.id);
   };
 
   const removeManager = async (hub: Hub, userId: string, role: string) => {
@@ -136,11 +154,37 @@ export default function AdminHubsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, role }),
     });
-    fetchHubs();
-    const updated = await fetch("/api/admin/hubs").then((r) => r.json());
-    const found = (updated.hubs ?? []).find((h: Hub) => h.id === hub.id);
-    if (found) setManagingHub(found);
+    await refreshManagingHub(hub.id);
   };
+
+  // ── Transfer manager ───────────────────────────────────────────────────────
+  const openTransfer = (manager: HubManager, hub: Hub) => {
+    setTransferTarget({ manager, hub });
+    setToHubId("");
+  };
+
+  const doTransfer = async () => {
+    if (!transferTarget || !toHubId) return;
+    setTransferring(true);
+    await fetch(`/api/admin/hubs/${transferTarget.hub.id}/assign`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: transferTarget.manager.userId,
+        role: transferTarget.manager.role,
+        toHubId,
+      }),
+    });
+    setTransferring(false);
+    setTransferTarget(null);
+    fetchHubs();
+    if (managingHub) await refreshManagingHub(managingHub.id);
+  };
+
+  // Users eligible for selected roles
+  const usersForSelectedRoles = eligibleUsers.filter((u) =>
+    assignRoles.some((r) => u.roles.includes(r))
+  );
 
   const totalLots = hubs.reduce((s, h) => s + h.lots, 0);
   const totalActive = hubs.reduce((s, h) => s + h.activeLots, 0);
@@ -198,20 +242,16 @@ export default function AdminHubsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredHubs.map((h) => (
-            <div key={h.id} className={`rounded-2xl border bg-white p-5 shadow-sm transition ${
-              expandedHub === h.id ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-100"
-            }`}>
+            <div key={h.id} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
               {/* Hub header */}
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-bold text-slate-900 truncate">{h.name}</p>
                   <p className="text-xs text-slate-400 truncate">{h.location}</p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    h.isActive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
-                  }`}>{h.isActive ? "Active" : "Inactive"}</span>
-                </div>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0 ${
+                  h.isActive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                }`}>{h.isActive ? "Active" : "Inactive"}</span>
               </div>
 
               <p className="mt-1.5 text-[11px] text-slate-400">{TYPE_LABELS[h.type] ?? h.type}</p>
@@ -228,20 +268,33 @@ export default function AdminHubsPage() {
                 </div>
                 <div className="rounded-xl bg-violet-50 py-2">
                   <p className="text-lg font-bold text-violet-700">{h.managers.length}</p>
-                  <p className="text-[10px] text-slate-400">Managers</p>
+                  <p className="text-[10px] text-slate-400">Assignments</p>
                 </div>
               </div>
 
-              {/* Managers preview */}
+              {/* Managers preview — group by user */}
               {h.managers.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {h.managers.slice(0, 3).map((m) => (
-                    <span key={m.assignmentId} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
-                      {m.name} <span className="text-slate-400">({m.role === "hub_manager" ? "HM" : "DHM"})</span>
-                    </span>
+                <div className="mt-3 space-y-1">
+                  {Object.entries(
+                    h.managers.reduce<Record<string, HubManager[]>>((acc, m) => {
+                      if (!acc[m.userId]) acc[m.userId] = [];
+                      acc[m.userId].push(m);
+                      return acc;
+                    }, {})
+                  ).slice(0, 3).map(([userId, assignments]) => (
+                    <div key={userId} className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-semibold text-slate-700">{assignments[0].name}</span>
+                      {assignments.map((a) => (
+                        <span key={a.assignmentId} className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                          a.role === "hub_manager"
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-blue-50 text-blue-700"
+                        }`}>{ROLE_SHORT[a.role]}</span>
+                      ))}
+                    </div>
                   ))}
-                  {h.managers.length > 3 && (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">+{h.managers.length - 3} more</span>
+                  {Object.keys(h.managers.reduce<Record<string, boolean>>((acc, m) => { acc[m.userId] = true; return acc; }, {})).length > 3 && (
+                    <p className="text-[10px] text-slate-400">+ more managers</p>
                   )}
                 </div>
               )}
@@ -356,7 +409,7 @@ export default function AdminHubsPage() {
       {/* ── Manage Managers Modal ───────────────────────────────────────────── */}
       {managingHub && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl space-y-5">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Manage Managers</h2>
@@ -368,58 +421,163 @@ export default function AdminHubsPage() {
               </button>
             </div>
 
-            {/* Current assignments */}
+            {/* Current assignments — grouped by user */}
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Assigned Managers</p>
               {managingHub.managers.length === 0 ? (
                 <p className="text-sm text-slate-400">No managers assigned yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {managingHub.managers.map((m) => (
-                    <div key={m.assignmentId} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">{m.name}</p>
-                        <p className="text-xs text-slate-400">{m.email} · <span className="text-violet-600">{ROLE_LABELS[m.role] ?? m.role}</span></p>
+                  {Object.entries(
+                    managingHub.managers.reduce<Record<string, HubManager[]>>((acc, m) => {
+                      if (!acc[m.userId]) acc[m.userId] = [];
+                      acc[m.userId].push(m);
+                      return acc;
+                    }, {})
+                  ).map(([userId, assignments]) => (
+                    <div key={userId} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">{assignments[0].name}</p>
+                          <p className="text-xs text-slate-400">{assignments[0].email}</p>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {assignments.map((a) => (
+                              <span key={a.assignmentId} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                a.role === "hub_manager"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-100"
+                                  : "bg-blue-50 text-blue-700 border border-blue-100"
+                              }`}>
+                                {ROLE_LABELS[a.role] ?? a.role}
+                                <button type="button"
+                                  onClick={() => removeManager(managingHub, a.userId, a.role)}
+                                  className="ml-0.5 rounded-full text-current opacity-60 hover:opacity-100"
+                                  title="Remove this role">
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <button type="button"
+                          onClick={() => openTransfer(assignments[0], managingHub)}
+                          className="shrink-0 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition">
+                          Transfer
+                        </button>
                       </div>
-                      <button type="button" onClick={() => removeManager(managingHub, m.userId, m.role)}
-                        className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 transition">
-                        Remove
-                      </button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Add assignment */}
+            {/* Add assignment — multi-role */}
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Assign Manager</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold text-slate-500">Role</label>
-                  <select value={assignRole} onChange={(e) => setAssignRole(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none">
-                    <option value="hub_manager">Hub Manager</option>
-                    <option value="delivery_hub_manager">Delivery Hub Manager</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold text-slate-500">User</label>
-                  <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none">
-                    <option value="">Select user…</option>
-                    {eligibleUsers
-                      .filter((u) => u.roles.includes(assignRole))
-                      .map((u) => (
-                        <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                      ))
-                    }
-                  </select>
+
+              {/* Role checkboxes */}
+              <div>
+                <p className="mb-1.5 text-[11px] font-semibold text-slate-500">Roles (select one or both)</p>
+                <div className="flex flex-wrap gap-3">
+                  {[
+                    { value: "hub_manager", label: "Hub Manager (Receiving)", color: "text-amber-700 border-amber-200 bg-amber-50" },
+                    { value: "delivery_hub_manager", label: "Delivery Hub Manager", color: "text-blue-700 border-blue-200 bg-blue-50" },
+                  ].map(({ value, label, color }) => (
+                    <label key={value} className={`flex items-center gap-2 cursor-pointer rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                      assignRoles.includes(value) ? color : "border-slate-200 bg-white text-slate-500"
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={assignRoles.includes(value)}
+                        onChange={(e) => {
+                          setAssignRoles(e.target.checked
+                            ? [...assignRoles, value]
+                            : assignRoles.filter((r) => r !== value)
+                          );
+                          setAssignUserId("");
+                        }}
+                        className="h-3.5 w-3.5"
+                      />
+                      {label}
+                    </label>
+                  ))}
                 </div>
               </div>
-              <button type="button" onClick={assignManager} disabled={assigning || !assignUserId}
+
+              {/* User selector */}
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold text-slate-500">Select User</label>
+                <select value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)}
+                  disabled={assignRoles.length === 0}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none disabled:opacity-50">
+                  <option value="">
+                    {assignRoles.length === 0 ? "Select a role first…" : "Select user…"}
+                  </option>
+                  {usersForSelectedRoles.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.email})
+                      {" — "}
+                      {u.roles.filter((r) => ["hub_manager", "delivery_hub_manager"].includes(r))
+                        .map((r) => ROLE_SHORT[r]).join(" + ")}
+                    </option>
+                  ))}
+                </select>
+                {assignRoles.length > 0 && usersForSelectedRoles.length === 0 && (
+                  <p className="mt-1 text-[11px] text-slate-400">No eligible users for the selected role(s). Assign the role to a user first in User Management.</p>
+                )}
+              </div>
+
+              <button type="button" onClick={assignManager}
+                disabled={assigning || !assignUserId || assignRoles.length === 0}
                 className="w-full rounded-xl bg-violet-600 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50 transition">
-                {assigning ? "Assigning…" : "Assign to Hub"}
+                {assigning ? "Assigning…" : `Assign to Hub${assignRoles.length > 1 ? " (Both Roles)" : ""}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Transfer Modal ──────────────────────────────────────────────────── */}
+      {transferTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
+            <h2 className="text-lg font-bold text-slate-900">Transfer Manager</h2>
+            <div className="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3 space-y-0.5">
+              <p className="text-sm font-semibold text-slate-800">{transferTarget.manager.name}</p>
+              <p className="text-xs text-slate-400">{transferTarget.manager.email}</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Role: <span className="font-semibold text-slate-700">{ROLE_LABELS[transferTarget.manager.role] ?? transferTarget.manager.role}</span>
+              </p>
+              <p className="text-xs text-slate-500">
+                From: <span className="font-semibold text-slate-700">{transferTarget.hub.name}</span>
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">Transfer To Hub</label>
+              <select value={toHubId} onChange={(e) => setToHubId(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none">
+                <option value="">Select destination hub…</option>
+                {hubs
+                  .filter((h) => h.id !== transferTarget.hub.id && h.isActive)
+                  .map((h) => (
+                    <option key={h.id} value={h.id}>{h.name} — {h.location}</option>
+                  ))
+                }
+              </select>
+            </div>
+
+            <p className="text-xs text-slate-400 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              This will remove the assignment from <strong>{transferTarget.hub.name}</strong> and add it to the selected hub. Other assignments for this employee are not affected.
+            </p>
+
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setTransferTarget(null)}
+                className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+                Cancel
+              </button>
+              <button type="button" onClick={doTransfer} disabled={transferring || !toHubId}
+                className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition">
+                {transferring ? "Transferring…" : "Confirm Transfer"}
               </button>
             </div>
           </div>

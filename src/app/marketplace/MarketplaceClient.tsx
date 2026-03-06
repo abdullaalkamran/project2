@@ -18,7 +18,6 @@ const categoryOptions = [
   { value: "spice", label: "Spices" },
 ];
 
-const hubOptions: Product["hub"][] = ["Bogura", "Dhaka", "Jessore", "Rangpur"];
 const statusOptions: Product["status"][] = ["live", "upcoming", "fixed"];
 const deliveryOptions: Product["delivery"][] = ["same", "fast", "normal"];
 
@@ -55,6 +54,7 @@ export default function MarketplacePage() {
   const [quantity, setQuantity] = useState("all");
   const [delivery, setDelivery] = useState("all");
   const [page, setPage] = useState(1);
+  const [hubOptions, setHubOptions] = useState<{ id: string; name: string; location: string }[]>([]);
 
   // Hero trend controls
   const [heroCategory, setHeroCategory] = useState<Product["category"]>("vegetable");
@@ -77,6 +77,13 @@ export default function MarketplacePage() {
       }
     };
     void load();
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/marketplace/hubs")
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { id: string; name: string; location: string }[]) => setHubOptions(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }, []);
 
   const hubsForCategory = useMemo(() => {
@@ -440,10 +447,8 @@ export default function MarketplacePage() {
             className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500"
           >
             <option value="all">All Hubs</option>
-            {hubOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
+            {hubOptions.map((h) => (
+              <option key={h.id} value={h.name}>{h.name}</option>
             ))}
           </select>
 

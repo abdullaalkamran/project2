@@ -115,7 +115,7 @@ export default function ProductDetailsPage() {
   const [msgOpen, setMsgOpen] = useState(false);
   const [deliveryHub, setDeliveryHub] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [hubs, setHubs] = useState<string[]>([]);
+  const [hubs, setHubs] = useState<{ id: string; name: string; location: string }[]>([]);
 
   const fallback = useMemo(
     () => ({
@@ -130,7 +130,7 @@ export default function ProductDetailsPage() {
   useEffect(() => {
     fetch("/api/marketplace/hubs")
       .then((r) => (r.ok ? r.json() : []))
-      .then((data: string[]) => setHubs(data))
+      .then((data: { id: string; name: string; location: string }[]) => setHubs(Array.isArray(data) ? data : []))
       .catch(() => {});
   }, []);
 
@@ -764,7 +764,7 @@ export default function ProductDetailsPage() {
                     >
                       <option value="">— Select your delivery hub —</option>
                       {hubs.map((h) => (
-                        <option key={h} value={h}>{h}</option>
+                        <option key={h.id} value={h.name}>{h.name} · {h.location}</option>
                       ))}
                     </select>
                     {!deliveryHub && (
