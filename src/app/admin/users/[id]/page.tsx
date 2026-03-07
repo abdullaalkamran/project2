@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { HUB_OPTIONS } from "@/lib/hubs";
 
 /* ── helpers ────────────────────────────────────────────────────────── */
 const ROLE_LABELS: Record<string, string> = {
@@ -322,6 +321,7 @@ export default function UserDetailPage() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing]   = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const [hubs, setHubs]       = useState<{ id: string; name: string; location: string }[]>([]);
 
   /* edit state */
   const [editing, setEditing]     = useState(false);
@@ -343,7 +343,13 @@ export default function UserDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  useEffect(() => { fetchUser(); }, [fetchUser]);
+  useEffect(() => {
+    fetchUser();
+    fetch("/api/admin/hubs")
+      .then(r => r.json())
+      .then((d: { hubs: { id: string; name: string; location: string }[] }) => { if (Array.isArray(d?.hubs)) setHubs(d.hubs); })
+      .catch(() => {});
+  }, [fetchUser]);
 
   const tabs = useMemo(() => (user ? getTabsForRoles(user.roles, user) : []), [user]);
 
@@ -467,6 +473,13 @@ export default function UserDetailPage() {
     ?? user.hubContext.checkerPrimaryHub
     ?? user.hubContext.leaderPrimaryHub;
 
+  // resolve hub display name: lookup by id, or fall back to raw value (old name-based data)
+  const hubLabel = (idOrName: string | null) => {
+    if (!idOrName) return null;
+    const found = hubs.find(h => h.id === idOrName);
+    return found ? `${found.name} — ${found.location}` : idOrName;
+  };
+
   return (
     <div className="space-y-5 pb-12">
 
@@ -537,7 +550,7 @@ export default function UserDetailPage() {
             {/* hub badge — prominently shown under name */}
             {heroHub && (
               <div className="mt-2">
-                <HubBadge hub={heroHub} label={
+                <HubBadge hub={hubLabel(heroHub) ?? heroHub} label={
                   user.roles.includes("hub_manager") ? "Manages"
                   : user.roles.includes("seller") ? "Primary Hub"
                   : user.roles.some(r => ["qc_leader","qc_checker"].includes(r)) ? "Hub"
@@ -571,7 +584,7 @@ export default function UserDetailPage() {
               { label: "Member Since",  val: user.createdAt },
               { label: "Last Updated",  val: user.updatedAt },
               { label: "User ID",       val: <span className="font-mono text-xs">{user.id.slice(0, 16)}…</span> },
-              { label: "Assigned Hub",  val: heroHub ?? <span className="italic text-slate-300">Not assigned</span> },
+              { label: "Assigned Hub",  val: hubLabel(heroHub) ?? <span className="italic text-slate-300">Not assigned</span> },
             ].map(m => (
               <div key={m.label}>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{m.label}</p>
@@ -610,8 +623,8 @@ export default function UserDetailPage() {
                 <select value={editHub} onChange={e => setEditHub(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition bg-white">
                   <option value="">No hub assigned</option>
-                  {HUB_OPTIONS.map(h => (
-                    <option key={h} value={h}>{h}</option>
+                  {hubs.map(h => (
+                    <option key={h.id} value={h.id}>{h.name} — {h.location}</option>
                   ))}
                 </select>
               </div>
@@ -745,7 +758,7 @@ export default function UserDetailPage() {
                 { label: "Phone",        val: user.phone ?? "—" },
                 { label: "Status",       val: <StatusBadge status={user.status} /> },
                 { label: "Verified",     val: user.isVerified ? <span className="font-semibold text-blue-600">Yes — Verified</span> : <span className="text-slate-400">Not verified</span> },
-                { label: "Assigned Hub", val: heroHub ? <HubBadge hub={heroHub} /> : <span className="italic text-slate-300">None</span> },
+                { label: "Assigned Hub", val: heroHub ? <HubBadge hub={hubLabel(heroHub) ?? heroHub} /> : <span className="italic text-slate-300">None</span> },
                 { label: "Member Since", val: user.createdAt },
               ].map(r => (
                 <div key={r.label} className="flex items-start justify-between gap-4 border-b border-slate-50 py-2.5 last:border-0">

@@ -86,6 +86,42 @@ async function main() {
     console.log("✅ hub@paikari.com → Mirpur Hub - Dhaka (hub_manager)");
   }
 
+  // Register seller@paikari.com (Rahman Traders) → Mirpur Hub - Dhaka
+  if (createdHubs["Mirpur Hub - Dhaka"]) {
+    await prisma.user.update({
+      where: { email: "seller@paikari.com" },
+      data: { hubId: "Mirpur Hub - Dhaka" },
+    });
+    console.log("✅ seller@paikari.com → Mirpur Hub - Dhaka (seller)");
+  }
+
+  // Register qcleader@paikari.com (Rina Begum) → Mirpur Hub - Dhaka
+  if (createdHubs["Mirpur Hub - Dhaka"]) {
+    await prisma.user.update({
+      where: { email: "qcleader@paikari.com" },
+      data: { hubId: "Mirpur Hub - Dhaka" },
+    });
+    console.log("✅ qcleader@paikari.com → Mirpur Hub - Dhaka (qc_leader)");
+  }
+
+  // Register qcchecker@paikari.com (Mamun Hossain) → Mirpur Hub - Dhaka
+  if (createdHubs["Mirpur Hub - Dhaka"]) {
+    await prisma.user.update({
+      where: { email: "qcchecker@paikari.com" },
+      data: { hubId: "Mirpur Hub - Dhaka" },
+    });
+    console.log("✅ qcchecker@paikari.com → Mirpur Hub - Dhaka (qc_checker)");
+  }
+
+  // Register distributor@paikari.com (Karim Distributor) → Mirpur Hub - Dhaka
+  if (createdHubs["Mirpur Hub - Dhaka"]) {
+    await prisma.user.update({
+      where: { email: "distributor@paikari.com" },
+      data: { hubId: "Mirpur Hub - Dhaka" },
+    });
+    console.log("✅ distributor@paikari.com → Mirpur Hub - Dhaka (delivery_distributor)");
+  }
+
   // Assign deliveryhub@paikari.com → Mirpur Hub - Dhaka (delivery_hub_manager)
   if (deliveryHubUser && createdHubs["Mirpur Hub - Dhaka"]) {
     await prisma.hubManagerAssignment.upsert({

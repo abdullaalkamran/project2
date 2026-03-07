@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 
 type HubManager = { assignmentId: string; role: string; userId: string; name: string; email: string };
 type Hub = {
@@ -301,12 +302,16 @@ export default function AdminHubsPage() {
 
               {/* Actions */}
               <div className="mt-4 flex gap-2 border-t border-slate-100 pt-3">
+                <Link href={`/admin/hubs/${h.id}`}
+                  className="flex-1 rounded-lg bg-indigo-50 py-1.5 text-center text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition">
+                  View
+                </Link>
                 <button type="button" onClick={() => openManage(h)}
                   className="flex-1 rounded-lg bg-violet-50 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 transition">
                   Managers
                 </button>
                 <button type="button" onClick={() => openEdit(h)}
-                  className="flex-1 rounded-lg bg-slate-50 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">
+                  className="rounded-lg bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">
                   Edit
                 </button>
                 <button type="button" onClick={() => deleteHub(h)}
