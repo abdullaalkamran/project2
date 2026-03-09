@@ -3,9 +3,6 @@
 import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
 import { X, RefreshCw, Clock, CheckCircle, XCircle, Banknote, Wallet, TrendingUp, Truck } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { walletWithdrawSchema, type WalletWithdrawFormData } from "@/lib/schemas";
 import { toast } from "sonner";
 
 type PaymentRequest = {
@@ -60,15 +57,19 @@ export default function SellerFinanceClient() {
     pendingDelivery: number;
   } | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<WalletWithdrawFormData>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(walletWithdrawSchema) as any,
-  });
+  // Withdraw form state
+  const [wAmount, setWAmount] = useState("");
+  const [wMethod, setWMethod] = useState("Bank Transfer");
+  const [wAccountDetails, setWAccountDetails] = useState("");
+  const [wNote, setWNote] = useState("");
+  const [wError, setWError] = useState("");
+  const [wSubmitting, setWSubmitting] = useState(false);
+
+  // Seller profile payment info
+  const [sellerBank, setSellerBank] = useState<{
+    bankName: string; accountName: string; accountNumber: string; routingNumber: string;
+    mobileBanking: string; mobileNumber: string;
+  } | null>(null);
 
   const fetchBalance = useCallback(() => {
     fetch("/api/seller-dashboard/balance")
@@ -88,16 +89,59 @@ export default function SellerFinanceClient() {
 
   useEffect(() => { fetchRequests(); fetchBalance(); }, [fetchRequests, fetchBalance]);
 
-  const onWithdraw = async (data: WalletWithdrawFormData) => {
+  const resetWithdrawForm = () => {
+    setWAmount("");
+    setWMethod("Bank Transfer");
+    setWAccountDetails("");
+    setWNote("");
+    setWError("");
+  };
+
+  const openWithdraw = () => {
+    resetWithdrawForm();
+    setSubmitted(false);
+    setShowWithdraw(true);
+    // Fetch seller profile bank info, then pre-fill based on default method (Bank Transfer)
+    fetch("/api/seller-dashboard/settings")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (!d?.bank) return;
+        setSellerBank(d.bank);
+        const b = d.bank;
+        const parts = [b.bankName, b.accountNumber, b.accountName, b.routingNumber].filter(Boolean);
+        setWAccountDetails(parts.join(" | "));
+      })
+      .catch(() => {});
+  };
+
+  const handleMethodChange = (method: string) => {
+    setWMethod(method);
+    setWError("");
+    if (!sellerBank) { setWAccountDetails(""); return; }
+    if (method === "Bank Transfer") {
+      const parts = [sellerBank.bankName, sellerBank.accountNumber, sellerBank.accountName, sellerBank.routingNumber].filter(Boolean);
+      setWAccountDetails(parts.join(" | "));
+    } else {
+      // bKash / Nagad — use mobileNumber
+      setWAccountDetails(sellerBank.mobileNumber || "");
+    }
+  };
+
+  const onWithdraw = async () => {
+    const num = Number(wAmount);
+    if (!wAmount || isNaN(num) || num < 500) { setWError("Minimum withdrawal is ৳ 500"); return; }
+    if (!wAccountDetails.trim()) { setWError("Account details are required"); return; }
+    setWError("");
+    setWSubmitting(true);
     try {
       const res = await fetch("/api/seller-dashboard/payment-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: data.amount,
-          method: "Bank Transfer",
-          bankDetails: data.bankAccount,
-          note: data.notes || null,
+          amount: num,
+          method: wMethod,
+          bankDetails: wAccountDetails.trim(),
+          note: wNote || null,
         }),
       });
       if (!res.ok) {
@@ -109,13 +153,11 @@ export default function SellerFinanceClient() {
       toast.success("Payment request submitted!");
       fetchRequests();
       fetchBalance();
-      setTimeout(() => {
-        setShowWithdraw(false);
-        setSubmitted(false);
-        reset();
-      }, 2500);
+      setTimeout(() => { setShowWithdraw(false); setSubmitted(false); resetWithdrawForm(); }, 2500);
     } catch {
       toast.error("Something went wrong");
+    } finally {
+      setWSubmitting(false);
     }
   };
 
@@ -158,7 +200,7 @@ export default function SellerFinanceClient() {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => { setShowWithdraw(true); setSubmitted(false); reset(); }}
+            onClick={openWithdraw}
             className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-emerald-600"
           >
             + New Withdrawal Request
@@ -488,61 +530,103 @@ export default function SellerFinanceClient() {
                     <X size={18} />
                   </button>
                 </div>
-                <form onSubmit={handleSubmit(onWithdraw)} className="space-y-4">
+                <div className="space-y-4">
+                  {/* Amount */}
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Amount (৳) *</label>
                     <input
                       type="number"
+                      value={wAmount}
+                      onChange={(e) => { setWAmount(e.target.value); setWError(""); }}
                       placeholder="e.g. 10000"
-                      {...register("amount")}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                     />
-                    {errors.amount ? (
-                      <p className="mt-1 text-xs text-rose-500">{errors.amount.message}</p>
-                    ) : (
+                    <p className="mt-1 text-xs text-slate-400">
+                      Minimum ৳ 500{balance ? ` · Available: ${fmtBDT(balance.available)}` : ""}
+                    </p>
+                  </div>
+
+                  {/* Method */}
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">Payment Method *</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {["Bank Transfer", "bKash", "Nagad"].map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => handleMethodChange(m)}
+                          className={`rounded-xl border py-2.5 text-sm font-semibold transition ${
+                            wMethod === m
+                              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                              : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                          }`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Account details — pre-filled from profile */}
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      {wMethod === "Bank Transfer" ? "Bank Account Details *" : `${wMethod} Number *`}
+                    </label>
+                    <input
+                      type="text"
+                      value={wAccountDetails}
+                      onChange={(e) => setWAccountDetails(e.target.value)}
+                      placeholder={
+                        wMethod === "Bank Transfer"
+                          ? "Bank name | Account number | Account name"
+                          : "017XXXXXXXX"
+                      }
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                    />
+                    {sellerBank && (
                       <p className="mt-1 text-xs text-slate-400">
-                        Minimum ৳ 500{balance ? ` · Available: ${fmtBDT(balance.available)}` : ""}
+                        Pre-filled from your profile — edit if needed
+                      </p>
+                    )}
+                    {!sellerBank && (
+                      <p className="mt-1 text-xs text-amber-500">
+                        No payment info saved in your profile. <Link href="/seller-dashboard/settings" className="underline">Add it here</Link>.
                       </p>
                     )}
                   </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-700">Bank account / mobile number *</label>
-                    <input
-                      type="text"
-                      placeholder="Account number or bKash/Nagad number"
-                      {...register("bankAccount")}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                    />
-                    {errors.bankAccount && (
-                      <p className="mt-1 text-xs text-rose-500">{errors.bankAccount.message}</p>
-                    )}
-                  </div>
+
+                  {/* Notes */}
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Notes (optional)</label>
                     <textarea
-                      placeholder="e.g. Bank name, branch, routing number"
-                      {...register("notes")}
+                      value={wNote}
+                      onChange={(e) => setWNote(e.target.value)}
+                      placeholder="e.g. Branch name, routing number, any extra info"
                       rows={2}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 resize-none"
+                      className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                     />
                   </div>
+
+                  {wError && <p className="text-xs text-rose-500">{wError}</p>}
+
                   <div className="flex gap-3 pt-1">
                     <button
-                      type="submit"
-                      disabled={isSubmitting}
+                      type="button"
+                      onClick={onWithdraw}
+                      disabled={wSubmitting}
                       className="flex-1 rounded-full bg-emerald-500 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-60"
                     >
-                      {isSubmitting ? "Submitting…" : "Submit Request"}
+                      {wSubmitting ? "Submitting…" : "Submit Request"}
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setShowWithdraw(false); reset(); }}
+                      onClick={() => { setShowWithdraw(false); resetWithdrawForm(); }}
                       className="flex-1 rounded-full border border-slate-200 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
                     >
                       Cancel
                     </button>
                   </div>
-                </form>
+                </div>
               </>
             )}
           </div>

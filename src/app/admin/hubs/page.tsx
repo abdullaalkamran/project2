@@ -108,10 +108,14 @@ export default function AdminHubsPage() {
     fetchHubs();
   };
 
-  // ── Delete hub ─────────────────────────────────────────────────────────────
-  const deleteHub = async (hub: Hub) => {
-    if (!confirm(`Delete "${hub.name}"? This cannot be undone.`)) return;
-    await fetch(`/api/admin/hubs/${hub.id}`, { method: "DELETE" });
+  // ── Toggle hub active/inactive ─────────────────────────────────────────────
+  const toggleHubActive = async (hub: Hub) => {
+    const next = !hub.isActive;
+    await fetch(`/api/admin/hubs/${hub.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: next }),
+    });
     fetchHubs();
   };
 
@@ -314,9 +318,9 @@ export default function AdminHubsPage() {
                   className="rounded-lg bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">
                   Edit
                 </button>
-                <button type="button" onClick={() => deleteHub(h)}
-                  className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 transition">
-                  ✕
+                <button type="button" onClick={() => toggleHubActive(h)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${h.isActive ? "bg-red-50 text-red-600 hover:bg-red-100" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}>
+                  {h.isActive ? "Deactivate" : "Activate"}
                 </button>
               </div>
             </div>

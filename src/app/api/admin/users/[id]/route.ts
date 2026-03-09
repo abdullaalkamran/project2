@@ -127,6 +127,14 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
   const fmt = (d: Date) =>
     d.toLocaleDateString("en-BD", { month: "short", day: "numeric", year: "numeric" });
 
+  // Collect all assigned hub IDs from HubManagerAssignment
+  const hubAssignments = await prisma.hubManagerAssignment.findMany({
+    where: { userId: user.id },
+    select: { hubId: true },
+    distinct: ["hubId"],
+  });
+  const hubIds = hubAssignments.map(a => a.hubId);
+
   return NextResponse.json({
     id: user.id,
     name: user.name,
@@ -134,6 +142,7 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     phone: user.phone ?? null,
     photo: user.photo ?? null,
     hubId: user.hubId ?? null,
+    hubIds,
     isVerified: user.isVerified,
     status: user.status,
     roles,

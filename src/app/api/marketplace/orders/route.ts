@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
-import { notify, notifyMany, userIdByName, getLotParties } from "@/lib/notifications";
+import { notify, notifyMany, getLotParties } from "@/lib/notifications";
 
 function generateOrderCode() {
   const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -38,8 +38,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Lot is not available for purchase" }, { status: 400 });
   }
 
-  const totalAmount = Math.round(pricePerUnit * qty * 100) / 100;
+  const productAmount   = Math.round(pricePerUnit * qty * 100) / 100;
+  const platformFeeRate = 5;
+  const platformFee     = Math.round(productAmount * platformFeeRate) / 100;
+  const sellerPayable   = Math.round((productAmount - platformFee) * 100) / 100;
+  const totalAmount     = productAmount; // transport cost added later at pre-dispatch
   const qtyStr = `${qty} ${lot.unit}`;
+
+  // Check buyer wallet balance before creating the order
+  const buyerWallet = await prisma.wallet.upsert({
+    where:  { userId: session.userId },
+    create: { userId: session.userId, balance: 0 },
+    update: {},
+  });
+
+  if (buyerWallet.balance < productAmount) {
+    return NextResponse.json(
+      { message: `Insufficient wallet balance. You need ৳${productAmount.toLocaleString()} but have ৳${buyerWallet.balance.toLocaleString()}. Please add funds.` },
+      { status: 400 }
+    );
+  }
 
   // Generate unique order code
   let orderCode = generateOrderCode();
@@ -51,23 +69,42 @@ export async function POST(req: NextRequest) {
     attempts++;
   }
 
-  const order = await prisma.order.create({
-    data: {
-      orderCode,
-      lotId: lot.id,
-      buyerId: session.userId,
-      sellerId: lot.sellerId ?? null,
-      buyerName: session.name,
-      sellerName: lot.sellerName,
-      product: lot.title,
-      qty: qtyStr,
-      deliveryPoint: deliveryPoint ?? lot.hubId,
-      winningBid: pricePerUnit,
-      totalAmount,
-      status: "CONFIRMED",
-      sellerStatus: "PENDING_SELLER",
-    },
-  });
+  // Create order and deduct product amount from buyer wallet atomically
+  const [order] = await prisma.$transaction([
+    prisma.order.create({
+      data: {
+        orderCode,
+        lotId: lot.id,
+        buyerId: session.userId,
+        sellerId: lot.sellerId ?? null,
+        buyerName: session.name,
+        sellerName: lot.sellerName,
+        product: lot.title,
+        qty: qtyStr,
+        deliveryPoint: deliveryPoint ?? lot.hubId,
+        winningBid: pricePerUnit,
+        productAmount,
+        platformFeeRate,
+        platformFee,
+        sellerPayable,
+        totalAmount,
+        status: "CONFIRMED",
+        sellerStatus: "PENDING_SELLER",
+      },
+    }),
+    prisma.wallet.update({
+      where: { id: buyerWallet.id },
+      data:  { balance: { decrement: productAmount } },
+    }),
+    prisma.walletTransaction.create({
+      data: {
+        walletId: buyerWallet.id,
+        type: "DEBIT",
+        amount: productAmount,
+        description: `Order ${orderCode} — ${lot.title} (${qtyStr})`,
+      },
+    }),
+  ]);
 
   // Fan-out: notify all parties about the new order
   const parties = await getLotParties(lot.id);

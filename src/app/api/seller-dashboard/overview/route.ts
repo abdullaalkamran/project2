@@ -25,10 +25,16 @@ export async function GET() {
   const activeLots = lots.filter((l) =>
     SELLER_ACTIVE_STATUSES.includes(l.status as (typeof SELLER_ACTIVE_STATUSES)[number])
   );
-  const pendingOrders = orders.filter((o) => o.status === "CONFIRMED");
-  const thisMonthEarnings = orders
-    .filter((o) => ["DISPATCHED", "ARRIVED", "PICKED_UP"].includes(o.status))
-    .reduce((sum, o) => sum + o.totalAmount, 0);
+
+  // Use same logic as /api/seller-dashboard/balance so numbers match finance page
+  const acceptedOrders = orders.filter((o) => o.sellerStatus === "ACCEPTED");
+  const deliveredEarnings = acceptedOrders
+    .filter((o) => o.delivered)
+    .reduce((sum, o) => sum + o.sellerPayable, 0);
+  const pendingDeliveryAmount = acceptedOrders
+    .filter((o) => !o.delivered)
+    .reduce((sum, o) => sum + o.sellerPayable, 0);
+  const pendingDecisionCount = orders.filter((o) => o.sellerStatus === "PENDING_SELLER").length;
 
   // ── Stats cards ────────────────────────────────────────────────────────────
   const stats = [
@@ -43,7 +49,7 @@ export async function GET() {
     },
     {
       label: "Pending orders",
-      value: String(orders.filter((o) => o.sellerStatus === "PENDING_SELLER").length),
+      value: String(pendingDecisionCount),
       sub: "Need your decision",
       color: "text-amber-700",
       bg: "bg-amber-50",
@@ -51,18 +57,18 @@ export async function GET() {
       href: "/seller-dashboard/orders",
     },
     {
-      label: "This month earnings",
-      value: `৳ ${thisMonthEarnings.toLocaleString()}`,
-      sub: "From completed orders",
+      label: "Total earned",
+      value: `৳ ${deliveredEarnings.toLocaleString()}`,
+      sub: "From delivered orders",
       color: "text-blue-700",
       bg: "bg-blue-50",
       border: "border-blue-100",
       href: "/seller-dashboard/finance",
     },
     {
-      label: "Pending payout",
-      value: `৳ ${pendingOrders.reduce((s, o) => s + o.totalAmount, 0).toLocaleString()}`,
-      sub: "Awaiting dispatch",
+      label: "Pending delivery",
+      value: `৳ ${pendingDeliveryAmount.toLocaleString()}`,
+      sub: "Orders in progress",
       color: "text-violet-700",
       bg: "bg-violet-50",
       border: "border-violet-100",

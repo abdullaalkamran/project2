@@ -79,7 +79,7 @@ type HubContext = { assignedHub: string | null; sellerPrimaryHub: string | null;
 
 type UserDetail = {
   id: string; name: string; email: string; phone: string | null; photo: string | null;
-  hubId: string | null; isVerified: boolean; status: string; roles: string[];
+  hubId: string | null; hubIds: string[]; isVerified: boolean; status: string; roles: string[];
   createdAt: string; updatedAt: string;
   hubContext: HubContext;
   wallet: { balance: number; transactions: WalletTx[] } | null;
@@ -327,7 +327,7 @@ export default function UserDetailPage() {
   const [editing, setEditing]     = useState(false);
   const [editName, setEditName]   = useState("");
   const [editPhone, setEditPhone] = useState("");
-  const [editHub, setEditHub]     = useState<string>("");
+  const [editHubs, setEditHubs]   = useState<string[]>([]);
   const [saving, setSaving]       = useState(false);
 
   const fetchUser = useCallback(() => {
@@ -337,7 +337,7 @@ export default function UserDetailPage() {
         setUser(d);
         setEditName(d.name);
         setEditPhone(d.phone ?? "");
-        setEditHub(d.hubId ?? "");
+        setEditHubs(d.hubIds?.length ? d.hubIds : (d.hubId ? [d.hubId] : []));
       })
       .catch(() => toast.error("Failed to load user"))
       .finally(() => setLoading(false));
@@ -416,17 +416,19 @@ export default function UserDetailPage() {
       if (needsHub) {
         const r2 = await fetch(`/api/admin/users/${user.id}/hub`, {
           method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ hubId: editHub || null }),
+          body: JSON.stringify({ hubIds: editHubs }),
         });
         if (!r2.ok) throw new Error("Failed to save hub");
       }
+      const primaryHub = editHubs[0] ?? null;
       setUser(p => p ? {
         ...p,
         name: trimmedName,
         phone: editPhone.trim() || null,
-        hubId: needsHub ? (editHub || null) : p.hubId,
+        hubId: needsHub ? primaryHub : p.hubId,
+        hubIds: needsHub ? editHubs : p.hubIds,
         hubContext: needsHub
-          ? { ...p.hubContext, assignedHub: editHub || null, managerHub: editHub || null }
+          ? { ...p.hubContext, assignedHub: primaryHub, managerHub: primaryHub }
           : p.hubContext,
       } : p);
       setEditing(false);
@@ -440,7 +442,7 @@ export default function UserDetailPage() {
     if (!user) return;
     setEditName(user.name);
     setEditPhone(user.phone ?? "");
-    setEditHub(user.hubId ?? "");
+    setEditHubs(user.hubIds?.length ? user.hubIds : (user.hubId ? [user.hubId] : []));
     setEditing(false);
   };
 
@@ -615,18 +617,41 @@ export default function UserDetailPage() {
             {needsHub && (
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-xs font-semibold text-slate-500">
-                  Assigned Hub
+                  Assigned Hubs
                   <span className="ml-1.5 font-normal text-slate-400">
                     ({user.roles.filter(r => HUB_ROLES.includes(r)).map(r => ROLE_LABELS[r]).join(", ")})
                   </span>
                 </label>
-                <select value={editHub} onChange={e => setEditHub(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition bg-white">
-                  <option value="">No hub assigned</option>
-                  {hubs.map(h => (
-                    <option key={h.id} value={h.id}>{h.name} — {h.location}</option>
-                  ))}
-                </select>
+                <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                  {hubs.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-slate-400 italic">No hubs available</p>
+                  ) : hubs.map(h => {
+                    const checked = editHubs.includes(h.id) || editHubs.includes(h.name);
+                    return (
+                      <label key={h.id}
+                        className={`flex cursor-pointer items-center gap-3 px-4 py-2.5 transition hover:bg-slate-50 ${checked ? "bg-indigo-50" : ""}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={e => setEditHubs(prev =>
+                            e.target.checked
+                              ? [...prev.filter(x => x !== h.name), h.id]
+                              : prev.filter(x => x !== h.id && x !== h.name)
+                          )}
+                          className="h-4 w-4 rounded border-slate-300 accent-indigo-600"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${checked ? "text-indigo-700" : "text-slate-800"}`}>{h.name}</p>
+                          <p className="text-xs text-slate-400 truncate">{h.location}</p>
+                        </div>
+                        {checked && <span className="text-[10px] font-semibold text-indigo-500 bg-indigo-100 rounded px-1.5 py-0.5">Assigned</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+                {editHubs.length === 0 && (
+                  <p className="mt-1.5 text-xs text-amber-600">No hub selected — user won&apos;t appear in any hub</p>
+                )}
               </div>
             )}
           </div>

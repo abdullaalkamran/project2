@@ -73,8 +73,18 @@ export async function GET(
   const staffIds = staffByHubId.map(u => u.id);
   const allStaffIds = [...new Set([...staffIds, ...allAssignedIds])];
 
-  // Only show people who are explicitly registered to this hub via user.hubId
-  const hubFilter = { OR: [{ hubId: hub.id }, { hubId: hub.name }] };
+  // People registered to this hub: check BOTH user.hubId (legacy) AND HubManagerAssignment (multi-hub)
+  const hubMatch = { OR: [{ hubId: hub.id }, { hubId: hub.name }] };
+  const assignedViaTable = (role: string) => ({
+    hubAssignments: { some: { hubId: { in: [hub.id, hub.name] }, role } },
+  });
+  const registeredFilter = (role: string) => ({
+    userRoles: { some: { role } },
+    OR: [
+      hubMatch,
+      assignedViaTable(role),
+    ],
+  });
   const userSelect = { id: true, name: true, email: true, phone: true, status: true };
 
   const [staffRoles, registeredSellers, registeredQcLeaders, registeredQcCheckers, registeredDeliveryMen] = await Promise.all([
@@ -82,22 +92,10 @@ export async function GET(
       where: { userId: { in: allStaffIds } },
       select: { userId: true, role: true },
     }),
-    prisma.user.findMany({
-      where: { ...hubFilter, userRoles: { some: { role: "seller" } } },
-      select: userSelect,
-    }),
-    prisma.user.findMany({
-      where: { ...hubFilter, userRoles: { some: { role: "qc_leader" } } },
-      select: userSelect,
-    }),
-    prisma.user.findMany({
-      where: { ...hubFilter, userRoles: { some: { role: "qc_checker" } } },
-      select: userSelect,
-    }),
-    prisma.user.findMany({
-      where: { ...hubFilter, userRoles: { some: { role: "delivery_distributor" } } },
-      select: userSelect,
-    }),
+    prisma.user.findMany({ where: registeredFilter("seller"),               select: userSelect }),
+    prisma.user.findMany({ where: registeredFilter("qc_leader"),            select: userSelect }),
+    prisma.user.findMany({ where: registeredFilter("qc_checker"),           select: userSelect }),
+    prisma.user.findMany({ where: registeredFilter("delivery_distributor"), select: userSelect }),
   ]);
 
   const rolesByUser: Record<string, string[]> = {};
@@ -216,15 +214,9 @@ export async function PATCH(
   return NextResponse.json({ hub });
 }
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  if (!(await requireAdmin())) {
-    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-  }
-
-  const { id } = await params;
-  await prisma.hub.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+export async function DELETE() {
+  return NextResponse.json(
+    { message: "Hubs cannot be deleted. Use deactivate (PATCH isActive: false) instead." },
+    { status: 405 }
+  );
 }

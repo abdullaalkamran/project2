@@ -37,6 +37,18 @@ export function Navbar() {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const { user, isLoggedIn, logout, role } = useAuth();
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isLoggedIn && role === "buyer") {
+      fetch("/api/buyer-dashboard/wallet")
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => { if (d?.balance !== undefined) setWalletBalance(d.balance); })
+        .catch(() => {});
+    } else {
+      setWalletBalance(null);
+    }
+  }, [isLoggedIn, role]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -98,8 +110,10 @@ export function Navbar() {
         <div className="flex items-center gap-3 text-sm font-medium text-slate-700">
           {isLoggedIn && <RoleSwitcher />}
           {isLoggedIn && <NotificationBell />}
-          {isLoggedIn && (
-            <div className="rounded-full border border-slate-200 px-3 py-2">Balance: ৳ 5,000</div>
+          {isLoggedIn && role === "buyer" && walletBalance !== null && (
+            <div className="rounded-full border border-slate-200 px-3 py-2">
+              Balance: ৳ {walletBalance.toLocaleString("en-IN")}
+            </div>
           )}
           {!isLoggedIn ? (
             <Link

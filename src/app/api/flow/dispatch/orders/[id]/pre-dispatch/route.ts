@@ -78,7 +78,7 @@ export async function PATCH(
     const platformFeeRate = order.platformFeeRate ?? 5;
     const platformFee = Math.round(productAmount * platformFeeRate) / 100;
     const sellerPayable = productAmount - platformFee;
-    const newTotalAmount = productAmount + next.truckPriceBDT + platformFee;
+    const newTotalAmount = productAmount + next.truckPriceBDT;
 
     await prisma.order.update({
       where: { id: order.id },

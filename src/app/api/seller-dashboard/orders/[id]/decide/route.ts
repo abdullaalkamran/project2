@@ -55,6 +55,27 @@ export async function PATCH(
       },
     });
 
+    // Refund product amount to buyer wallet when seller declines
+    if (decision === "DECLINED" && order.buyerId && order.productAmount > 0) {
+      const buyerWallet = await prisma.wallet.findUnique({ where: { userId: order.buyerId } });
+      if (buyerWallet) {
+        await prisma.$transaction([
+          prisma.wallet.update({
+            where: { id: buyerWallet.id },
+            data:  { balance: { increment: order.productAmount } },
+          }),
+          prisma.walletTransaction.create({
+            data: {
+              walletId: buyerWallet.id,
+              type: "DEPOSIT",
+              amount: order.productAmount,
+              description: `Refund — order ${order.orderCode} declined by seller (${order.product})`,
+            },
+          }),
+        ]);
+      }
+    }
+
     // Resolve all parties for this lot
     const [buyerId, parties] = await Promise.all([
       order.buyerId ? Promise.resolve(order.buyerId) : userIdByName(order.buyerName),

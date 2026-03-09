@@ -5,7 +5,8 @@ import Pagination from "@/components/Pagination";
 
 const PAGE_SIZE = 15;
 
-type SellerRevenue = { seller: string; revenue: number; orders: number };
+type SellerRevenue = { seller: string; revenue: number; sellerPayable: number; platformFees: number; orders: number };
+type MonthlyTrend = { month: string; revenue: number; platformFees: number; sellerPayable: number; orders: number };
 type RecentOrder = {
   orderCode: string;
   lotCode: string;
@@ -96,6 +97,10 @@ export default function AdminFinancePage() {
   const [data, setData] = useState<{
     totalRevenue: number;
     monthRevenue: number;
+    totalPlatformFees: number;
+    totalSellerPayable: number;
+    totalPaidOut: number;
+    monthlyTrend: MonthlyTrend[];
     sellerRevenue: SellerRevenue[];
     recentOrders: RecentOrder[];
   } | null>(null);
@@ -146,7 +151,7 @@ export default function AdminFinancePage() {
         setLastUpdated(new Date().toLocaleTimeString("en-BD", { hour: "2-digit", minute: "2-digit" }));
       })
       .catch(() => {
-        setData({ totalRevenue: 0, monthRevenue: 0, sellerRevenue: [], recentOrders: [] });
+        setData({ totalRevenue: 0, monthRevenue: 0, totalPlatformFees: 0, totalSellerPayable: 0, totalPaidOut: 0, monthlyTrend: [], sellerRevenue: [], recentOrders: [] });
       })
       .finally(() => { setLoading(false); setRefreshing(false); });
   };
@@ -325,7 +330,7 @@ export default function AdminFinancePage() {
   const dispatchedRevenue = data?.recentOrders.filter((o) => o.dispatched).reduce((s, o) => s + o.amount, 0) ?? 0;
   const pendingRevenue = data?.recentOrders.filter((o) => !o.dispatched).reduce((s, o) => s + o.amount, 0) ?? 0;
   const totalFromOrders = dispatchedRevenue + pendingRevenue;
-  const avgOrderValue = data && data.recentOrders.length > 0 ? totalFromOrders / data.recentOrders.length : 0;
+
   const dispatchedCount = data?.recentOrders.filter((o) => o.dispatched).length ?? 0;
   const dispatchPct = data && data.recentOrders.length > 0
     ? Math.round((dispatchedCount / data.recentOrders.length) * 100) : 0;
@@ -367,36 +372,63 @@ export default function AdminFinancePage() {
         </div>
       ) : (
         <>
-          {/* 6 Stat cards */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm xl:col-span-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-400">All-Time Revenue</p>
+          {/* Stat cards */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-400">Total GMV</p>
               <p className="mt-2 text-2xl font-bold text-indigo-700">{fmtBDT(data!.totalRevenue)}</p>
+              <p className="mt-1 text-[11px] text-indigo-400">All-time order value</p>
             </div>
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 shadow-sm xl:col-span-1">
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5 shadow-sm">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-400">This Month</p>
               <p className="mt-2 text-2xl font-bold text-blue-700">{fmtBDT(data!.monthRevenue)}</p>
+              <p className="mt-1 text-[11px] text-blue-400">{data!.recentOrders.filter(o => !o.dispatched).length} pending orders</p>
             </div>
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm xl:col-span-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-500">Dispatched Rev.</p>
-              <p className="mt-2 text-2xl font-bold text-emerald-700">{fmtBDT(dispatchedRevenue)}</p>
-              <p className="mt-1 text-[11px] text-emerald-500">{dispatchPct}% of orders</p>
+            <div className="rounded-2xl border border-teal-100 bg-teal-50 p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-500">Platform Fees</p>
+              <p className="mt-2 text-2xl font-bold text-teal-700">{fmtBDT(data!.totalPlatformFees)}</p>
+              <p className="mt-1 text-[11px] text-teal-500">5% commission collected</p>
             </div>
-            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm xl:col-span-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-500">Pending Payout</p>
-              <p className="mt-2 text-2xl font-bold text-amber-700">{fmtBDT(totalPendingPayout)}</p>
-              <p className="mt-1 text-[11px] text-amber-500">Not yet dispatched</p>
-            </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 shadow-sm xl:col-span-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total Orders</p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{data!.recentOrders.length}</p>
-              <p className="mt-1 text-[11px] text-slate-400">{data!.sellerRevenue.length} sellers</p>
-            </div>
-            <div className="rounded-2xl border border-violet-100 bg-violet-50 p-5 shadow-sm xl:col-span-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-400">Avg Order Value</p>
-              <p className="mt-2 text-2xl font-bold text-violet-700">{fmtBDT(Math.round(avgOrderValue))}</p>
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-500">Seller Payable</p>
+              <p className="mt-2 text-2xl font-bold text-emerald-700">{fmtBDT(data!.totalSellerPayable)}</p>
+              <p className="mt-1 text-[11px] text-emerald-500">Paid out: {fmtBDT(data!.totalPaidOut)}</p>
             </div>
           </div>
+
+          {/* Monthly Trend Chart */}
+          {data!.monthlyTrend.length > 0 && (() => {
+            const maxRev = Math.max(1, ...data!.monthlyTrend.map(m => m.revenue));
+            return (
+              <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700">Revenue Trend — Last 6 Months</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">GMV · Platform Fees · Seller Payable</p>
+                  </div>
+                  <div className="flex gap-4 text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-indigo-500 inline-block" />GMV</span>
+                    <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-teal-400 inline-block" />Fees</span>
+                    <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500 inline-block" />Payable</span>
+                  </div>
+                </div>
+                <div className="flex items-end gap-3 overflow-x-auto pb-2">
+                  {data!.monthlyTrend.map(m => (
+                    <div key={m.month} className="flex flex-col items-center gap-1 min-w-[72px]">
+                      <p className="text-xs font-bold text-slate-700">{fmtBDT(m.revenue)}</p>
+                      <div className="flex items-end gap-1 h-20">
+                        <div className="w-5 rounded-t bg-indigo-500 transition-all" style={{ height: `${Math.max(4, (m.revenue / maxRev) * 80)}px` }} title={`GMV: ${fmtBDT(m.revenue)}`} />
+                        <div className="w-5 rounded-t bg-teal-400 transition-all" style={{ height: `${Math.max(4, (m.platformFees / maxRev) * 80)}px` }} title={`Fees: ${fmtBDT(m.platformFees)}`} />
+                        <div className="w-5 rounded-t bg-emerald-500 transition-all" style={{ height: `${Math.max(4, (m.sellerPayable / maxRev) * 80)}px` }} title={`Payable: ${fmtBDT(m.sellerPayable)}`} />
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-medium">{m.month}</p>
+                      <p className="text-[10px] text-slate-300">{m.orders} ord</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Revenue split bar */}
           {totalFromOrders > 0 && (

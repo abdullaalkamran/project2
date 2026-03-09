@@ -228,6 +228,21 @@ async function main() {
         if (!existing) {
           const winBid = parseFloat(String(order.winningBid).replace(/[^0-9.]/g, "")) || 0;
           const total = parseFloat(String(order.totalAmount).replace(/[^0-9.]/g, "")) || 0;
+          const transportCost = parseFloat(String(order.transportCost ?? "0").replace(/[^0-9.]/g, "")) || 0;
+          // productAmount = total - transportCost (buyer pays transport on top)
+          const productAmount = Math.max(0, total - transportCost);
+          const platformFeeRate = 5;
+          const platformFee = Math.round(productAmount * platformFeeRate / 100 * 100) / 100;
+          const sellerPayable = Math.round((productAmount - platformFee) * 100) / 100;
+
+          // Derive sellerStatus & delivered from order status
+          const isDelivered = order.status === "PICKED_UP";
+          const isInProgress = ["DISPATCHED", "ARRIVED"].includes(order.status);
+          const isPendingSeller = order.status === "CONFIRMED";
+          const sellerStatus = isDelivered || isInProgress ? "ACCEPTED"
+            : isPendingSeller ? "PENDING_SELLER"
+            : "NONE";
+
           await prisma.order.create({
             data: {
               orderCode: order.id,
@@ -241,13 +256,21 @@ async function main() {
               deliveryPoint: order.deliveryPoint,
               winningBid: winBid,
               totalAmount: total,
+              transportCost,
+              productAmount,
+              platformFeeRate,
+              platformFee,
+              sellerPayable,
+              sellerStatus,
               status: order.status,
               assignedTruck: order.assignedTruck,
               loadConfirmed: Boolean(order.loadConfirmed),
               dispatched: Boolean(order.dispatched),
+              delivered: isDelivered,
               confirmedAt: order.confirmedAt ? new Date(order.confirmedAt) : new Date(),
               arrivedAt: order.arrivedAt ? new Date(order.arrivedAt) : null,
               pickedUpAt: order.pickedUpAt ? new Date(order.pickedUpAt) : null,
+              deliveredAt: isDelivered && order.pickedUpAt ? new Date(order.pickedUpAt) : null,
             },
           });
           orderCount++;
