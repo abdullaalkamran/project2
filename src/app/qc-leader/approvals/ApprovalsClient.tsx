@@ -41,7 +41,7 @@ function toDecisionLabel(status: QCPendingApprovalRecord["decision"]): Decision 
 export default function ApprovalsClient() {
   const [reports, setReports] = useState<UiReport[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [selectedPhoto, setSelectedPhoto] = useState<Record<string, string>>({});
+  const [selectedPhoto, setSelectedPhoto] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -50,9 +50,12 @@ export default function ApprovalsClient() {
         setReports(rows.map((r) => ({ ...r, decisionLabel: toDecisionLabel(r.decision) })));
         setSelectedPhoto(
           Object.fromEntries(
-            rows
-              .filter((r) => !!r.selectedMarketplacePhotoUrl)
-              .map((r) => [r.reportId, r.selectedMarketplacePhotoUrl as string]),
+            rows.map((r) => [
+              r.reportId,
+              r.selectedMarketplacePhotoUrls?.length
+                ? r.selectedMarketplacePhotoUrls
+                : (r.selectedMarketplacePhotoUrl ? [r.selectedMarketplacePhotoUrl] : []),
+            ]),
           ),
         );
       } catch {
@@ -68,15 +71,20 @@ export default function ApprovalsClient() {
     const update = async () => {
       try {
         const row = reports.find((r) => r.reportId === id);
-        const selected = selectedPhoto[id] ?? row?.selectedMarketplacePhotoUrl;
-        if (decision === "Approved" && !selected) {
-          toast.error("Select one seller/QC photo for marketplace before approving.");
+        const selected = selectedPhoto[id]?.length
+          ? selectedPhoto[id]
+          : row?.selectedMarketplacePhotoUrls?.length
+            ? row.selectedMarketplacePhotoUrls
+            : (row?.selectedMarketplacePhotoUrl ? [row.selectedMarketplacePhotoUrl] : []);
+        if (decision === "Approved" && selected.length === 0) {
+          toast.error("Select one or more seller/QC photos for marketplace before approving.");
           return;
         }
 
         await api.patch<QCPendingApprovalRecord>(`/api/qc/approvals/${id}/decision`, {
           decision: mapped,
-          selectedPhotoUrl: selected,
+          selectedPhotoUrls: selected,
+          selectedPhotoUrl: selected[0],
         });
         if (row) {
           const flowDecision = decision === "Approved" ? "Approved" : decision === "Rejected" ? "Rejected" : "Re-inspect";
@@ -85,7 +93,13 @@ export default function ApprovalsClient() {
         setReports((prev) =>
           prev.map((r) =>
             r.reportId === id
-              ? { ...r, decision: mapped, decisionLabel: decision, selectedMarketplacePhotoUrl: selectedPhoto[id] ?? r.selectedMarketplacePhotoUrl }
+              ? {
+                  ...r,
+                  decision: mapped,
+                  decisionLabel: decision,
+                  selectedMarketplacePhotoUrls: selected,
+                  selectedMarketplacePhotoUrl: selected[0] ?? r.selectedMarketplacePhotoUrl,
+                }
               : r,
           ),
         );
@@ -194,14 +208,20 @@ export default function ApprovalsClient() {
                       </div>
                     </div>
 
-                    {/* Transportation Cost Comparison */}
-                    <div className="grid gap-4 sm:grid-cols-3">
+                    {/* Transportation & Bonus */}
+                    <div className="grid gap-4 sm:grid-cols-4">
                       <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
-                        <p className="text-xs text-amber-500">Seller&apos;s Transport Estimate</p>
-                        <p className="mt-0.5 font-semibold text-amber-700">{r.sellerTransportCost != null ? `৳${r.sellerTransportCost.toLocaleString()}` : "Not provided"}</p>
+                        <p className="text-xs text-amber-500">Seller Transport Share</p>
+                        <p className="mt-0.5 font-semibold text-amber-700">
+                          {r.sellerTransportShare === "NO"
+                            ? "Buyer pays"
+                            : r.sellerTransportShare === "HALF"
+                            ? "50% split"
+                            : "Seller pays"}
+                        </p>
                       </div>
                       <div className="rounded-xl border border-sky-100 bg-sky-50 p-3">
-                        <p className="text-xs text-sky-500">QC Determined Transport Cost</p>
+                        <p className="text-xs text-sky-500">QC Transport Cost</p>
                         <p className="mt-0.5 font-semibold text-sky-700">{r.transportCost != null ? `৳${r.transportCost.toLocaleString()}` : "Not set"}</p>
                       </div>
                       <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
@@ -210,6 +230,16 @@ export default function ApprovalsClient() {
                           ৳{((r.minBidRate * r.qty) + (r.transportCost ?? 0)).toLocaleString()}
                         </p>
                         <p className="text-[10px] text-emerald-500">Product: ৳{(r.minBidRate * r.qty).toLocaleString()} + Transport: ৳{(r.transportCost ?? 0).toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-xl border border-violet-100 bg-violet-50 p-3">
+                        <p className="text-xs text-violet-500">Bonus Offer</p>
+                        {r.freeQtyEnabled && (r.freeQtyPer ?? 0) > 0 ? (
+                          <p className="mt-0.5 font-semibold text-violet-700">
+                            {r.freeQtyAmount} {r.freeQtyUnit} free per {r.freeQtyPer} {r.freeQtyUnit}
+                          </p>
+                        ) : (
+                          <p className="mt-0.5 text-sm text-slate-500">No bonus</p>
+                        )}
                       </div>
                     </div>
 
@@ -260,20 +290,35 @@ export default function ApprovalsClient() {
 
                       <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Select Marketplace Product Photo (Team Leader)
+                          Select Marketplace Product Photos (Team Leader)
                         </p>
                         <p className="mt-1 text-xs text-slate-400">
-                          Choose one photo from seller or QC checker gallery.
+                          Choose one or more photos from seller or QC checker gallery.
                         </p>
                         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                           {[...(r.sellerPhotoUrls ?? []), ...(r.qcPhotoPreviews ?? [])].map((src, idx) => {
+                            const selected = selectedPhoto[r.reportId]?.length
+                              ? selectedPhoto[r.reportId]
+                              : r.selectedMarketplacePhotoUrls?.length
+                                ? r.selectedMarketplacePhotoUrls
+                                : (r.selectedMarketplacePhotoUrl ? [r.selectedMarketplacePhotoUrl] : []);
                             const isSelected =
-                              (selectedPhoto[r.reportId] ?? r.selectedMarketplacePhotoUrl ?? "") === src;
+                              selected.includes(src);
                             return (
                               <button
                                 key={`${r.reportId}-pick-${idx}`}
                                 type="button"
-                                onClick={() => setSelectedPhoto((prev) => ({ ...prev, [r.reportId]: src }))}
+                                onClick={() => setSelectedPhoto((prev) => {
+                                  const current = prev[r.reportId]?.length
+                                    ? prev[r.reportId]
+                                    : (r.selectedMarketplacePhotoUrls?.length
+                                      ? r.selectedMarketplacePhotoUrls
+                                      : (r.selectedMarketplacePhotoUrl ? [r.selectedMarketplacePhotoUrl] : []));
+                                  const next = current.includes(src)
+                                    ? current.filter((u) => u !== src)
+                                    : [...current, src];
+                                  return { ...prev, [r.reportId]: next };
+                                })}
                                 className={`overflow-hidden rounded-lg border-2 ${isSelected ? "border-emerald-500" : "border-slate-200"}`}
                               >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}

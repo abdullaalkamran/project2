@@ -46,6 +46,11 @@ export async function POST(
         ? await prisma.user.findUnique({ where: { id: topBid.bidderId }, select: { id: true, name: true } })
         : null;
 
+      const productAmount   = Math.round(topBid.amount * lot.quantity * 100) / 100;
+      const platformFeeRate = 5;
+      const platformFee     = Math.round(productAmount * platformFeeRate) / 100;
+      const sellerPayable   = Math.round((productAmount - platformFee) * 100) / 100;
+
       await prisma.order.create({
         data: {
           orderCode,
@@ -58,11 +63,42 @@ export async function POST(
           qty: `${lot.quantity} ${lot.unit}`,
           deliveryPoint: topBid.deliveryPoint || "To be confirmed",
           winningBid: topBid.amount,
-          totalAmount: topBid.amount * lot.quantity,
+          productAmount,
+          platformFeeRate,
+          platformFee,
+          sellerPayable,
+          totalAmount: productAmount,
           status: "CONFIRMED",
           sellerStatus: "PENDING_SELLER",
         },
       });
+
+      // Charge buyer wallet for product amount
+      if (topBid.bidderId) {
+        const buyerWallet = await prisma.wallet.upsert({
+          where:  { userId: topBid.bidderId },
+          create: { userId: topBid.bidderId, balance: 0 },
+          update: {},
+        });
+        if (buyerWallet.balance >= productAmount) {
+          await prisma.$transaction([
+            prisma.wallet.update({
+              where: { id: buyerWallet.id },
+              data:  { balance: { decrement: productAmount } },
+            }),
+            prisma.walletTransaction.create({
+              data: {
+                walletId: buyerWallet.id,
+                type: "DEBIT",
+                amount: productAmount,
+                description: `Auction won — ${lot.title} (${lot.lotCode}), ${lot.quantity} ${lot.unit}`,
+              },
+            }),
+          ]);
+        }
+        // If insufficient balance: order still created; buyer must add funds
+        // (edge case — they had funds when bidding but used them elsewhere)
+      }
 
       await prisma.lot.update({
         where: { id: lot.id },

@@ -35,6 +35,7 @@ export async function GET(
   const lotMedia = await readLotMedia();
   const mediaEntry = lotMedia.find((m) => m.lotId === lot.lotCode);
   const image =
+    mediaEntry?.marketplacePhotoUrls?.[0] ??
     mediaEntry?.marketplacePhotoUrl ??
     mediaEntry?.qcPhotoUrls?.[0] ??
     null;

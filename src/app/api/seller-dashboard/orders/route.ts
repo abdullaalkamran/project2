@@ -41,7 +41,7 @@ export async function GET() {
           unit: true,
           orders: {
             where: { sellerStatus: "ACCEPTED", status: { not: "CANCELLED" } },
-            select: { qty: true },
+            select: { qty: true, freeQty: true },
           },
         },
       },
@@ -50,7 +50,7 @@ export async function GET() {
   });
 
   const result = await Promise.all(orders.map(async (o) => {
-    const acceptedQty = o.lot?.orders.reduce((sum, ao) => sum + parseQty(ao.qty), 0) ?? 0;
+    const acceptedQty = o.lot?.orders.reduce((sum, ao) => sum + parseQty(ao.qty) + (ao.freeQty ?? 0), 0) ?? 0;
     const lotQty = o.lot?.quantity ?? 0;
     const pd = await getPreDispatchCheck(o.orderCode);
     // productAmount defaults to 0 in old orders; derive from totalAmount (set at creation = product price only)
@@ -68,7 +68,8 @@ export async function GET() {
       lotAvailableQty: Math.max(0, lotQty - acceptedQty),
       product: o.product,
       qty: o.qty,
-      qtyNum: parseQty(o.qty),
+      freeQty: o.freeQty ?? 0,
+      qtyNum: parseQty(o.qty) + (o.freeQty ?? 0),
       buyer: o.buyerName,
       buyerPhone: o.buyer?.phone ?? "—",
       winningBid: `৳ ${o.winningBid.toLocaleString()}/${o.lot?.unit ?? "unit"}`,

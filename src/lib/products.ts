@@ -7,9 +7,10 @@ export type Product = {
   originalPrice: number;
   status: "live" | "upcoming" | "fixed";
   qty: number;
-  delivery: "same" | "fast" | "normal";
+  delivery?: "same" | "fast" | "normal" | null;
   trend: "up" | "down" | "stable";
-  rating: number;
+  rating?: number | null;
+  auctionEndsAt?: string | null;
   bids: number;
   seller: string;
   grade: "A" | "B";
@@ -20,6 +21,11 @@ export type Product = {
   soldQty?: number;
   pendingQty?: number;
   soldOut?: boolean;
+  storageType?: string;
+  freeQtyEnabled?: boolean;
+  freeQtyPer?: number;
+  freeQtyAmount?: number;
+  freeQtyUnit?: string;
   /** Auction end time shown on home page live cards (e.g. "10:00") */
   endsIn?: string;
 };

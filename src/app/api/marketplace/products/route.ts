@@ -24,7 +24,8 @@ export async function GET() {
       },
       orderBy: { createdAt: "desc" },
       include: {
-        orders: { select: { qty: true, status: true, sellerStatus: true } },
+        orders: { select: { qty: true, freeQty: true, status: true, sellerStatus: true } },
+        bids:   { orderBy: { amount: "desc" }, take: 1, select: { amount: true } },
         _count: { select: { bids: true } },
       },
     }),
@@ -32,7 +33,9 @@ export async function GET() {
   ]);
 
   const marketplacePhotoByLot = new Map(
-    lotMedia.map((m) => [m.lotId, m.marketplacePhotoUrl]).filter((x): x is [string, string] => !!x[1]),
+    lotMedia
+      .map((m) => [m.lotId, m.marketplacePhotoUrls?.[0] ?? m.marketplacePhotoUrl])
+      .filter((x): x is [string, string] => !!x[1]),
   );
 
   const flowProducts: Product[] = flowLots.map((l) => {
@@ -40,11 +43,11 @@ export async function GET() {
 
     const soldQty = l.orders
       .filter((o) => o.status !== "CANCELLED" && o.sellerStatus === "ACCEPTED")
-      .reduce((sum, o) => sum + parseQty(o.qty), 0);
+      .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
 
     const pendingQty = l.orders
       .filter((o) => o.status !== "CANCELLED" && o.sellerStatus === "PENDING_SELLER")
-      .reduce((sum, o) => sum + parseQty(o.qty), 0);
+      .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
 
     const availableQty = Math.max(0, l.quantity - soldQty);
 
@@ -86,14 +89,24 @@ export async function GET() {
       soldQty,
       pendingQty,
       soldOut: availableQty <= 0,
-      delivery: "normal" as const,
-      trend: "stable" as const,
-      rating: 4.6,
+      auctionEndsAt: l.auctionEndsAt?.toISOString() ?? null,
+      trend: (() => {
+        const topBid = l.bids[0]?.amount ?? 0;
+        const base   = l.minBidRate ?? l.basePrice;
+        if (topBid > 0 && topBid > base)  return "up"   as const;
+        if (topBid > 0 && topBid < base)  return "down" as const;
+        return "stable" as const;
+      })(),
       bids: l._count.bids,
       seller: l.sellerName,
       grade: (l.grade === "C" ? "B" : l.grade) as "A" | "B",
       lot: l.lotCode,
       sellerId: l.sellerId ?? undefined,
+      storageType: l.storageType || undefined,
+      freeQtyEnabled: l.freeQtyEnabled,
+      freeQtyPer: l.freeQtyPer,
+      freeQtyAmount: l.freeQtyAmount,
+      freeQtyUnit: l.freeQtyUnit,
       image:
         marketplacePhotoByLot.get(l.lotCode) ??
         "https://images.unsplash.com/photo-1603331669572-0216c5c88c7b?auto=format&fit=crop&w=640&q=80",

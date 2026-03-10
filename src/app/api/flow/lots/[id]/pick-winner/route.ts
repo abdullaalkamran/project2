@@ -43,6 +43,11 @@ export async function POST(
 
     // Create order — auto-confirmed by seller (sellerStatus = "CONFIRMED")
     const orderCode = `ORD-${String(Date.now()).slice(-6)}`;
+    const productAmount   = Math.round(winningBid.amount * lot.quantity * 100) / 100;
+    const platformFeeRate = 5;
+    const platformFee     = Math.round(productAmount * platformFeeRate) / 100;
+    const sellerPayable   = Math.round((productAmount - platformFee) * 100) / 100;
+
     await prisma.order.create({
       data: {
         orderCode,
@@ -53,14 +58,43 @@ export async function POST(
         sellerName: lot.sellerName,
         product: lot.title,
         qty: `${lot.quantity} ${lot.unit}`,
-        deliveryPoint: "To be confirmed",
+        deliveryPoint: winningBid.deliveryPoint || "To be confirmed",
         winningBid: winningBid.amount,
-        totalAmount: winningBid.amount * lot.quantity,
+        productAmount,
+        platformFeeRate,
+        platformFee,
+        sellerPayable,
+        totalAmount: productAmount,
         status: "CONFIRMED",
         sellerStatus: "CONFIRMED", // seller already accepted by picking
         confirmedAt: new Date(),
       },
     });
+
+    // Charge buyer wallet for product amount
+    if (winningBid.bidderId) {
+      const buyerWallet = await prisma.wallet.upsert({
+        where:  { userId: winningBid.bidderId },
+        create: { userId: winningBid.bidderId, balance: 0 },
+        update: {},
+      });
+      if (buyerWallet.balance >= productAmount) {
+        await prisma.$transaction([
+          prisma.wallet.update({
+            where: { id: buyerWallet.id },
+            data:  { balance: { decrement: productAmount } },
+          }),
+          prisma.walletTransaction.create({
+            data: {
+              walletId: buyerWallet.id,
+              type: "DEBIT",
+              amount: productAmount,
+              description: `Auction won — ${lot.title} (${lot.lotCode}), ${lot.quantity} ${lot.unit}`,
+            },
+          }),
+        ]);
+      }
+    }
 
     // Close the lot
     await prisma.lot.update({

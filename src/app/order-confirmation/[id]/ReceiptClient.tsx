@@ -9,6 +9,8 @@ type ConfirmationReceipt = {
   lotCode: string | null;
   product: string;
   qty: string;
+  qtyUnit: string;
+  freeQty: number;
   sellerName: string;
   buyerName: string;
   deliveryPoint: string;
@@ -17,11 +19,24 @@ type ConfirmationReceipt = {
   winningBid: number;
   productAmount: number;
   transportCost: number;
+  buyerTransportCost: number;
+  sellerTransportCost: number;
+  transportPaidBy: "BUYER" | "SELLER" | "BOTH" | "NONE";
   platformFeeRate: number;
   platformFee: number;
   sellerPayable: number;
   totalAmount: number;
+  buyerTotalPayable: number;
+  actualQty: number | null;
+  actualQtyUnit: string;
   confirmedAt: string;
+};
+
+const TRANSPORT_PAYER_LABEL: Record<ConfirmationReceipt["transportPaidBy"], string> = {
+  BUYER: "Buyer",
+  SELLER: "Seller",
+  BOTH: "Buyer + Seller (Split)",
+  NONE: "Not applied",
 };
 
 const fmt = (iso: string) =>
@@ -102,10 +117,12 @@ export default function SellerConfirmationReceiptClient({ id }: { id: string }) 
                   ["Lot Code", data.lotCode ?? "—"],
                   ["Product", data.product],
                   ["Quantity", data.qty],
+                  ["Free Offer Qty", data.freeQty > 0 ? `${data.freeQty} ${data.qtyUnit}` : "None"],
                   ["Seller", data.sellerName],
                   ["Buyer", data.buyerName],
                   ["Delivery Hub", data.deliveryPoint],
                   ["Source Hub", data.hubId ?? "—"],
+                  ["Actual Quantity", data.actualQty != null ? `${data.actualQty} ${data.actualQtyUnit}` : "Pending"],
                 ].map(([k, v]) => (
                   <tr key={k}>
                     <td className="w-40 bg-slate-50 px-3 py-2 font-semibold text-slate-600">{k}</td>
@@ -125,11 +142,14 @@ export default function SellerConfirmationReceiptClient({ id }: { id: string }) 
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                <tr><td className="px-3 py-2">Winning Bid</td><td className="px-3 py-2 text-right">৳ {data.winningBid.toLocaleString()}</td></tr>
+                <tr><td className="px-3 py-2">Winning Bid</td><td className="px-3 py-2 text-right">৳ {data.winningBid.toLocaleString()}/{data.qtyUnit}</td></tr>
                 <tr><td className="px-3 py-2">Product Amount</td><td className="px-3 py-2 text-right">৳ {data.productAmount.toLocaleString()}</td></tr>
                 <tr><td className="px-3 py-2">Transport Cost</td><td className="px-3 py-2 text-right">৳ {data.transportCost.toLocaleString()}</td></tr>
+                <tr><td className="px-3 py-2">Transport Paid By</td><td className="px-3 py-2 text-right">{TRANSPORT_PAYER_LABEL[data.transportPaidBy]}</td></tr>
+                <tr><td className="px-3 py-2">Buyer Transport Share</td><td className="px-3 py-2 text-right">৳ {data.buyerTransportCost.toLocaleString()}</td></tr>
+                <tr><td className="px-3 py-2">Seller Transport Share</td><td className="px-3 py-2 text-right">৳ {data.sellerTransportCost.toLocaleString()}</td></tr>
                 <tr><td className="px-3 py-2">Platform Fee ({data.platformFeeRate}%)</td><td className="px-3 py-2 text-right">৳ {data.platformFee.toLocaleString()}</td></tr>
-                <tr className="bg-emerald-50"><td className="px-3 py-2 font-bold text-emerald-800">Buyer Total</td><td className="px-3 py-2 text-right font-bold text-emerald-800">৳ {data.totalAmount.toLocaleString()}</td></tr>
+                <tr className="bg-emerald-50"><td className="px-3 py-2 font-bold text-emerald-800">Buyer Total</td><td className="px-3 py-2 text-right font-bold text-emerald-800">৳ {data.buyerTotalPayable.toLocaleString()}</td></tr>
                 <tr><td className="px-3 py-2 font-semibold text-violet-700">Seller Receivable</td><td className="px-3 py-2 text-right font-semibold text-violet-700">৳ {data.sellerPayable.toLocaleString()}</td></tr>
               </tbody>
             </table>

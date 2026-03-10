@@ -64,18 +64,26 @@ export const createLotSchema = z
     baggageQty: z.coerce.number().positive("Baggage quantity must be greater than 0"),
     basePrice: z.coerce.number().positive("Base price must be greater than 0"),
     askingPricePerKg: z.coerce.number().positive("Asking price must be greater than 0"),
-    transportCost: z.preprocess(
-      (v) => (v === "" || v == null) ? undefined : Number(v),
-      z.number().min(0, "Transport cost cannot be negative").optional(),
-    ),
+    transportShare: z.enum(["YES", "NO", "HALF"] as const).default("YES"),
     hubId: z.string().min(1, "Please select a hub"),
     saleType: z.enum(["AUCTION", "FIXED_PRICE"] as const).default("AUCTION"),
     auctionStartsAt: z.string().optional(),
     auctionEndsAt: z.string().optional(),
+    freeQtyEnabled: z.boolean().optional().default(false),
+    freeQtyPer: z.coerce.number().min(0).optional(),
+    freeQtyAmount: z.coerce.number().min(0).optional(),
   })
   .refine(
     (d) => d.saleType !== "AUCTION" || (!!d.auctionStartsAt && !!d.auctionEndsAt),
     { message: "Auction start and end times are required", path: ["auctionStartsAt"] }
+  )
+  .refine(
+    (d) => !d.freeQtyEnabled || ((d.freeQtyPer ?? 0) > 0),
+    { message: "Threshold is required when bonus offer is enabled", path: ["freeQtyPer"] }
+  )
+  .refine(
+    (d) => !d.freeQtyEnabled || ((d.freeQtyAmount ?? 0) > 0),
+    { message: "Free amount is required when bonus offer is enabled", path: ["freeQtyAmount"] }
   );
 
 // ─── Bid ─────────────────────────────────────────────────────────────────────

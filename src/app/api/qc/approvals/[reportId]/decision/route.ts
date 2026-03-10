@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { readApprovals, writeApprovals } from "@/lib/qc-approvals-store";
-import { setLotMarketplacePhoto } from "@/lib/lot-media-store";
+import { setLotMarketplacePhotos } from "@/lib/lot-media-store";
 
 export async function PATCH(
   req: NextRequest,
@@ -9,13 +9,18 @@ export async function PATCH(
 ) {
   try {
     const { reportId } = await params;
-    const { decision, selectedPhotoUrl } = (await req.json()) as {
-      decision: "approved" | "rejected" | "pending";
+    const { decision, selectedPhotoUrl, selectedPhotoUrls } = (await req.json()) as {
+      decision: "approved" | "rejected" | "pending" | "reinspect";
       selectedPhotoUrl?: string;
+      selectedPhotoUrls?: string[];
     };
     if (!decision) {
       return NextResponse.json({ message: "decision is required" }, { status: 400 });
     }
+    const selectedUrls = Array.from(
+      new Set((selectedPhotoUrls?.length ? selectedPhotoUrls : (selectedPhotoUrl ? [selectedPhotoUrl] : [])).filter(Boolean)),
+    ) as string[];
+    const selectedPrimary = selectedUrls[0];
 
     // reportId format: QCR-{lotCode}
     const lotCode = reportId.replace(/^QCR-/, "");
@@ -45,61 +50,25 @@ export async function PATCH(
       },
     });
 
-    // Auto-create order on approval
-    if (decision === "approved") {
-      const existingOrder = await prisma.order.findFirst({ where: { lotId: lot.id } });
-      if (!existingOrder) {
-        const winningBid = updated.minBidRate ?? updated.basePrice;
-        const orderCode = `ORD-${String(Date.now()).slice(-6)}`;
-        const buyerUser = await prisma.user.findFirst({
-          where: { userRoles: { some: { role: "buyer" } }, status: "ACTIVE" },
-        });
-
-        // Fetch QC report for transport cost
-        const qcReport = await prisma.qCReport.findUnique({ where: { lotId: lot.id } });
-        const transportCost = qcReport?.transportCost ?? 0;
-        const productAmount = winningBid * lot.quantity;
-        const platformFeeRate = 5; // 5% platform fee
-        const platformFee = Math.round(productAmount * platformFeeRate / 100);
-        const sellerPayable = productAmount - platformFee;
-        const totalAmount = productAmount + transportCost;
-
-        await prisma.order.create({
-          data: {
-            orderCode,
-            lotId: lot.id,
-            buyerId: buyerUser?.id ?? null,
-            sellerId: lot.sellerId ?? null,
-            buyerName: buyerUser?.name ?? "Agro Wholesale BD",
-            sellerName: lot.sellerName,
-            product: lot.title,
-            qty: `${lot.quantity} ${lot.unit}`,
-            deliveryPoint: "Mirpur Delivery Point",
-            winningBid,
-            productAmount,
-            transportCost,
-            sellerTransportCost: lot.sellerTransportCost,
-            platformFeeRate,
-            platformFee,
-            sellerPayable,
-            totalAmount,
-            status: "CONFIRMED",
-          },
-        });
-      }
-    }
+    // Do not auto-create orders during QC approval.
+    // Orders must only be created from buyer action (/api/marketplace/orders).
 
     // Persist decision in approvals store (if record exists there)
     const approvals = await readApprovals();
     const updatedApprovals = approvals.map((r) =>
       r.reportId === reportId
-        ? { ...r, decision, selectedMarketplacePhotoUrl: selectedPhotoUrl ?? r.selectedMarketplacePhotoUrl }
+        ? {
+            ...r,
+            decision,
+            selectedMarketplacePhotoUrls: selectedUrls.length ? selectedUrls : r.selectedMarketplacePhotoUrls,
+            selectedMarketplacePhotoUrl: selectedPrimary ?? r.selectedMarketplacePhotoUrl,
+          }
         : r
     );
     await writeApprovals(updatedApprovals);
 
-    if (decision === "approved" && selectedPhotoUrl) {
-      await setLotMarketplacePhoto(updated.lotCode, selectedPhotoUrl);
+    if (decision === "approved" && selectedUrls.length > 0) {
+      await setLotMarketplacePhotos(updated.lotCode, selectedUrls);
     }
 
     return NextResponse.json({

@@ -21,6 +21,11 @@ export type QCPendingApprovalRecord = {
   minBidRate: number;
   transportCost?: number;         // QC checker's determined transport cost
   sellerTransportCost?: number;   // seller's original estimate
+  sellerTransportShare?: string;  // "YES" | "NO" | "HALF"
+  freeQtyEnabled?: boolean;
+  freeQtyPer?: number;
+  freeQtyAmount?: number;
+  freeQtyUnit?: string;
   notes: string;
   qcNote?: string;
   weight?: number;
@@ -33,6 +38,7 @@ export type QCPendingApprovalRecord = {
   sellerPhotoUrls?: string[];
   qcPhotoPreviews?: string[];
   selectedMarketplacePhotoUrl?: string;
+  selectedMarketplacePhotoUrls?: string[];
   changes: QCFieldChange[];
   sellerSnapshot?: Record<string, string>;
   qcSnapshot?: Record<string, string>;

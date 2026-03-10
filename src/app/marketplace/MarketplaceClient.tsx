@@ -2,71 +2,303 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin, Minus, Package, Star, TrendingDown, TrendingUp, Truck } from "lucide-react";
+import {
+  Bell,
+  ChevronDown,
+  Gavel,
+  LayoutGrid,
+  Minus,
+  SlidersHorizontal,
+  Tag,
+  TrendingDown,
+  TrendingUp,
+  X,
+} from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Pagination from "@/components/Pagination";
 import { type Product } from "@/lib/products";
 import api from "@/lib/api";
 
+/* ─── helpers ──────────────────────────────────────────────────────────────── */
 
-const categoryOptions = [
-  { value: "all", label: "All Categories" },
-  { value: "vegetable", label: "Vegetables" },
-  { value: "fruit", label: "Fruits" },
-  { value: "grain", label: "Grains" },
-  { value: "spice", label: "Spices" },
-];
-
-const statusOptions: Product["status"][] = ["live", "upcoming", "fixed"];
-const deliveryOptions: Product["delivery"][] = ["same", "fast", "normal"];
+function storageType(category: Product["category"]) {
+  if (category === "vegetable" || category === "fruit") return "Cold Storage";
+  if (category === "grain") return "Dry Warehouse";
+  return "Dry Storage";
+}
 
 function qtyMatches(qty: number, filter: string) {
-  if (filter === "small") return qty <= 500;
+  if (filter === "small")  return qty <= 500;
   if (filter === "medium") return qty > 500 && qty <= 2000;
-  if (filter === "bulk") return qty > 2000;
+  if (filter === "bulk")   return qty > 2000;
   return true;
 }
 
-function trendLabel(trend: Product["trend"]) {
-  if (trend === "up") return "Price Rising";
-  if (trend === "down") return "Price Falling";
-  return "Price Stable";
-}
-
 function TrendIcon({ trend }: { trend: Product["trend"] }) {
-  if (trend === "up") return <TrendingUp className="h-3 w-3" />;
+  if (trend === "up")   return <TrendingUp   className="h-3 w-3" />;
   if (trend === "down") return <TrendingDown className="h-3 w-3" />;
   return <Minus className="h-3 w-3" />;
 }
 
+/** Returns "mm:ss" remaining or null if time has passed / no date */
+function useCountdown(isoDate: string | null | undefined) {
+  const [remaining, setRemaining] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isoDate) return;
+    const tick = () => {
+      const diff = new Date(isoDate).getTime() - Date.now();
+      if (diff <= 0) { setRemaining("Ended"); return; }
+      const h = Math.floor(diff / 3_600_000);
+      const m = Math.floor((diff % 3_600_000) / 60_000);
+      const s = Math.floor((diff % 60_000) / 1_000);
+      setRemaining(h > 0 ? `${h}h ${m}m` : `${m}:${String(s).padStart(2, "0")}`);
+    };
+    tick();
+    const id = setInterval(tick, 1_000);
+    return () => clearInterval(id);
+  }, [isoDate]);
+  return remaining;
+}
+
+const CATEGORY_TABS = [
+  { value: "all",       label: "All" },
+  { value: "vegetable", label: "Vegetables" },
+  { value: "fruit",     label: "Fruits" },
+  { value: "grain",     label: "Grains" },
+  { value: "spice",     label: "Spices" },
+];
+
+const HUB_OPTIONS = ["Bogura", "Dhaka", "Jessore", "Rangpur"];
+
 const PRODUCTS_PER_PAGE = 8;
 
+/* ─── card ──────────────────────────────────────────────────────────────────── */
+
+function ProductCard({ item, onClickCard, onClickAuction }: {
+  item: Product;
+  onClickCard: (p: Product) => void;
+  onClickAuction: (p: Product) => void;
+}) {
+  const countdown = useCountdown(item.status === "live" ? item.auctionEndsAt : null);
+  const discount   = Math.max(0, Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100));
+  const isSoldOut  = item.soldOut === true;
+
+  return (
+    <div
+      className={`group flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition ${
+        isSoldOut
+          ? "cursor-default border-slate-100 opacity-70"
+          : "cursor-pointer border-slate-200 hover:-translate-y-1 hover:shadow-md"
+      }`}
+      onClick={() => {
+        if (isSoldOut) return;
+        if (item.status === "live") onClickAuction(item);
+        else onClickCard(item);
+      }}
+    >
+      {/* Image */}
+      <div className="relative h-44 w-full">
+        {item.image.startsWith("data:") ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.image}
+            alt={item.name}
+            className={`h-full w-full object-cover ${isSoldOut ? "grayscale" : ""}`}
+          />
+        ) : (
+          <Image
+            src={item.image}
+            alt={item.name}
+            fill
+            sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+            className={`object-cover ${isSoldOut ? "grayscale" : ""}`}
+          />
+        )}
+
+        {isSoldOut && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40">
+            <span className="rounded-full bg-red-500 px-4 py-1.5 text-sm font-bold text-white shadow">Sold Out</span>
+          </div>
+        )}
+
+        {/* Grade + QC */}
+        <div className="absolute left-3 top-3 flex gap-1.5">
+          <span className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-emerald-700 shadow-sm">
+            Grade {item.grade}
+          </span>
+          <span className="rounded-full bg-slate-900/70 px-2.5 py-1 text-[11px] font-semibold text-white">QC ✓</span>
+        </div>
+
+        {/* Status badge */}
+        {!isSoldOut && (
+          <div className="absolute right-3 top-3 flex flex-col items-end gap-1">
+            {item.status === "live" && (
+              <span className="rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
+                ● Live
+              </span>
+            )}
+            {item.status === "upcoming" && (
+              <span className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
+                Upcoming
+              </span>
+            )}
+            {item.status === "fixed" && (
+              <span className="rounded-full bg-blue-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
+                Fixed Price
+              </span>
+            )}
+            {/* Countdown for live auctions */}
+            {item.status === "live" && countdown && (
+              <span className="rounded-full bg-slate-900/80 px-2.5 py-1 text-[11px] font-semibold text-white">
+                {countdown}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="flex flex-1 flex-col gap-2 px-3 pb-3 pt-2">
+        {/* Name + price */}
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="truncate text-sm font-bold text-slate-900">{item.name}</h2>
+          <div className="flex shrink-0 items-baseline gap-1">
+            <span className="text-sm font-bold text-slate-900">৳{item.price}</span>
+            <span className="text-[10px] text-slate-400">/kg</span>
+          </div>
+        </div>
+
+        {/* Discount */}
+        {discount > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-slate-400 line-through">৳{item.originalPrice}/kg</span>
+            <span className="text-[10px] font-bold text-rose-500">−{discount}%</span>
+          </div>
+        )}
+
+        {/* Free qty offer badge */}
+        {item.freeQtyEnabled && (item.freeQtyPer ?? 0) > 0 && (item.freeQtyAmount ?? 0) > 0 && (
+          <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+            <span>Free {item.freeQtyAmount} {item.freeQtyUnit} per {item.freeQtyPer} {item.freeQtyUnit} ordered</span>
+          </div>
+        )}
+
+        {/* Stock bar + info */}
+        {item.qty > 0 && ((item.soldQty ?? 0) > 0 || (item.pendingQty ?? 0) > 0) && (
+          <div className="space-y-1">
+            <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full bg-emerald-500"
+                style={{ width: `${Math.min(100, ((item.soldQty ?? 0) / item.qty) * 100)}%` }}
+              />
+              <div
+                className="h-full bg-amber-400"
+                style={{
+                  width: `${Math.min(
+                    100 - ((item.soldQty ?? 0) / item.qty) * 100,
+                    ((item.pendingQty ?? 0) / item.qty) * 100,
+                  )}%`,
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-slate-500">
+              <div className="flex items-center gap-2">
+                {(item.soldQty ?? 0) > 0 && (
+                  <span className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    {item.soldQty} sold
+                  </span>
+                )}
+                {(item.pendingQty ?? 0) > 0 && (
+                  <span className="flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    {item.pendingQty} pending
+                  </span>
+                )}
+              </div>
+              <span className="text-slate-400">{item.availableQty ?? item.qty - (item.soldQty ?? 0)} left</span>
+            </div>
+          </div>
+        )}
+
+        {/* Storage + location */}
+        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
+            {item.storageType || storageType(item.category)}
+          </span>
+          <span className="text-slate-300">·</span>
+          <span>{item.hub} Hub</span>
+        </div>
+
+        {/* Trend tag — only if non-stable */}
+        {item.trend !== "stable" && (
+          <span
+            className={`inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+              item.trend === "up" ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-700"
+            }`}
+          >
+            <TrendIcon trend={item.trend} />
+            {item.trend === "up" ? "Rising" : "Falling"}
+          </span>
+        )}
+
+        {/* CTA */}
+        <div className="mt-auto flex items-center gap-2 pt-0.5">
+          {isSoldOut ? (
+            <button
+              type="button"
+              disabled
+              className="flex-1 cursor-not-allowed rounded-full bg-slate-100 py-2 text-xs font-semibold text-slate-400"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Sold Out
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (item.status === "live") onClickAuction(item);
+                else onClickCard(item);
+              }}
+              className="flex-1 rounded-full bg-emerald-500 py-2 text-xs font-semibold text-white transition hover:bg-emerald-600"
+            >
+              {item.status === "live" ? "Join auction" : "View"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={(e) => e.stopPropagation()}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-emerald-300 hover:text-emerald-600"
+            title="Set price alert"
+          >
+            <Bell className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── main component ─────────────────────────────────────────────────────────── */
+
 export default function MarketplacePage() {
-  const router = useRouter();
+  const router       = useRouter();
   const searchParams = useSearchParams();
+
   const [products, setProducts] = useState<Product[]>([]);
+  const [loading,  setLoading]  = useState(true);
 
-  const [search, setSearch] = useState(() => searchParams.get("q") ?? "");
+  const [search,   setSearch]   = useState(() => searchParams.get("q") ?? "");
   const [category, setCategory] = useState("all");
-  const [hub, setHub] = useState("all");
-  const [status, setStatus] = useState("all");
+  const [hub,      setHub]      = useState("all");
+  const [status,   setStatus]   = useState("all");
   const [quantity, setQuantity] = useState("all");
-  const [delivery, setDelivery] = useState("all");
-  const [page, setPage] = useState(1);
-  const [hubOptions, setHubOptions] = useState<{ id: string; name: string; location: string }[]>([]);
+  const [sort,     setSort]     = useState("newest");
+  const [page,     setPage]     = useState(1);
 
-  // Hero trend controls
-  const [heroCategory, setHeroCategory] = useState<Product["category"]>("vegetable");
-  const [heroHub, setHeroHub] = useState<string>("all");
-  const [heroProduct, setHeroProduct] = useState<string>("all");
-  const [trendTimeframe, setTrendTimeframe] = useState("days");
-  const [trendMetric, setTrendMetric] = useState("avg");
-  const [trendSmooth, setTrendSmooth] = useState(false);
-  const [trendCompare, setTrendCompare] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const tooltipRef = useRef<HTMLDivElement | null>(null);
-
+  /* load products */
   useEffect(() => {
     const load = async () => {
       try {
@@ -74,200 +306,62 @@ export default function MarketplacePage() {
         setProducts(rows);
       } catch {
         setProducts([]);
+      } finally {
+        setLoading(false);
       }
     };
     void load();
   }, []);
 
-  useEffect(() => {
-    fetch("/api/marketplace/hubs")
-      .then(r => r.ok ? r.json() : [])
-      .then((data: { id: string; name: string; location: string }[]) => setHubOptions(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, []);
-
-  const hubsForCategory = useMemo(() => {
-    const set = new Set<string>();
-    products.forEach((p) => {
-      if (p.category === heroCategory) set.add(p.hub);
-    });
-    return ["all", ...Array.from(set)];
-  }, [heroCategory, products]);
-
-  const productsForCategory = useMemo(() => {
-    const set = new Set<string>();
-    products.forEach((p) => {
-      if (p.category === heroCategory) set.add(p.name);
-    });
-    return ["all", ...Array.from(set)];
-  }, [heroCategory, products]);
-
-  useEffect(() => {
-    if (!hubsForCategory.includes(heroHub)) setHeroHub("all");
-    if (!productsForCategory.includes(heroProduct)) setHeroProduct("all");
-  }, [hubsForCategory, productsForCategory, heroHub, heroProduct]);
-
+  /* filter + sort */
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const items = products.filter((p) => {
-      const matchesTerm = !term || p.name.toLowerCase().includes(term) || p.hub.toLowerCase().includes(term) || (p.seller ?? "").toLowerCase().includes(term);
-      const matchesCat = category === "all" || p.category === category;
-      const matchesHub = hub === "all" || p.hub === hub;
-      const matchesStatus = status === "all" || p.status === status;
-      const matchesDelivery = delivery === "all" || p.delivery === delivery;
-      const matchesQty = qtyMatches(p.qty, quantity);
-      return matchesTerm && matchesCat && matchesHub && matchesStatus && matchesDelivery && matchesQty;
+    let items = products.filter((p) => {
+      const matchesTerm  = !term || p.name.toLowerCase().includes(term) || p.hub.toLowerCase().includes(term) || (p.seller ?? "").toLowerCase().includes(term);
+      const matchesCat   = category === "all" || p.category === category;
+      const matchesHub   = hub === "all" || p.hub === hub;
+      const matchesStatus= status === "all" || p.status === status;
+      const matchesQty   = qtyMatches(p.qty, quantity);
+      return matchesTerm && matchesCat && matchesHub && matchesStatus && matchesQty;
     });
+
+    if (sort === "price_asc")  items = [...items].sort((a, b) => a.price - b.price);
+    if (sort === "price_desc") items = [...items].sort((a, b) => b.price - a.price);
+    if (sort === "bids")       items = [...items].sort((a, b) => b.bids - a.bids);
+    // "newest" keeps API order (already ordered by createdAt desc)
+
     return items;
-  }, [search, category, hub, status, delivery, quantity, products]);
+  }, [search, category, hub, status, quantity, sort, products]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [filtered]);
+  useEffect(() => { setPage(1); }, [filtered]);
 
-  const totalPages = Math.ceil(filtered.length / PRODUCTS_PER_PAGE);
+  const totalPages     = Math.ceil(filtered.length / PRODUCTS_PER_PAGE);
   const visibleProducts = filtered.slice((page - 1) * PRODUCTS_PER_PAGE, page * PRODUCTS_PER_PAGE);
 
-  const readyCount = products.filter((p) => p.status === "live" || p.status === "fixed").length;
-  const upcomingCount = products.filter((p) => p.status === "upcoming").length;
+  /* stats */
+  const totalCount = products.length;
+  const liveCount  = products.filter((p) => p.status === "live").length;
+  const availCount = products.filter((p) => !p.soldOut).length;
 
-  // Hero trend chart drawing (simple canvas line like previous site)
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+  /* active filter chips */
+  const chips: { key: string; label: string; clear: () => void }[] = [];
+  if (search)       chips.push({ key: "search",   label: `"${search}"`,           clear: () => setSearch("") });
+  if (hub !== "all")chips.push({ key: "hub",      label: `Hub: ${hub}`,            clear: () => setHub("all") });
+  if (status !== "all") {
+    const sLabel = status === "live" ? "Live Auction" : status === "upcoming" ? "Upcoming" : "Fixed Price";
+    chips.push({ key: "status", label: sLabel, clear: () => setStatus("all") });
+  }
+  if (quantity !== "all") {
+    const qLabel = quantity === "small" ? "≤500 kg" : quantity === "medium" ? "500–2000 kg" : "2000+ kg";
+    chips.push({ key: "qty", label: qLabel, clear: () => setQuantity("all") });
+  }
 
-    if (products.length === 0) return;
+  const resetAll = () => {
+    setSearch(""); setCategory("all"); setHub("all");
+    setStatus("all"); setQuantity("all"); setSort("newest");
+  };
 
-    const baseCandidates = products.filter((p) => {
-      const matchCat = p.category === heroCategory;
-      const matchHub = heroHub === "all" || p.hub === heroHub;
-      const matchProduct = heroProduct === "all" || p.name === heroProduct;
-      return matchCat && matchHub && matchProduct;
-    });
-    const baseProduct = baseCandidates[0] || products.find((p) => p.category === heroCategory) || products[0];
-    let basePrice = baseProduct?.price || 30;
-
-    const labels: string[] = [];
-    const values: number[] = [];
-
-    if (trendTimeframe === "days") {
-      for (let i = 6; i >= 0; i -= 1) labels.push(i === 0 ? "Today" : `${i}d ago`);
-    } else {
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const now = new Date();
-      for (let i = 5; i >= 0; i -= 1) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        labels.push(monthNames[d.getMonth()]);
-      }
-    }
-
-    for (let i = 0; i < labels.length; i += 1) {
-      const volatility = Math.max(1, Math.round(basePrice * 0.06));
-      const change = Math.round((Math.random() - 0.45) * volatility);
-      basePrice = Math.max(5, basePrice + change);
-      values.push(basePrice + Math.round(Math.random() * 2 - 1));
-    }
-
-    const smoothedValues = trendSmooth
-      ? values.map((v, idx, arr) => {
-          const start = Math.max(0, idx - 1);
-          const end = Math.min(arr.length - 1, idx + 1);
-          const slice = arr.slice(start, end + 1);
-          return Math.round(slice.reduce((a, b) => a + b, 0) / slice.length);
-        })
-      : values;
-
-    const compareValues = trendCompare
-      ? smoothedValues.map((v) => Math.max(1, Math.round(v * (0.95 + Math.random() * 0.1))))
-      : null;
-
-    const width = canvas.offsetWidth;
-    const height = canvas.offsetHeight;
-    canvas.width = width;
-    canvas.height = height;
-
-    ctx.clearRect(0, 0, width, height);
-    const padding = 20;
-    const max = Math.max(...smoothedValues, ...(compareValues || smoothedValues));
-    const min = Math.min(...smoothedValues, ...(compareValues || smoothedValues));
-    const range = max - min || 1;
-
-    ctx.strokeStyle = "#e5e7eb";
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 3; i += 1) {
-      const y = padding + ((height - padding * 2) * i) / 3;
-      ctx.beginPath();
-      ctx.moveTo(padding, y);
-      ctx.lineTo(width - padding, y);
-      ctx.stroke();
-    }
-
-    const drawSeries = (series: number[], color: string) => {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      series.forEach((v, idx) => {
-        const x = padding + ((width - padding * 2) * idx) / (series.length - 1 || 1);
-        const y = height - padding - ((height - padding * 2) * (v - min)) / range;
-        if (idx === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.stroke();
-
-      ctx.fillStyle = color;
-      series.forEach((v, idx) => {
-        const x = padding + ((width - padding * 2) * idx) / (series.length - 1 || 1);
-        const y = height - padding - ((height - padding * 2) * (v - min)) / range;
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    };
-
-    drawSeries(smoothedValues, "#10b981");
-    if (compareValues) drawSeries(compareValues, "rgba(59,130,246,0.6)");
-
-    const points = smoothedValues.map((v, idx) => {
-      const x = padding + ((width - padding * 2) * idx) / (smoothedValues.length - 1 || 1);
-      const y = height - padding - ((height - padding * 2) * (v - min)) / range;
-      return { x, y, v, label: labels[idx] };
-    });
-
-    const tooltip = tooltipRef.current;
-    if (!tooltip) return;
-    tooltip.style.display = "none";
-    canvas.onmousemove = (e) => {
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      let nearest: { x: number; y: number; v: number; label: string } | null = null;
-      let minDist = Infinity;
-      points.forEach((pt) => {
-        const dx = pt.x - mx;
-        const dy = pt.y - my;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < minDist) {
-          minDist = d;
-          nearest = pt;
-        }
-      });
-      const n = nearest as { x: number; y: number; v: number; label: string } | null;
-      if (n && minDist < 28) {
-        tooltip.style.display = "block";
-        tooltip.style.left = `${n.x + rect.left}px`;
-        tooltip.style.top = `${n.y + rect.top}px`;
-        tooltip.innerText = `${n.label} — ৳ ${n.v.toLocaleString()}`;
-      } else {
-        tooltip.style.display = "none";
-      }
-    };
-    canvas.onmouseleave = () => {
-      tooltip.style.display = "none";
-    };
-  }, [heroCategory, heroHub, heroProduct, trendTimeframe, trendMetric, trendSmooth, trendCompare, products]);
-
+  /* navigation helpers */
   const handleCardClick = (product: Product) => {
     const params = new URLSearchParams({
       name: product.name,
@@ -275,11 +369,9 @@ export default function MarketplacePage() {
       originalPrice: product.originalPrice.toString(),
       hub: product.hub,
       qty: product.qty.toString(),
-      rating: product.rating.toString(),
       seller: product.seller,
       grade: product.grade,
       lot: product.lot,
-      delivery: product.delivery,
       status: product.status,
     });
     if (product.image && !product.image.startsWith("data:") && product.image.length < 500) {
@@ -295,438 +387,230 @@ export default function MarketplacePage() {
       price: product.price.toString(),
       hub: product.hub,
       qty: product.qty.toString(),
-      rating: product.rating.toString(),
       bids: product.bids.toString(),
       seller: product.seller,
       grade: product.grade,
       lot: product.lot,
     });
-    // Only pass image if it's a normal external URL — data: URLs are too large for query params (causes 431)
     if (product.image && !product.image.startsWith("data:") && product.image.length < 500) {
       params.set("image", product.image);
     }
-    if (product.sellerId) {
-      params.set("sellerId", product.sellerId);
-    }
+    if (product.sellerId) params.set("sellerId", product.sellerId);
     router.push(`/live?${params.toString()}`);
   };
 
+  /* ─── render ──────────────────────────────────────────────────────────────── */
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+
+      {/* Hero */}
       <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-6 shadow-sm ring-1 ring-emerald-100 sm:p-8">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <p className="text-sm font-semibold uppercase tracking-[0.1em] text-emerald-700">Marketplace</p>
-            <h1 className="text-3xl font-bold leading-tight text-slate-900 text-balance sm:text-4xl lg:text-[38px]">QC-verified wholesale lots</h1>
-            <p className="max-w-3xl text-slate-700">
-              Browse and purchase QC-verified products directly from trusted sellers. Filters, trend chart, and cards mirror the previous marketplace experience.
-            </p>
-          </div>
+        <p className="text-sm font-semibold uppercase tracking-[0.1em] text-emerald-700">Marketplace</p>
+        <h1 className="mt-1 text-3xl font-bold leading-tight text-slate-900 text-balance sm:text-4xl">
+          QC-verified wholesale lots
+        </h1>
+        <p className="mt-2 max-w-2xl text-slate-600">
+          Browse and purchase QC-verified products directly from trusted sellers.
+        </p>
 
-          <div className="flex flex-wrap gap-3 text-sm font-semibold text-slate-700">
-            <div className="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100">
-              <p className="text-xs uppercase tracking-[0.08em] text-slate-500">Ready / Fixed</p>
-              <p className="text-xl font-bold text-slate-900">{readyCount} lots</p>
-            </div>
-            <div className="rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100">
-              <p className="text-xs uppercase tracking-[0.08em] text-slate-500">Upcoming</p>
-              <p className="text-xl font-bold text-slate-900">{upcomingCount} lots</p>
+        {/* Stats strip */}
+        <div className="mt-5 flex flex-wrap gap-3">
+          <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100">
+            <LayoutGrid className="h-4 w-4 text-slate-400" />
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Total Listings</p>
+              <p className="text-xl font-bold text-slate-900">{totalCount}</p>
             </div>
           </div>
-
-          <div className="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
-            <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
-              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
-                <span>Category</span>
-                <select
-                  value={heroCategory}
-                  onChange={(e) => setHeroCategory(e.target.value as Product["category"])}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
-                >
-                  {categoryOptions.slice(1).map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
-                <span>Hub</span>
-                <select
-                  value={heroHub}
-                  onChange={(e) => setHeroHub(e.target.value)}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
-                >
-                  {hubsForCategory.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt === "all" ? "All hubs" : opt}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
-                <span>Product</span>
-                <select
-                  value={heroProduct}
-                  onChange={(e) => setHeroProduct(e.target.value)}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
-                >
-                  {productsForCategory.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt === "all" ? "All products" : opt}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
-                <span>View</span>
-                <select
-                  value={trendTimeframe}
-                  onChange={(e) => setTrendTimeframe(e.target.value)}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
-                >
-                  <option value="days">Last 7 days</option>
-                  <option value="months">Last 6 months</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
-                <span>Metric</span>
-                <select
-                  value={trendMetric}
-                  onChange={(e) => setTrendMetric(e.target.value)}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
-                >
-                  <option value="avg">Average Price</option>
-                  <option value="median">Median Price</option>
-                  <option value="volume">Volume</option>
-                </select>
-              </label>
+          <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100">
+            <Gavel className="h-4 w-4 text-emerald-500" />
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Live Auctions</p>
+              <p className="text-xl font-bold text-emerald-600">{liveCount}</p>
             </div>
-            <div className="flex flex-wrap gap-3 text-sm font-semibold text-slate-700">
-              <label className="inline-flex items-center gap-2">
-                <input type="checkbox" checked={trendSmooth} onChange={(e) => setTrendSmooth(e.target.checked)} /> Smooth
-              </label>
-              <label className="inline-flex items-center gap-2">
-                <input type="checkbox" checked={trendCompare} onChange={(e) => setTrendCompare(e.target.checked)} /> Compare prev period
-              </label>
-            </div>
-            <div className="relative rounded-xl border border-slate-200 bg-slate-50 p-2">
-              <canvas ref={canvasRef} className="h-40 w-full" />
-              <div ref={tooltipRef} className="pointer-events-none absolute hidden rounded-md bg-slate-900 px-2 py-1 text-xs font-semibold text-white shadow" />
+          </div>
+          <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100">
+            <Tag className="h-4 w-4 text-blue-500" />
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Available Now</p>
+              <p className="text-xl font-bold text-blue-600">{availCount}</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="sticky top-20 z-10 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {/* Filter bar */}
+      <section className="sticky top-20 z-10 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+
+        {/* Row 1: search + sort */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-1 items-center">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products..."
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none ring-emerald-100 focus:border-emerald-500 focus:ring-2"
-            />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search products, hubs, sellers…"
+            className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none ring-emerald-100 focus:border-emerald-500 focus:ring-2"
+          />
+
+          {/* Sort */}
+          <div className="relative">
+            <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              className="appearance-none rounded-xl border border-slate-200 py-2.5 pl-9 pr-8 text-sm outline-none focus:border-emerald-500"
+            >
+              <option value="newest">Newest</option>
+              <option value="price_asc">Price: Low → High</option>
+              <option value="price_desc">Price: High → Low</option>
+              <option value="bids">Most Bids</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           </div>
 
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500"
-          >
-            {categoryOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          {/* Hub */}
+          <div className="relative">
+            <select
+              value={hub}
+              onChange={(e) => setHub(e.target.value)}
+              className="appearance-none rounded-xl border border-slate-200 px-3 py-2.5 pr-8 text-sm outline-none focus:border-emerald-500"
+            >
+              <option value="all">All Hubs</option>
+              {HUB_OPTIONS.map((h) => (
+                <option key={h} value={h}>{h}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          </div>
 
-          <select
-            value={hub}
-            onChange={(e) => setHub(e.target.value)}
-            className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500"
-          >
-            <option value="all">All Hubs</option>
-            {hubOptions.map((h) => (
-              <option key={h.id} value={h.name}>{h.name}</option>
-            ))}
-          </select>
+          {/* Status */}
+          <div className="relative">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="appearance-none rounded-xl border border-slate-200 px-3 py-2.5 pr-8 text-sm outline-none focus:border-emerald-500"
+            >
+              <option value="all">All Modes</option>
+              <option value="live">Live Auction</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="fixed">Fixed Price</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          </div>
 
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500"
-          >
-            <option value="all">All Modes</option>
-            {statusOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt === "live" ? "Live Auction" : opt === "upcoming" ? "Upcoming" : "Fixed Price"}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500"
-          >
-            <option value="all">Any Quantity</option>
-            <option value="small">≤ 500 kg</option>
-            <option value="medium">500–2000 kg</option>
-            <option value="bulk">2000+ kg</option>
-          </select>
-
-          <select
-            value={delivery}
-            onChange={(e) => setDelivery(e.target.value)}
-            className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-emerald-500"
-          >
-            <option value="all">Any Delivery</option>
-            <option value="same">Same Day</option>
-            <option value="fast">24–48 hrs</option>
-            <option value="normal">3–5 days</option>
-          </select>
-
-          <button
-            type="button"
-            onClick={() => {
-              setSearch("");
-              setCategory("all");
-              setHub("all");
-              setStatus("all");
-              setQuantity("all");
-              setDelivery("all");
-            }}
-            className="rounded-xl border border-emerald-500 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
-          >
-            Reset
-          </button>
+          {/* Quantity */}
+          <div className="relative">
+            <select
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="appearance-none rounded-xl border border-slate-200 px-3 py-2.5 pr-8 text-sm outline-none focus:border-emerald-500"
+            >
+              <option value="all">Any Quantity</option>
+              <option value="small">≤ 500 kg</option>
+              <option value="medium">500–2000 kg</option>
+              <option value="bulk">2000+ kg</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
+
+        {/* Row 2: category tab pills */}
+        <div className="flex flex-wrap gap-2">
+          {CATEGORY_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setCategory(tab.value)}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                category === tab.value
+                  ? "bg-emerald-500 text-white shadow-sm"
+                  : "border border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Row 3: active filter chips */}
+        {chips.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">Active:</span>
+            {chips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={chip.clear}
+                className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+              >
+                {chip.label}
+                <X className="h-3 w-3" />
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={resetAll}
+              className="text-xs font-semibold text-slate-400 underline hover:text-slate-600"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
       </section>
 
+      {/* Results */}
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <p className="text-sm font-semibold text-slate-700">{filtered.length} products match your filters</p>
-          <p className="text-xs font-semibold text-slate-500">Showing {visibleProducts.length} of {filtered.length}</p>
+          <p className="text-sm font-semibold text-slate-700">
+            {filtered.length} {filtered.length === 1 ? "product" : "products"} found
+          </p>
+          <p className="text-xs font-semibold text-slate-500">
+            Showing {visibleProducts.length} of {filtered.length}
+          </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {visibleProducts.map((item) => {
-            const discount = Math.max(0, Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100));
-            const isSoldOut = item.soldOut === true;
-            return (
-              <div
-                key={item.lot}
-                className={`group flex h-full flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition ${
-                  isSoldOut
-                    ? "cursor-default border-slate-100 opacity-70"
-                    : "cursor-pointer border-slate-200 hover:-translate-y-1 hover:shadow-md"
-                }`}
-                onClick={() => {
-                  if (isSoldOut) return;
-                  if (item.status === "live") handleJoinAuction(item);
-                  else handleCardClick(item);
-                }}
-              >
-                {/* Image */}
-                <div className="relative h-44 w-full">
-                  {item.image.startsWith("data:") ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className={`h-full w-full object-cover ${isSoldOut ? "grayscale" : ""}`}
-                    />
-                  ) : (
-                  <Image
-                    src={item.image}
-                    alt={item.name}
-                    fill
-                    sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                    className={`object-cover ${isSoldOut ? "grayscale" : ""}`}
-                  />
-                  )}
-                  {/* Sold out overlay */}
-                  {isSoldOut && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40">
-                      <span className="rounded-full bg-red-500 px-4 py-1.5 text-sm font-bold text-white shadow">
-                        Sold Out
-                      </span>
-                    </div>
-                  )}
-                  {/* Top-left: grade + QC */}
-                  <div className="absolute left-3 top-3 flex gap-1.5">
-                    <span className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-emerald-700 shadow-sm">
-                      Grade {item.grade}
-                    </span>
-                    <span className="rounded-full bg-slate-900/70 px-2.5 py-1 text-[11px] font-semibold text-white">
-                      QC ✓
-                    </span>
-                  </div>
-                  {/* Top-right: status */}
-                  {!isSoldOut && (
-                  <div className="absolute right-3 top-3">
-                    {item.status === "live" && (
-                      <span className="rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
-                        ● Live
-                      </span>
-                    )}
-                    {item.status === "upcoming" && (
-                      <span className="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
-                        Upcoming
-                      </span>
-                    )}
-                    {item.status === "fixed" && (
-                      <span className="rounded-full bg-blue-500 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
-                        Fixed Price
-                      </span>
-                    )}
-                  </div>
-                  )}
-                </div>
-
-                {/* Card body */}
-                <div className="flex flex-1 flex-col gap-3 p-4">
-                  {/* Name + lot number */}
-                  <div className="flex items-start justify-between gap-2">
-                    <h2 className="text-base font-bold leading-snug text-slate-900">{item.name}</h2>
-                    <span className="shrink-0 font-mono text-[11px] text-slate-400">{item.lot}</span>
-                  </div>
-
-                  {/* Price */}
-                  <div className="flex items-end justify-between">
-                    <div className="flex items-baseline gap-0.5">
-                      <span className="text-2xl font-bold text-slate-900">৳{item.price}</span>
-                      <span className="text-sm text-slate-500">/kg</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-slate-400 line-through">৳{item.originalPrice}/kg</p>
-                      {discount > 0 && (
-                        <p className="text-xs font-bold text-rose-500">−{discount}%</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Meta: qty + hub */}
-                  <div className="flex items-center gap-3 text-xs text-slate-600">
-                    <span className="flex items-center gap-1">
-                      <Package className="h-3.5 w-3.5 text-slate-400" />
-                      {item.qty.toLocaleString()} kg
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                      {item.hub}
-                    </span>
-                  </div>
-
-                  {/* Stock bar: sold (green) + pending (amber) */}
-                  {item.qty > 0 && ((item.soldQty ?? 0) > 0 || (item.pendingQty ?? 0) > 0) && (
-                    <div className="space-y-1">
-                      <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full bg-emerald-500"
-                          style={{ width: `${Math.min(100, ((item.soldQty ?? 0) / item.qty) * 100)}%` }}
-                        />
-                        <div
-                          className="h-full bg-amber-400"
-                          style={{ width: `${Math.min(100 - ((item.soldQty ?? 0) / item.qty) * 100, ((item.pendingQty ?? 0) / item.qty) * 100)}%` }}
-                        />
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                        {(item.soldQty ?? 0) > 0 && (
-                          <span className="flex items-center gap-0.5">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                            {item.soldQty} sold
-                          </span>
-                        )}
-                        {(item.pendingQty ?? 0) > 0 && (
-                          <span className="flex items-center gap-0.5">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
-                            {item.pendingQty} awaiting seller
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Seller + rating */}
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="truncate font-medium text-slate-700">{item.seller}</span>
-                    <span className="flex shrink-0 items-center gap-1">
-                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                      <span className="font-semibold text-slate-800">{item.rating}</span>
-                      <span className="text-slate-400">({item.bids} bids)</span>
-                    </span>
-                  </div>
-
-                  {/* Trend + delivery tags */}
-                  <div className="flex flex-wrap gap-1.5 text-[11px] font-semibold">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 ${
-                        item.trend === "up"
-                          ? "bg-rose-50 text-rose-600"
-                          : item.trend === "down"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      <TrendIcon trend={item.trend} />
-                      {trendLabel(item.trend)}
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
-                      <Truck className="h-3 w-3" />
-                      {item.delivery === "same"
-                        ? "Same Day"
-                        : item.delivery === "fast"
-                        ? "24–48 hrs"
-                        : "3–5 days"}
-                    </span>
-                  </div>
-
-                  {/* CTA */}
-                  <div className="mt-auto flex gap-2 pt-1 text-sm font-semibold">
-                    {isSoldOut ? (
-                      <button
-                        type="button"
-                        disabled
-                        className="flex-1 rounded-full bg-slate-100 py-2.5 text-slate-400 cursor-not-allowed"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Sold Out
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (item.status === "live") {
-                            handleJoinAuction(item);
-                          } else {
-                            handleCardClick(item);
-                          }
-                        }}
-                        className="flex-1 rounded-full bg-emerald-500 py-2.5 text-white transition hover:bg-emerald-600"
-                      >
-                        {item.status === "live" ? "Join auction" : "View"}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex-1 rounded-full border border-slate-200 py-2.5 text-slate-700 transition hover:border-emerald-200 hover:text-emerald-700"
-                    >
-                      Alert
-                    </button>
-                  </div>
+        {/* Loading skeleton */}
+        {loading && (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="animate-pulse overflow-hidden rounded-2xl border border-slate-100 bg-white">
+                <div className="h-44 bg-slate-100" />
+                <div className="space-y-3 p-4">
+                  <div className="h-4 w-3/4 rounded bg-slate-100" />
+                  <div className="h-6 w-1/2 rounded bg-slate-100" />
+                  <div className="h-3 w-full rounded bg-slate-100" />
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
 
-        {filtered.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-8 text-center text-sm text-slate-700">
-            No products found. Try adjusting your filters.
+        {!loading && (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {visibleProducts.map((item) => (
+              <ProductCard
+                key={item.lot}
+                item={item}
+                onClickCard={handleCardClick}
+                onClickAuction={handleJoinAuction}
+              />
+            ))}
+          </div>
+        )}
+
+        {!loading && filtered.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center">
+            <p className="text-sm font-semibold text-slate-700">No products found.</p>
+            <p className="mt-1 text-xs text-slate-500">Try adjusting your filters or search term.</p>
+            {chips.length > 0 && (
+              <button
+                type="button"
+                onClick={resetAll}
+                className="mt-3 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Clear all filters
+              </button>
+            )}
           </div>
         )}
 
@@ -739,7 +623,11 @@ export default function MarketplacePage() {
       </section>
 
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-5 text-sm text-slate-700">
-        Need custom sourcing? <Link href="/contact" className="font-semibold text-emerald-700 underline">Contact us</Link> with your spec sheet.
+        Need custom sourcing?{" "}
+        <Link href="/contact" className="font-semibold text-emerald-700 underline">
+          Contact us
+        </Link>{" "}
+        with your spec sheet.
       </div>
     </div>
   );

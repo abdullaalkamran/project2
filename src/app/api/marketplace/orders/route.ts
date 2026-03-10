@@ -44,6 +44,9 @@ export async function POST(req: NextRequest) {
   const sellerPayable   = Math.round((productAmount - platformFee) * 100) / 100;
   const totalAmount     = productAmount; // transport cost added later at pre-dispatch
   const qtyStr = `${qty} ${lot.unit}`;
+  const freeQty = (lot.freeQtyEnabled && lot.freeQtyPer > 0 && lot.freeQtyAmount > 0)
+    ? Math.floor(qty / lot.freeQtyPer) * lot.freeQtyAmount
+    : 0;
 
   // Check buyer wallet balance before creating the order
   const buyerWallet = await prisma.wallet.upsert({
@@ -81,6 +84,7 @@ export async function POST(req: NextRequest) {
         sellerName: lot.sellerName,
         product: lot.title,
         qty: qtyStr,
+        freeQty,
         deliveryPoint: deliveryPoint ?? lot.hubId,
         winningBid: pricePerUnit,
         productAmount,
@@ -114,7 +118,7 @@ export async function POST(req: NextRequest) {
     await notify(parties.sellerId, {
       type: "ORDER_PLACED",
       title: "New Order Received",
-      message: `${session.name} ordered ${qtyStr} of "${lot.title}" (${lot.lotCode}) at ৳${pricePerUnit.toLocaleString()}/${lot.unit}. Your acceptance is required.`,
+      message: `${session.name} ordered ${qtyStr}${freeQty > 0 ? ` + ${freeQty} ${lot.freeQtyUnit} free` : ""} of "${lot.title}" (${lot.lotCode}) at ৳${pricePerUnit.toLocaleString()}/${lot.unit}. Your acceptance is required.`,
       link: "/seller-dashboard/orders",
     });
   }
@@ -123,7 +127,7 @@ export async function POST(req: NextRequest) {
   await notify(session.userId, {
     type: "ORDER_PLACED",
     title: "Order Placed Successfully",
-    message: `Your order for ${qtyStr} of "${lot.title}" (${lot.lotCode}) at ৳${pricePerUnit.toLocaleString()}/${lot.unit} has been placed. Awaiting seller confirmation.`,
+    message: `Your order for ${qtyStr}${freeQty > 0 ? ` + ${freeQty} ${lot.freeQtyUnit} free` : ""} of "${lot.title}" (${lot.lotCode}) at ৳${pricePerUnit.toLocaleString()}/${lot.unit} has been placed. Awaiting seller confirmation.`,
     link: "/buyer-dashboard/orders",
   });
 

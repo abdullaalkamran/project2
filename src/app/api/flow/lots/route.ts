@@ -13,6 +13,7 @@ function serializeLot(lot: {
   minBidRate: number | null; sellerId: string | null; sellerName: string; sellerPhone: string | null;
   saleType: string; auctionStartsAt: Date | null; auctionEndsAt: Date | null;
   sellerTransportCost: number | null;
+  freeQtyEnabled: boolean; freeQtyPer: number; freeQtyAmount: number; freeQtyUnit: string;
   status: string; createdAt: Date; receivedAt: Date | null; qcLeaderName: string | null;
   qcCheckerName: string | null; qcTaskStatus: string | null; verdict: string | null;
   qcNotes: string | null; qcSubmittedAt: Date | null; leaderDecision: string | null;
@@ -37,6 +38,10 @@ function serializeLot(lot: {
     sellerPhone: lot.sellerPhone,
     saleType: lot.saleType,
     sellerTransportCost: lot.sellerTransportCost,
+    freeQtyEnabled: lot.freeQtyEnabled,
+    freeQtyPer: lot.freeQtyPer,
+    freeQtyAmount: lot.freeQtyAmount,
+    freeQtyUnit: lot.freeQtyUnit,
     auctionStartsAt: lot.auctionStartsAt?.toISOString() ?? null,
     auctionEndsAt: lot.auctionEndsAt?.toISOString() ?? null,
     status: lot.status,
@@ -86,13 +91,18 @@ export async function POST(req: NextRequest) {
         baggageQty: Number(body.baggageQty ?? 0),
         basePrice: Number(body.basePrice ?? 0),
         askingPricePerKg: Number(body.askingPricePerKg ?? body.basePrice ?? 0),
-        sellerTransportCost: typeof body.transportCost === "number" || body.transportCost ? Number(body.transportCost) : null,
+        sellerTransportCost: null,
+        sellerTransportShare: body.transportShare ?? "YES",
         sellerId: session?.userId ?? null,
         sellerName: body.sellerName ?? session?.name ?? "Seller",
         sellerPhone: body.sellerPhone ?? null,
         saleType: body.saleType ?? "AUCTION",
         auctionStartsAt: body.auctionStartsAt ? new Date(body.auctionStartsAt) : null,
         auctionEndsAt: body.auctionEndsAt ? new Date(body.auctionEndsAt) : null,
+        freeQtyEnabled: body.freeQtyEnabled === true,
+        freeQtyPer: Number(body.freeQtyPer ?? 0),
+        freeQtyAmount: Number(body.freeQtyAmount ?? 0),
+        freeQtyUnit: body.unit ?? "kg",   // always matches the product's unit
         status: "PENDING_DELIVERY",
       },
     });

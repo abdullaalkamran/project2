@@ -96,7 +96,12 @@ model Lot {
   receivedAt       DateTime?
 
   fixedAskingPrice Float?    // set when seller converts unsold auction → fixed price
-  sellerTransportCost Float?  // seller's estimated transportation cost
+  sellerTransportCost   Float?   // seller's estimated transportation cost
+  sellerTransportShare  String   @default("YES")  // "YES" | "NO" | "HALF"
+  freeQtyEnabled    Boolean  @default(false)
+  freeQtyPer        Float    @default(0)    // e.g., 40 → "per 40 kg"
+  freeQtyAmount     Float    @default(0)    // e.g., 2  → "2 kg free"
+  freeQtyUnit       String   @default("kg") // "kg" | "piece"
   listOnMarketplace Boolean?  // QC checker decision to list on marketplace
 
   // QC assignment (names stored for display; nullable for before assignment)
@@ -159,6 +164,7 @@ model Order {
   sellerName    String
   product       String
   qty           String
+  freeQty       Float    @default(0)   // bonus qty given, not charged
   deliveryPoint String
   winningBid       Float
   productAmount    Float     @default(0)   // winningBid × quantity

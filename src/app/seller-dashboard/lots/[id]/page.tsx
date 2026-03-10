@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { toSellerStatusLabel } from "@/lib/lot-status";
 import QuickMessageModal from "./QuickMessageModal";
+import DeactivateButton from "./DeactivateButton";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -121,13 +122,13 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
   const totalQty = lot.quantity;
   const acceptedQty = orders
     .filter((o) => o.sellerStatus === "ACCEPTED")
-    .reduce((sum, o) => sum + parseQty(o.qty), 0);
+    .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
   const pendingQty = orders
     .filter((o) => o.sellerStatus === "PENDING_SELLER")
-    .reduce((sum, o) => sum + parseQty(o.qty), 0);
+    .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
   const dispatchedQty = orders
     .filter((o) => o.sellerStatus === "ACCEPTED" && o.dispatched)
-    .reduce((sum, o) => sum + parseQty(o.qty), 0);
+    .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
   const availableQty = Math.max(0, totalQty - acceptedQty - pendingQty);
 
   const rows = [
@@ -160,12 +161,19 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
           <h1 className="text-2xl font-bold text-slate-900">Lot Details</h1>
           <p className="text-slate-500">Full details, order breakdown and dispatch progress for this lot.</p>
         </div>
-        <Link
-          href="/seller-dashboard/lots"
-          className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          ← Back to My Lots
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <DeactivateButton
+            lotCode={lot.lotCode}
+            lotStatus={lot.status}
+            hasPendingOrders={orders.some((o) => o.sellerStatus === "PENDING_SELLER")}
+          />
+          <Link
+            href="/seller-dashboard/lots"
+            className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            ← Back to My Lots
+          </Link>
+        </div>
       </div>
 
       {/* Lot info — compact inline table */}
@@ -281,6 +289,9 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
                   <div className="md:col-span-2">
                     <p className="text-[10px] uppercase tracking-wide text-slate-400">Ordered Qty</p>
                     <p className="text-sm font-bold text-emerald-700">{order.qty}</p>
+                    {order.freeQty > 0 && (
+                      <p className="text-[11px] font-semibold text-violet-700">+ {order.freeQty} {lot.unit} free</p>
+                    )}
                   </div>
                   <div className="md:col-span-2">
                     <p className="text-[10px] uppercase tracking-wide text-slate-400">Price / Total</p>

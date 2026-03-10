@@ -69,6 +69,7 @@ const SELLER_FIELDS = [
   "productName", "category", "quantity", "unit", "description",
   "storageType", "baggageType", "baggageQty",
   "askingPricePerKg", "basePrice", "transportCost",
+  "transportShare", "bonusOffer",
 ] as const;
 type SellerField = (typeof SELLER_FIELDS)[number];
 
@@ -185,6 +186,10 @@ export default function InspectClient() {
   const [basePrice, setBasePrice]               = useState("");
   const [askingPricePerKg, setAskingPricePerKg] = useState("");
   const [transportCost, setTransportCost]       = useState("");
+  const [transportShare, setTransportShare]     = useState<"YES" | "NO" | "HALF">("YES");
+  const [freeQtyEnabled, setFreeQtyEnabled]     = useState(false);
+  const [freeQtyPer, setFreeQtyPer]             = useState("");
+  const [freeQtyAmount, setFreeQtyAmount]       = useState("");
 
   /* ── field confirmation statuses ── */
   const [fieldStatuses, setFieldStatuses] = useState<Record<SellerField, FieldStatus>>(
@@ -259,6 +264,10 @@ export default function InspectClient() {
       setAskingPricePerKg(String(found.askingPricePerKg ?? ""));
       setMinBidRate(String(found.minBidRate ?? ""));
       setTransportCost(String(found.sellerTransportCost ?? ""));
+      setTransportShare((found.sellerTransportShare as "YES" | "NO" | "HALF") ?? "YES");
+      setFreeQtyEnabled(found.freeQtyEnabled ?? false);
+      setFreeQtyPer(String(found.freeQtyPer && found.freeQtyPer > 0 ? found.freeQtyPer : ""));
+      setFreeQtyAmount(String(found.freeQtyAmount && found.freeQtyAmount > 0 ? found.freeQtyAmount : ""));
       setSaleType((found.saleType as "AUCTION" | "FIXED_PRICE") || "AUCTION");
       if (found.auctionStartsAt) setAuctionStartsAt(found.auctionStartsAt.slice(0, 16));
       if (found.auctionEndsAt) setAuctionEndsAt(found.auctionEndsAt.slice(0, 16));
@@ -364,6 +373,8 @@ export default function InspectClient() {
           "Asking price/kg": String(lot.askingPricePerKg      ?? ""),
           "Base price":      String(lot.basePrice             ?? ""),
           "Transport cost":  String(lot.sellerTransportCost   ?? ""),
+          "Transport share": lot.sellerTransportShare === "NO" ? "Buyer pays" : lot.sellerTransportShare === "HALF" ? "50% split" : "Seller pays",
+          "Bonus offer":     lot.freeQtyEnabled && (lot.freeQtyPer ?? 0) > 0 ? `${lot.freeQtyAmount} ${lot.freeQtyUnit} per ${lot.freeQtyPer} ${lot.freeQtyUnit}` : "None",
           "Sale type":       lot.saleType === "FIXED_PRICE" ? "Fixed Price" : "Live Auction",
           "Auction starts":  lot.saleType !== "FIXED_PRICE" ? (lot.auctionStartsAt ? new Date(lot.auctionStartsAt).toLocaleString() : "") : "",
           "Auction ends":    lot.saleType !== "FIXED_PRICE" ? (lot.auctionEndsAt   ? new Date(lot.auctionEndsAt).toLocaleString()   : "") : "",
@@ -382,6 +393,8 @@ export default function InspectClient() {
           "Asking price/kg": askingPricePerKg || String(lot.askingPricePerKg ?? ""),
           "Base price":      basePrice     || String(lot.basePrice ?? ""),
           "Transport cost":  transportCost || String(lot.sellerTransportCost ?? ""),
+          "Transport share": transportShare === "NO" ? "Buyer pays" : transportShare === "HALF" ? "50% split" : "Seller pays",
+          "Bonus offer":     freeQtyEnabled && freeQtyPer ? `${freeQtyAmount} ${unit || lot.unit} per ${freeQtyPer} ${unit || lot.unit}` : "None",
           "Sale type":       saleType === "FIXED_PRICE" ? "Fixed Price" : "Live Auction",
           "Auction starts":  saleType !== "FIXED_PRICE" ? (auctionStartsAt ? new Date(auctionStartsAt).toLocaleString() : (lot.auctionStartsAt ? new Date(lot.auctionStartsAt).toLocaleString() : "")) : "",
           "Auction ends":    saleType !== "FIXED_PRICE" ? (auctionEndsAt   ? new Date(auctionEndsAt).toLocaleString()   : (lot.auctionEndsAt   ? new Date(lot.auctionEndsAt).toLocaleString()   : "")) : "",
@@ -406,6 +419,11 @@ export default function InspectClient() {
           minBidRate: minBidRate ? parseFloat(minBidRate) : (lot.minBidRate ?? lot.basePrice),
           transportCost: transportCost ? parseFloat(transportCost) : undefined,
           sellerTransportCost: lot.sellerTransportCost,
+          sellerTransportShare: transportShare,
+          freeQtyEnabled,
+          freeQtyPer: freeQtyPer ? parseFloat(freeQtyPer) : 0,
+          freeQtyAmount: freeQtyAmount ? parseFloat(freeQtyAmount) : 0,
+          freeQtyUnit: unit || lot.unit,
           notes: notes || "",
           qcNote: notes || "",
           askingPricePerKg: askingPricePerKg ? parseFloat(askingPricePerKg) : lot.askingPricePerKg,
@@ -535,6 +553,122 @@ export default function InspectClient() {
           ))}
         </div>
       </div>
+
+      {/* ── Transport & Bonus (editable by QC) ── */}
+      <section className="space-y-5 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Transport &amp; Bonus</h2>
+          <p className="mt-0.5 text-xs text-slate-400">Seller declared these. You can override them if needed.</p>
+        </div>
+
+        {/* Transport share */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">Transport Cost Responsibility</label>
+          <div className="flex gap-2">
+            {(["YES", "NO", "HALF"] as const).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                disabled={!canEdit("transportShare")}
+                onClick={() => {
+                  setTransportShare(opt);
+                  setFieldStatus("transportShare", "modified");
+                }}
+                className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition ${
+                  transportShare === opt
+                    ? "border-amber-500 bg-amber-50 text-amber-700"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                } disabled:cursor-default disabled:opacity-80`}
+              >
+                {opt === "YES" ? "Seller pays" : opt === "NO" ? "Buyer pays" : "50% Split"}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-slate-400">
+            {transportShare === "YES" && "Seller covers the full transport cost."}
+            {transportShare === "NO" && "Buyer is responsible for transport cost."}
+            {transportShare === "HALF" && "Transport cost split 50/50 between seller and buyer."}
+          </p>
+          {isEditable && <FieldConfirm field="transportShare" status={fieldStatuses.transportShare} onChange={setFieldStatus} />}
+        </div>
+
+        {/* Bonus offer */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">Bonus Offer</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={!canEdit("bonusOffer")}
+              onClick={() => {
+                setFreeQtyEnabled(true);
+                setFieldStatus("bonusOffer", "modified");
+              }}
+              className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition ${
+                freeQtyEnabled ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+              } disabled:cursor-default disabled:opacity-80`}
+            >
+              Yes, offer bonus
+            </button>
+            <button
+              type="button"
+              disabled={!canEdit("bonusOffer")}
+              onClick={() => {
+                setFreeQtyEnabled(false);
+                setFieldStatus("bonusOffer", "modified");
+              }}
+              className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition ${
+                !freeQtyEnabled ? "border-rose-400 bg-rose-50 text-rose-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+              } disabled:cursor-default disabled:opacity-80`}
+            >
+              No bonus
+            </button>
+          </div>
+          {freeQtyEnabled && (
+            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Per (threshold)</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  value={freeQtyPer}
+                  onChange={(e) => {
+                    setFreeQtyPer(e.target.value);
+                    if (fieldStatuses.bonusOffer === "wrong") setFieldStatus("bonusOffer", "modified");
+                  }}
+                  disabled={!canEdit("bonusOffer")}
+                  placeholder="40"
+                  className={inputCls(canEdit("bonusOffer"))}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Free amount</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  value={freeQtyAmount}
+                  onChange={(e) => {
+                    setFreeQtyAmount(e.target.value);
+                    if (fieldStatuses.bonusOffer === "wrong") setFieldStatus("bonusOffer", "modified");
+                  }}
+                  disabled={!canEdit("bonusOffer")}
+                  placeholder="2"
+                  className={inputCls(canEdit("bonusOffer"))}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Unit</label>
+                <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  {unit || "kg"}
+                </div>
+                <p className="mt-0.5 text-[10px] text-slate-400">Matches product unit</p>
+              </div>
+            </div>
+          )}
+          {isEditable && <FieldConfirm field="bonusOffer" status={fieldStatuses.bonusOffer} onChange={setFieldStatus} />}
+        </div>
+      </section>
 
       {/* ── How-to legend ── */}
       {isEditable && (
@@ -718,21 +852,6 @@ export default function InspectClient() {
               className={inputCls(canEdit("basePrice"))}
             />
             {isEditable && <FieldConfirm field="basePrice" status={fieldStatuses.basePrice} onChange={setFieldStatus} />}
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Seller Transport Cost (৳)</label>
-            <input
-              type="number"
-              step="0.01"
-              value={transportCost}
-              onChange={(e) => makeEditHandler("transportCost", setTransportCost)(e.target.value)}
-              disabled={!canEdit("transportCost")}
-              placeholder="0.00"
-              className={inputCls(canEdit("transportCost"))}
-            />
-            <p className="mt-1 text-xs text-slate-400">Your estimated cost for transporting this lot. QC inspector will verify and set the final cost.</p>
-            {isEditable && <FieldConfirm field="transportCost" status={fieldStatuses.transportCost} onChange={setFieldStatus} />}
           </div>
 
           <div>

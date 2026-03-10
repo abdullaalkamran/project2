@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { getPreDispatchCheck, upsertPreDispatchCheck } from "@/lib/pre-dispatch-store";
-import { notify, notifyMany, getLotParties } from "@/lib/notifications";
+import { notify, notifyMany, getLotParties, userIdByName } from "@/lib/notifications";
 
 export async function GET(
   _req: NextRequest,
@@ -56,68 +57,134 @@ export async function PATCH(
   };
 
   const previous = await getPreDispatchCheck(orderCode);
+  const lot = await prisma.lot.findUnique({
+    where: { id: order.lotId },
+    select: { sellerTransportShare: true },
+  });
 
-  const next = await upsertPreDispatchCheck({
+  const shareMode = (lot?.sellerTransportShare ?? "YES") as "YES" | "NO" | "HALF";
+  const toMoney = (n: number) => Math.round(n * 100) / 100;
+  const splitTransport = (amount: number) => {
+    if (shareMode === "NO") return { buyerShare: toMoney(amount), sellerShare: 0 };
+    if (shareMode === "HALF") {
+      const buyerShare = toMoney(amount / 2);
+      return { buyerShare, sellerShare: toMoney(amount - buyerShare) };
+    }
+    return { buyerShare: 0, sellerShare: toMoney(amount) }; // YES => seller pays
+  };
+
+  const next = {
     orderCode,
     physicallyReceived: body.physicallyReceived ?? previous?.physicallyReceived ?? false,
     qualityChecked:     body.qualityChecked     ?? previous?.qualityChecked     ?? false,
     packetQty:          Number(body.packetQty          ?? previous?.packetQty          ?? 0),
     grossWeightKg:      Number(body.grossWeightKg      ?? previous?.grossWeightKg      ?? 0),
-    truckPriceBDT:      Number(body.truckPriceBDT      ?? previous?.truckPriceBDT      ?? 0),
+    truckPriceBDT:      Math.max(0, Number(body.truckPriceBDT ?? previous?.truckPriceBDT ?? 0)),
     hubManagerConfirmed: body.hubManagerConfirmed ?? previous?.hubManagerConfirmed ?? false,
     qcLeadConfirmed:     body.qcLeadConfirmed     ?? previous?.qcLeadConfirmed     ?? false,
     updatedAt: new Date().toISOString(),
     updatedBy: session.userId,
-  });
+  };
 
-  // Sync truck price to order.transportCost and deduct from buyer wallet when first set
+  // Sync truck price to order.transportCost and apply buyer wallet delta on every change.
   const prevTruckPrice = previous?.truckPriceBDT ?? 0;
-  if (next.truckPriceBDT > 0 && prevTruckPrice !== next.truckPriceBDT) {
+  if (prevTruckPrice !== next.truckPriceBDT) {
     // productAmount: use existing if already set, else use totalAmount (= product price at order creation)
     const productAmount = order.productAmount > 0 ? order.productAmount : order.totalAmount;
     const platformFeeRate = order.platformFeeRate ?? 5;
     const platformFee = Math.round(productAmount * platformFeeRate) / 100;
     const sellerPayable = productAmount - platformFee;
-    const newTotalAmount = productAmount + next.truckPriceBDT;
+    const prevSplit = splitTransport(prevTruckPrice);
+    const nextSplit = splitTransport(next.truckPriceBDT);
+    const buyerDelta = toMoney(nextSplit.buyerShare - prevSplit.buyerShare);   // +ve charge buyer, -ve refund
+    const sellerDelta = toMoney(nextSplit.sellerShare - prevSplit.sellerShare); // +ve charge seller, -ve refund
 
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        transportCost: next.truckPriceBDT,
-        productAmount,
-        platformFee,
-        sellerPayable,
-        totalAmount: newTotalAmount,
-      },
-    });
+    const sellerUserId = order.sellerId ?? await userIdByName(order.sellerName);
+    const buyerWallet = order.buyerId
+      ? await prisma.wallet.upsert({
+          where: { userId: order.buyerId },
+          create: { userId: order.buyerId, balance: 0 },
+          update: {},
+        })
+      : null;
+    const sellerWallet = sellerUserId
+      ? await prisma.wallet.upsert({
+          where: { userId: sellerUserId },
+          create: { userId: sellerUserId, balance: 0 },
+          update: {},
+        })
+      : null;
 
-    // Deduct from buyer wallet immediately when truck price is set for the first time
-    if (next.truckPriceBDT > 0 && prevTruckPrice === 0 && order.buyerId) {
-      const buyerWallet = await prisma.wallet.findUnique({ where: { userId: order.buyerId } });
-      if (buyerWallet) {
-        await prisma.$transaction([
-          prisma.wallet.update({
-            where: { id: buyerWallet.id },
-            data: { balance: { decrement: next.truckPriceBDT } },
-          }),
-          prisma.walletTransaction.create({
-            data: {
-              walletId: buyerWallet.id,
-              type: "DEBIT",
-              amount: next.truckPriceBDT,
-              description: `Transport cost for order ${orderCode} — ${order.product}`,
-            },
-          }),
-        ]);
-      }
+    const newTotalAmount = toMoney(productAmount + nextSplit.buyerShare);
+    const tx: Prisma.PrismaPromise<unknown>[] = [
+      prisma.order.update({
+        where: { id: order.id },
+        data: {
+          transportCost: next.truckPriceBDT,
+          buyerTransportCost: nextSplit.buyerShare,
+          sellerTransportCost: nextSplit.sellerShare,
+          productAmount,
+          platformFee,
+          sellerPayable,
+          totalAmount: newTotalAmount,
+        },
+      }),
+    ];
+
+    if (buyerWallet && buyerDelta !== 0) {
+      tx.push(
+        prisma.wallet.update({
+          where: { id: buyerWallet.id },
+          data: buyerDelta > 0
+            ? { balance: { decrement: buyerDelta } }
+            : { balance: { increment: Math.abs(buyerDelta) } },
+        }),
+        prisma.walletTransaction.create({
+          data: {
+            walletId: buyerWallet.id,
+            type: buyerDelta > 0 ? "DEBIT" : "DEPOSIT",
+            amount: Math.abs(buyerDelta),
+            description:
+              buyerDelta > 0
+                ? `Transport cost adjustment (buyer share +) for order ${orderCode} — ${order.product}`
+                : `Transport cost adjustment refund (buyer share) for order ${orderCode} — ${order.product}`,
+          },
+        }),
+      );
     }
+
+    if (sellerWallet && sellerDelta !== 0) {
+      tx.push(
+        prisma.wallet.update({
+          where: { id: sellerWallet.id },
+          data: sellerDelta > 0
+            ? { balance: { decrement: sellerDelta } }
+            : { balance: { increment: Math.abs(sellerDelta) } },
+        }),
+        prisma.walletTransaction.create({
+          data: {
+            walletId: sellerWallet.id,
+            type: sellerDelta > 0 ? "DEBIT" : "DEPOSIT",
+            amount: Math.abs(sellerDelta),
+            description:
+              sellerDelta > 0
+                ? `Transport cost adjustment (seller share +) for order ${orderCode} — ${order.product}`
+                : `Transport cost adjustment refund (seller share) for order ${orderCode} — ${order.product}`,
+          },
+        }),
+      );
+    }
+
+    await prisma.$transaction(tx);
   }
+
+  const saved = await upsertPreDispatchCheck(next);
 
   // ── Notifications per step ────────────────────────────────────────────────
   const parties = await getLotParties(order.lotId);
 
   // Step 1: product physically received → notify QC leader + checker to begin inspection
-  if (next.physicallyReceived && !previous?.physicallyReceived) {
+  if (saved.physicallyReceived && !previous?.physicallyReceived) {
     const recipients = [parties.qcLeaderId, parties.qcCheckerId].filter(Boolean) as string[];
     if (recipients.length > 0) {
       await notifyMany(recipients, {
@@ -136,17 +203,17 @@ export async function PATCH(
   }
 
   // Step 2: quality checked → notify hub managers to confirm
-  if (next.qualityChecked && !previous?.qualityChecked) {
+  if (saved.qualityChecked && !previous?.qualityChecked) {
     await notifyMany(parties.hubManagerIds, {
       type: "ORDER_DISPATCHED",
       title: "Quality Check Complete",
-      message: `QC team has completed weight & quality check for order (${orderCode}) — "${order.product}", actual weight: ${next.grossWeightKg} kg. QC leader is setting truck price.`,
+      message: `QC team has completed weight & quality check for order (${orderCode}) — "${order.product}", actual weight: ${saved.grossWeightKg} kg. QC leader is setting truck price.`,
       link: "/hub-manager/dispatch",
     });
   }
 
   // Step 3: truck price set → notify QC leader to give their confirmation
-  if (next.truckPriceBDT > 0 && (previous?.truckPriceBDT ?? 0) === 0) {
+  if (saved.truckPriceBDT > 0 && (previous?.truckPriceBDT ?? 0) === 0) {
     if (parties.qcLeaderId) {
       await notify(parties.qcLeaderId, {
         type: "ORDER_DISPATCHED",
@@ -158,7 +225,7 @@ export async function PATCH(
   }
 
   // Step 4: QC leader confirmed → notify hub managers for final approval
-  if (next.qcLeadConfirmed && !previous?.qcLeadConfirmed) {
+  if (saved.qcLeadConfirmed && !previous?.qcLeadConfirmed) {
     await notifyMany(parties.hubManagerIds, {
       type: "ORDER_DISPATCHED",
       title: "QC Leader Confirmed — Final Approval Needed",
@@ -168,7 +235,7 @@ export async function PATCH(
   }
 
   // Step 5: Hub manager final approval → notify seller, buyer, QC leader (gate complete)
-  if (next.hubManagerConfirmed && !previous?.hubManagerConfirmed) {
+  if (saved.hubManagerConfirmed && !previous?.hubManagerConfirmed) {
     if (parties.qcLeaderId) {
       await notify(parties.qcLeaderId, {
         type: "ORDER_DISPATCHED",
@@ -196,5 +263,5 @@ export async function PATCH(
     }
   }
 
-  return NextResponse.json(next);
+  return NextResponse.json(saved);
 }

@@ -1,5 +1,27 @@
 [
   {
+    "orderCode": "ORD-Z8G42W",
+    "totalPackets": 1,
+    "packetCodes": [
+      "PKT-ORD-Z8G42W-001"
+    ],
+    "scannedCodes": [],
+    "createdBy": "cmmdiufnh0009trztsqpmpovr",
+    "createdAt": "2026-03-10T19:03:03.241Z",
+    "updatedAt": "2026-03-10T19:03:03.241Z"
+  },
+  {
+    "orderCode": "ORD-BINE7M",
+    "totalPackets": 1,
+    "packetCodes": [
+      "PKT-ORD-BINE7M-001"
+    ],
+    "scannedCodes": [],
+    "createdBy": "cmmdiufnh0009trztsqpmpovr",
+    "createdAt": "2026-03-10T18:55:11.975Z",
+    "updatedAt": "2026-03-10T18:55:11.975Z"
+  },
+  {
     "orderCode": "ORD-BKKN8Y",
     "totalPackets": 1,
     "packetCodes": [

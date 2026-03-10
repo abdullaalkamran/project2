@@ -10,6 +10,8 @@ type OrderItem = {
   lotCode: string;
   product: string;
   qty: string;
+  qtyUnit: string;
+  freeQty: number;
   seller: string;
   winningBid: number;
   totalAmount: number;
@@ -24,8 +26,14 @@ type OrderItem = {
   dispatched: boolean;
   productAmount: number;
   transportCost: number;
+  buyerTransportCost: number;
+  sellerTransportCost: number;
+  transportPaidBy: "BUYER" | "SELLER" | "BOTH" | "NONE";
   platformFee: number;
+  buyerTotalPayable: number;
   actualWeightKg: number | null;
+  actualQty: number | null;
+  actualQtyUnit: string;
 };
 
 // ── Step progress ─────────────────────────────────────────────────────────────
@@ -80,6 +88,13 @@ const STATUS_ACTIVE_CHIP: Record<string, string> = {
   ARRIVED:         "ring-2 ring-teal-400 bg-teal-100 text-teal-700",
   PICKED_UP:       "ring-2 ring-emerald-500 bg-emerald-100 text-emerald-800",
   CANCELLED:       "ring-2 ring-red-400 bg-red-100 text-red-700",
+};
+
+const TRANSPORT_PAYER_LABEL: Record<OrderItem["transportPaidBy"], string> = {
+  BUYER: "Buyer",
+  SELLER: "Seller",
+  BOTH: "Buyer + Seller",
+  NONE: "Not applied",
 };
 
 function StepBar({ status, sellerStatus }: { status: string; sellerStatus: string }) {
@@ -427,7 +442,9 @@ export default function BuyerOrdersClient() {
                     <span className="font-semibold text-slate-900">{o.product}</span>
                     <span className="ml-2 font-mono text-xs text-slate-400">{o.lotCode}</span>
                   </div>
-                  <span className="shrink-0 text-xs text-slate-400">{o.qty}</span>
+                  <span className="shrink-0 text-xs text-slate-400">
+                    {o.qty}{o.freeQty > 0 ? ` + ${o.freeQty} free` : ""}
+                  </span>
                   <span className="shrink-0 text-xs text-slate-400">{o.confirmedAt}</span>
                   <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_CHIP[display] ?? "bg-slate-100 text-slate-500"}`}>
                     {STATUS_LABEL[display] ?? display}
@@ -485,7 +502,7 @@ export default function BuyerOrdersClient() {
                     </div>
                     <div className="px-5 py-3">
                       <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Rate</p>
-                      <p className="mt-0.5 font-semibold text-emerald-700">৳ {o.winningBid.toLocaleString()}/unit</p>
+                      <p className="mt-0.5 font-semibold text-emerald-700">৳ {o.winningBid.toLocaleString()}/{o.qtyUnit}</p>
                     </div>
                     <div className="px-5 py-3">
                       <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Total</p>
@@ -495,7 +512,7 @@ export default function BuyerOrdersClient() {
                 </div>
 
                 {/* Financial breakdown — shown when transport cost is available */}
-                {(o.transportCost > 0 || o.actualWeightKg) && (
+                {(o.transportCost > 0 || o.actualQty) && (
                   <div className="border-t border-slate-50 px-5 py-3">
                     <p className="mb-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400">Cost Breakdown</p>
                     <div className="flex flex-wrap gap-3 text-xs">
@@ -509,7 +526,7 @@ export default function BuyerOrdersClient() {
                         <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 min-w-[90px]">
                           <p className="text-[10px] text-amber-600">Truck Price</p>
                           <p className="font-semibold text-amber-700">৳ {o.transportCost.toLocaleString()}</p>
-                          <p className="text-[9px] text-amber-500">Deducted from wallet</p>
+                          <p className="text-[9px] text-amber-500">Paid by: {TRANSPORT_PAYER_LABEL[o.transportPaidBy]}</p>
                         </div>
                       )}
                       {o.platformFee > 0 && (
@@ -518,16 +535,16 @@ export default function BuyerOrdersClient() {
                           <p className="font-semibold text-slate-700">৳ {o.platformFee.toLocaleString()}</p>
                         </div>
                       )}
-                      {o.actualWeightKg != null && o.actualWeightKg > 0 && (
+                      {o.actualQty != null && o.actualQty > 0 && (
                         <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 min-w-[90px]">
-                          <p className="text-[10px] text-emerald-600">Actual Weight</p>
-                          <p className="font-semibold text-emerald-700">{o.actualWeightKg} kg</p>
+                          <p className="text-[10px] text-emerald-600">Actual Quantity</p>
+                          <p className="font-semibold text-emerald-700">{o.actualQty} {o.actualQtyUnit}</p>
                           <p className="text-[9px] text-emerald-500">Verified at hub</p>
                         </div>
                       )}
                       <div className="rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2 min-w-[90px]">
                         <p className="text-[10px] text-indigo-600">Total Payable</p>
-                        <p className="font-bold text-indigo-700">৳ {(o.productAmount + o.transportCost + o.platformFee).toLocaleString()}</p>
+                        <p className="font-bold text-indigo-700">৳ {o.buyerTotalPayable.toLocaleString()}</p>
                       </div>
                     </div>
                   </div>

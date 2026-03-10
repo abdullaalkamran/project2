@@ -6,6 +6,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { UploadCloud, X } from "lucide-react";
+import { ApiRequestError } from "@/lib/api";
 import { createLotSchema, CreateLotFormData } from "@/lib/schemas";
 import { DEFAULT_HUB, HUB_OPTIONS } from "@/lib/hubs";
 import api from "@/lib/api";
@@ -54,12 +55,15 @@ export default function CreateLotPage() {
   } = useForm<CreateLotFormData>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(createLotSchema) as any,
-    defaultValues: { grade: "A", unit: "kg", hubId: DEFAULT_HUB, saleType: "AUCTION" },
+    defaultValues: { grade: "A", unit: "kg", hubId: DEFAULT_HUB, saleType: "AUCTION", transportShare: "YES" as const, freeQtyEnabled: false },
   });
 
-  const title = watch("title");
-  const hubId = watch("hubId");
-  const saleType = watch("saleType");
+  const title         = watch("title");
+  const hubId         = watch("hubId");
+  const saleType      = watch("saleType");
+  const freeQtyEnabled= watch("freeQtyEnabled");
+  const unit          = watch("unit");
+  const transportShare= watch("transportShare");
 
   useEffect(() => {
     const loadPreferredHub = async () => {
@@ -133,16 +137,21 @@ export default function CreateLotPage() {
         baggageQty: data.baggageQty,
         basePrice: data.basePrice,
         askingPricePerKg: data.askingPricePerKg,
-        transportCost: data.transportCost ?? null,
+        transportShare: data.transportShare ?? "YES",
         saleType: data.saleType,
         auctionStartsAt: data.saleType === "AUCTION" ? data.auctionStartsAt : null,
         auctionEndsAt: data.saleType === "AUCTION" ? data.auctionEndsAt : null,
+        freeQtyEnabled: data.freeQtyEnabled ?? false,
+        freeQtyPer: data.freeQtyPer ?? 0,
+        freeQtyAmount: data.freeQtyAmount ?? 0,
+        freeQtyUnit: data.unit,   // always matches product unit
         sellerName,
         photoUrls,
       });
       toast.success(`Lot "${data.title}" published successfully`);
-    } catch {
-      toast.error("Could not create lot. Please try again.");
+    } catch (err) {
+      const msg = err instanceof ApiRequestError ? err.message : "Could not create lot. Please try again.";
+      toast.error(msg);
       return;
     }
   };
@@ -442,10 +451,28 @@ export default function CreateLotPage() {
               {errors.basePrice && <p className="mt-1 text-xs text-red-500">{errors.basePrice.message}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Estimated transportation cost (৳)</label>
-              <input type="number" step="0.01" {...register("transportCost")} placeholder="0.00" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100" />
-              <p className="mt-1 text-xs text-slate-400">Your estimated cost for transporting this lot. QC inspector will verify and set the final cost.</p>
-              {errors.transportCost && <p className="mt-1 text-xs text-red-500">{errors.transportCost.message}</p>}
+              <label className="mb-1 block text-sm font-medium text-slate-700">Transport cost responsibility *</label>
+              <div className="flex gap-2">
+                {(["YES", "NO", "HALF"] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setValue("transportShare", opt, { shouldValidate: true })}
+                    className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition ${
+                      transportShare === opt
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                        : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {opt === "YES" ? "Full Cost" : opt === "NO" ? "No Cost" : "50% Split"}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                {transportShare === "YES" && "You cover the full transportation cost."}
+                {transportShare === "NO" && "Buyer covers transportation cost."}
+                {transportShare === "HALF" && "Transportation cost is split 50/50 with the buyer."}
+              </p>
             </div>
           </div>
         </section>
@@ -469,6 +496,62 @@ export default function CreateLotPage() {
             </div>
           </section>
         )}
+
+        {/* Bonus Offer */}
+        <section className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Bonus Offer *</h2>
+            <p className="mt-1 text-xs text-slate-400">e.g., 2 kg free per 40 kg ordered</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setValue("freeQtyEnabled", true, { shouldValidate: true })}
+              className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition ${
+                freeQtyEnabled === true
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              Yes, offer bonus
+            </button>
+            <button
+              type="button"
+              onClick={() => setValue("freeQtyEnabled", false, { shouldValidate: true })}
+              className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition ${
+                freeQtyEnabled === false
+                  ? "border-rose-400 bg-rose-50 text-rose-600"
+                  : "border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              No bonus
+            </button>
+          </div>
+          {freeQtyEnabled && (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+                Per (threshold)
+                <div className="flex items-center gap-2">
+                  <input type="number" step="1" min="1" {...register("freeQtyPer")} placeholder="40" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500" />
+                  <span className="text-xs text-slate-500">kg/pc</span>
+                </div>
+                {errors.freeQtyPer && <p className="text-xs text-red-500">{errors.freeQtyPer.message}</p>}
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+                Free amount
+                <input type="number" step="0.5" min="0.5" {...register("freeQtyAmount")} placeholder="2" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500" />
+                {errors.freeQtyAmount && <p className="text-xs text-red-500">{errors.freeQtyAmount.message}</p>}
+              </label>
+              <div className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+                Unit
+                <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  {unit || "kg"}
+                </div>
+                <p className="text-[10px] font-normal text-slate-400">Matches product unit</p>
+              </div>
+            </div>
+          )}
+        </section>
 
         <div className="space-y-1 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800">
           <p className="font-semibold">What happens after you publish?</p>

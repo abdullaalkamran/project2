@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import Pagination from "@/components/Pagination";
-import PreDispatchGate, { type GateData } from "@/components/PreDispatchGate";
+import PreDispatchGate, { gateReadyForDispatch, type GateData } from "@/components/PreDispatchGate";
 
 const PAGE_SIZE = 15;
 
@@ -88,17 +88,22 @@ export default function DispatchClient() {
   const [busy, setBusy] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    Promise.all([
+  const loadData = useCallback(async () => {
+    const [ordersData, trucksData] = await Promise.all([
       api.get<DispatchOrder[]>("/api/flow/dispatch/orders"),
       api.get<Truck[]>("/api/flow/trucks"),
-    ])
-      .then(([ordersData, trucksData]) => {
-        setOrders(ordersData ?? []);
-        setTrucks(trucksData ?? []);
-      })
-      .finally(() => setLoading(false));
+    ]);
+    setOrders(ordersData ?? []);
+    setTrucks(trucksData ?? []);
   }, []);
+
+  useEffect(() => {
+    void loadData().finally(() => setLoading(false));
+    const id = setInterval(() => {
+      void loadData();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [loadData]);
 
   const availableTrucks = trucks.filter((t) => t.status === "Available");
 
@@ -185,10 +190,7 @@ export default function DispatchClient() {
           const truck = trucks.find((t) => t.id === order.assignedTruck);
           const isBusy = busy === order.id;
           const pd = order.preDispatch;
-          const gateReady =
-            pd.physicallyReceived && pd.qualityChecked && pd.packetQty > 0 &&
-            pd.grossWeightKg > 0 && pd.truckPriceBDT > 0 &&
-            pd.hubManagerConfirmed && pd.qcLeadConfirmed;
+          const gateReady = gateReadyForDispatch(pd);
           const qrReady = (order.packetQr?.total ?? 0) > 0;
 
           return (

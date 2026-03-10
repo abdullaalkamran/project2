@@ -34,10 +34,10 @@ export async function PATCH(
         const parseQty = (s: string) => { const n = parseFloat(s.replace(/[^0-9.]/g, "")); return isNaN(n) ? 0 : n; };
         const acceptedOrders = await prisma.order.findMany({
           where: { lotId: lot.id, sellerStatus: "ACCEPTED", status: { not: "CANCELLED" } },
-          select: { qty: true },
+          select: { qty: true, freeQty: true },
         });
-        const alreadyAccepted = acceptedOrders.reduce((sum, o) => sum + parseQty(o.qty), 0);
-        const thisQty = parseQty(order.qty);
+        const alreadyAccepted = acceptedOrders.reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
+        const thisQty = parseQty(order.qty) + (order.freeQty ?? 0);
         if (alreadyAccepted + thisQty > lot.quantity) {
           return NextResponse.json(
             { message: `Cannot accept: ${alreadyAccepted + thisQty} ${lot.unit} would exceed lot total of ${lot.quantity} ${lot.unit}.` },

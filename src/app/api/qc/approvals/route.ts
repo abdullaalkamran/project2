@@ -112,14 +112,30 @@ export async function GET(req: NextRequest) {
 
   const lotMediaRows = await readLotMedia();
   const sellerPhotosByLot = new Map(lotMediaRows.map((m) => [m.lotId, m.sellerPhotoUrls]));
-  const marketplacePhotoByLot = new Map(lotMediaRows.map((m) => [m.lotId, m.marketplacePhotoUrl ?? null]));
+  const marketplacePhotosByLot = new Map(
+    lotMediaRows.map((m) => [
+      m.lotId,
+      m.marketplacePhotoUrls?.length
+        ? m.marketplacePhotoUrls
+        : (m.marketplacePhotoUrl ? [m.marketplacePhotoUrl] : []),
+    ]),
+  );
 
   const enriched = rows.map((r) => ({
     ...r,
     sellerPhotoUrls: r.sellerPhotoUrls ?? sellerPhotosByLot.get(r.lotId) ?? [],
     qcPhotoPreviews: r.qcPhotoPreviews ?? r.photoPreviews ?? [],
+    selectedMarketplacePhotoUrls:
+      r.selectedMarketplacePhotoUrls?.length
+        ? r.selectedMarketplacePhotoUrls
+        : r.selectedMarketplacePhotoUrl
+          ? [r.selectedMarketplacePhotoUrl]
+          : marketplacePhotosByLot.get(r.lotId) ?? [],
     selectedMarketplacePhotoUrl:
-      r.selectedMarketplacePhotoUrl ?? marketplacePhotoByLot.get(r.lotId) ?? undefined,
+      r.selectedMarketplacePhotoUrl ??
+      r.selectedMarketplacePhotoUrls?.[0] ??
+      marketplacePhotosByLot.get(r.lotId)?.[0] ??
+      undefined,
   }));
 
   return NextResponse.json(enriched.sort((a, b) => b.submitted.localeCompare(a.submitted)));
@@ -138,7 +154,15 @@ export async function POST(req: NextRequest) {
       photoPreviews: body.photoPreviews ?? [],
       qcPhotoPreviews: body.qcPhotoPreviews ?? body.photoPreviews ?? [],
       sellerPhotoUrls: body.sellerPhotoUrls ?? [],
-      selectedMarketplacePhotoUrl: body.selectedMarketplacePhotoUrl,
+      selectedMarketplacePhotoUrls:
+        body.selectedMarketplacePhotoUrls?.length
+          ? Array.from(new Set(body.selectedMarketplacePhotoUrls.filter(Boolean)))
+          : body.selectedMarketplacePhotoUrl
+            ? [body.selectedMarketplacePhotoUrl]
+            : [],
+      selectedMarketplacePhotoUrl:
+        body.selectedMarketplacePhotoUrl ??
+        body.selectedMarketplacePhotoUrls?.[0],
       sellerSnapshot: body.sellerSnapshot ?? {},
       qcSnapshot: body.qcSnapshot ?? {},
       qcNote: body.qcNote ?? "",

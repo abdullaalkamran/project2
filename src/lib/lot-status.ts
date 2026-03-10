@@ -10,7 +10,8 @@ export type LotWorkflowStatus =
   | "AUCTION_UNSOLD"      // auction closed with no winning bid — seller must act
   | "FIXED_PRICE_REVIEW"  // seller converted unsold lot to fixed price — 2nd QC cycle
   | "SOLD"
-  | "DELIVERED";
+  | "DELIVERED"
+  | "DEACTIVATED";
 
 export const MARKETPLACE_VISIBLE_STATUSES: readonly LotWorkflowStatus[] = [
   // LIVE auction lots
@@ -41,6 +42,7 @@ export const SELLER_PAST_STATUSES: readonly LotWorkflowStatus[] = [
   "SOLD",
   "DELIVERED",
   "AUCTION_ENDED",
+  "DEACTIVATED",
 ] as const;
 
 export function toSellerStatusLabel(status: string): string {
@@ -69,6 +71,8 @@ export function toSellerStatusLabel(status: string): string {
       return "Sold";
     case "DELIVERED":
       return "Delivered";
+    case "DEACTIVATED":
+      return "Deactivated";
     default:
       return status;
   }

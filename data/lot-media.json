@@ -1,5 +1,22 @@
 [
   {
+    "lotId": "LOT-745777",
+    "sellerPhotoUrls": [
+      "/uploads/lots/1773163703644-d4zata41.webp"
+    ],
+    "qcPhotoUrls": [
+      "/uploads/lots/1773163703644-d4zata41.webp",
+      "/uploads/lots/36862a6e-5ed9-4a87-a9bd-ec92eed09634.jpg",
+      "/uploads/lots/644f46ac-0323-43c0-9be7-6c946835b683.jpg"
+    ],
+    "marketplacePhotoUrl": "/uploads/lots/36862a6e-5ed9-4a87-a9bd-ec92eed09634.jpg",
+    "marketplacePhotoUrls": [
+      "/uploads/lots/36862a6e-5ed9-4a87-a9bd-ec92eed09634.jpg",
+      "/uploads/lots/1773163703644-d4zata41.webp",
+      "/uploads/lots/644f46ac-0323-43c0-9be7-6c946835b683.jpg"
+    ]
+  },
+  {
     "lotId": "LOT-643781",
     "sellerPhotoUrls": [
       "/uploads/lots/1772731613640-mli413wn.jpg"

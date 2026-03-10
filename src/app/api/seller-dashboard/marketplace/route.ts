@@ -24,23 +24,28 @@ export async function GET() {
     include: {
       bids: { orderBy: { amount: "desc" }, take: 1 },
       _count: { select: { bids: true } },
-      orders: { select: { qty: true, status: true, sellerStatus: true } },
+      orders: { select: { qty: true, freeQty: true, status: true, sellerStatus: true } },
     },
   });
 
   const parseQty = (s: string) => { const n = parseFloat(s.replace(/[^0-9.]/g, "")); return isNaN(n) ? 0 : n; };
 
   const media = await readLotMedia();
-  const mediaMap = new Map(media.map((m) => [m.lotId, m.marketplacePhotoUrl ?? m.sellerPhotoUrls?.[0] ?? null]));
+  const mediaMap = new Map(
+    media.map((m) => [
+      m.lotId,
+      m.marketplacePhotoUrls?.[0] ?? m.marketplacePhotoUrl ?? m.sellerPhotoUrls?.[0] ?? null,
+    ]),
+  );
 
   const result = lots.map((l) => {
     const soldQty = l.orders
       .filter((o) => o.status !== "CANCELLED" && o.sellerStatus === "ACCEPTED")
-      .reduce((sum, o) => sum + parseQty(o.qty), 0);
+      .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
 
     const pendingQty = l.orders
       .filter((o) => o.status !== "CANCELLED" && o.sellerStatus === "PENDING_SELLER")
-      .reduce((sum, o) => sum + parseQty(o.qty), 0);
+      .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
 
     return {
       id: l.lotCode,

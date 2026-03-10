@@ -15,6 +15,7 @@ type OrderItem = {
   lotAvailableQty: number;
   product: string;
   qty: string;
+  freeQty: number;
   qtyNum: number;
   buyer: string;
   buyerPhone: string;
@@ -317,7 +318,7 @@ export default function SellerOrdersClient() {
                               </div>
                               <div className="flex flex-wrap items-center gap-2 text-xs sm:ml-4">
                                 {[
-                                  { label: "Qty", value: o.qty },
+                                  { label: "Qty", value: `${o.qty}${o.freeQty > 0 ? ` + ${o.freeQty} ${group.lotUnit} free` : ""}` },
                                   { label: "Rate", value: o.winningBid, em: true },
                                   { label: "Total", value: o.totalAmount },
                                   { label: "Hub", value: o.hub },
@@ -554,6 +555,7 @@ function OrderCard({ order: o, showSellerStatus, showProgress }: { order: OrderI
         <div className="rounded-lg bg-slate-50 px-3 py-2">
           <p className="text-slate-400">Qty</p>
           <p className="font-semibold text-slate-800">{o.qty}</p>
+          {o.freeQty > 0 && <p className="text-[10px] font-semibold text-emerald-600">+ {o.freeQty} free</p>}
         </div>
         <div className="rounded-lg bg-slate-50 px-3 py-2">
           <p className="text-slate-400">Rate / Total</p>

@@ -6,6 +6,7 @@ type LotMediaRecord = {
   sellerPhotoUrls: string[];
   qcPhotoUrls?: string[];
   marketplacePhotoUrl?: string;
+  marketplacePhotoUrls?: string[];
 };
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -40,7 +41,13 @@ export async function upsertLotSellerPhotos(lotId: string, sellerPhotoUrls: stri
   const rows = await readLotMedia();
   const existing = rows.find((r) => r.lotId === lotId);
   const next = [
-    { lotId, sellerPhotoUrls, marketplacePhotoUrl: existing?.marketplacePhotoUrl },
+    {
+      lotId,
+      sellerPhotoUrls,
+      qcPhotoUrls: existing?.qcPhotoUrls,
+      marketplacePhotoUrl: existing?.marketplacePhotoUrl,
+      marketplacePhotoUrls: existing?.marketplacePhotoUrls,
+    },
     ...rows.filter((r) => r.lotId !== lotId),
   ];
   await writeLotMedia(next);
@@ -60,6 +67,7 @@ export async function upsertLotQCPhotos(lotId: string, qcPhotoUrls: string[]): P
       sellerPhotoUrls: existing?.sellerPhotoUrls ?? [],
       qcPhotoUrls,
       marketplacePhotoUrl: existing?.marketplacePhotoUrl,
+      marketplacePhotoUrls: existing?.marketplacePhotoUrls,
     },
     ...rows.filter((r) => r.lotId !== lotId),
   ];
@@ -67,13 +75,20 @@ export async function upsertLotQCPhotos(lotId: string, qcPhotoUrls: string[]): P
 }
 
 export async function setLotMarketplacePhoto(lotId: string, marketplacePhotoUrl: string): Promise<void> {
+  await setLotMarketplacePhotos(lotId, [marketplacePhotoUrl]);
+}
+
+export async function setLotMarketplacePhotos(lotId: string, marketplacePhotoUrls: string[]): Promise<void> {
   const rows = await readLotMedia();
   const existing = rows.find((r) => r.lotId === lotId);
+  const uniqueUrls = Array.from(new Set(marketplacePhotoUrls.filter(Boolean)));
   const next = [
     {
       lotId,
       sellerPhotoUrls: existing?.sellerPhotoUrls ?? [],
-      marketplacePhotoUrl,
+      qcPhotoUrls: existing?.qcPhotoUrls,
+      marketplacePhotoUrl: uniqueUrls[0],
+      marketplacePhotoUrls: uniqueUrls,
     },
     ...rows.filter((r) => r.lotId !== lotId),
   ];
@@ -82,5 +97,6 @@ export async function setLotMarketplacePhoto(lotId: string, marketplacePhotoUrl:
 
 export async function getLotMarketplacePhoto(lotId: string): Promise<string | null> {
   const rows = await readLotMedia();
-  return rows.find((r) => r.lotId === lotId)?.marketplacePhotoUrl ?? null;
+  const row = rows.find((r) => r.lotId === lotId);
+  return row?.marketplacePhotoUrl ?? row?.marketplacePhotoUrls?.[0] ?? null;
 }

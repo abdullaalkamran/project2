@@ -152,7 +152,7 @@ export default function TasksClient() {
   const [reports, setReports]               = useState<UiReport[]>([]);
   const [appLoading, setAppLoading]         = useState(true);
   const [expApprovals, setExpApprovals]     = useState<Record<string, boolean>>({});
-  const [selectedPhoto, setSelectedPhoto]   = useState<Record<string, string>>({});
+  const [selectedPhoto, setSelectedPhoto]   = useState<Record<string, string[]>>({});
   const [deciding2, setDeciding2]           = useState<string | null>(null);
 
   // ── Load: lots ────────────────────────────────────────────────────────────
@@ -195,9 +195,12 @@ export default function TasksClient() {
       setReports(data.map((r) => ({ ...r, decisionLabel: toDecisionLabel(r.decision) })));
       setSelectedPhoto(
         Object.fromEntries(
-          data
-            .filter((r) => !!r.selectedMarketplacePhotoUrl)
-            .map((r) => [r.reportId, r.selectedMarketplacePhotoUrl as string])
+          data.map((r) => [
+            r.reportId,
+            r.selectedMarketplacePhotoUrls?.length
+              ? r.selectedMarketplacePhotoUrls
+              : (r.selectedMarketplacePhotoUrl ? [r.selectedMarketplacePhotoUrl] : []),
+          ])
         )
       );
     } catch {
@@ -272,16 +275,21 @@ export default function TasksClient() {
   const decideApproval = async (reportId: string, decision: "Approved" | "Rejected" | "Re-inspect") => {
     const mapped  = decision === "Approved" ? "approved" : decision === "Rejected" ? "rejected" : "reinspect";
     const row     = reports.find((r) => r.reportId === reportId);
-    const selected = selectedPhoto[reportId] ?? row?.selectedMarketplacePhotoUrl;
-    if (decision === "Approved" && !selected) {
-      toast.error("Select one seller/QC photo for marketplace before approving.");
+    const selected = selectedPhoto[reportId]?.length
+      ? selectedPhoto[reportId]
+      : row?.selectedMarketplacePhotoUrls?.length
+        ? row.selectedMarketplacePhotoUrls
+        : (row?.selectedMarketplacePhotoUrl ? [row.selectedMarketplacePhotoUrl] : []);
+    if (decision === "Approved" && selected.length === 0) {
+      toast.error("Select one or more seller/QC photos for marketplace before approving.");
       return;
     }
     setDeciding2(reportId);
     try {
       await api.patch<QCPendingApprovalRecord>(`/api/qc/approvals/${reportId}/decision`, {
         decision: mapped,
-        selectedPhotoUrl: selected,
+        selectedPhotoUrls: selected,
+        selectedPhotoUrl: selected[0],
       });
       if (row) {
         await api.patch(`/api/flow/lots/${row.lotId}/leader-decision`, { decision });
@@ -289,7 +297,13 @@ export default function TasksClient() {
       setReports((prev) =>
         prev.map((r) =>
           r.reportId === reportId
-            ? { ...r, decision: mapped, decisionLabel: decision, selectedMarketplacePhotoUrl: selectedPhoto[reportId] ?? r.selectedMarketplacePhotoUrl }
+            ? {
+                ...r,
+                decision: mapped,
+                decisionLabel: decision,
+                selectedMarketplacePhotoUrls: selected,
+                selectedMarketplacePhotoUrl: selected[0] ?? r.selectedMarketplacePhotoUrl,
+              }
             : r
         )
       );
@@ -740,6 +754,40 @@ export default function TasksClient() {
                           ))}
                         </div>
 
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
+                            <p className="text-xs text-amber-500">Seller Transport Share</p>
+                            <p className="mt-0.5 font-semibold text-amber-700">
+                              {r.sellerTransportShare === "NO"
+                                ? "Buyer pays"
+                                : r.sellerTransportShare === "HALF"
+                                  ? "50% split"
+                                  : "Seller pays"}
+                            </p>
+                          </div>
+                          <div className="rounded-xl border border-sky-100 bg-sky-50 p-3">
+                            <p className="text-xs text-sky-500">QC Transport Cost</p>
+                            <p className="mt-0.5 font-semibold text-sky-700">{r.transportCost != null ? `৳${r.transportCost.toLocaleString()}` : "Not set"}</p>
+                          </div>
+                          <div className="rounded-xl border border-violet-100 bg-violet-50 p-3">
+                            <p className="text-xs text-violet-500">Free Offer Qty</p>
+                            {r.freeQtyEnabled && (r.freeQtyPer ?? 0) > 0 ? (
+                              <p className="mt-0.5 font-semibold text-violet-700">
+                                {r.freeQtyAmount} {r.freeQtyUnit} free per {r.freeQtyPer} {r.freeQtyUnit}
+                              </p>
+                            ) : (
+                              <p className="mt-0.5 text-sm text-slate-500">No free offer</p>
+                            )}
+                          </div>
+                          <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+                            <p className="text-xs text-emerald-500">Estimated Order Total</p>
+                            <p className="mt-0.5 font-semibold text-emerald-700">
+                              ৳{((r.minBidRate * r.qty) + (r.transportCost ?? 0)).toLocaleString()}
+                            </p>
+                            <p className="text-[10px] text-emerald-500">Product: ৳{(r.minBidRate * r.qty).toLocaleString()} + Transport: ৳{(r.transportCost ?? 0).toLocaleString()}</p>
+                          </div>
+                        </div>
+
                         {/* Checker notes */}
                         <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
                           <p className="text-xs font-medium text-slate-500">Checker Notes</p>
@@ -782,17 +830,32 @@ export default function TasksClient() {
 
                           {/* Select marketplace photo */}
                           <div className="rounded-lg border border-slate-200 bg-white p-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Select Marketplace Product Photo</p>
-                            <p className="mt-1 text-xs text-slate-400">Choose one photo to display in the marketplace listing.</p>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Select Marketplace Product Photos</p>
+                            <p className="mt-1 text-xs text-slate-400">Choose one or more photos to display in the marketplace listing.</p>
                             {allPhotos.length > 0 ? (
                               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                                 {allPhotos.map((src, idx) => {
-                                  const isSelected = (selectedPhoto[r.reportId] ?? r.selectedMarketplacePhotoUrl ?? "") === src;
+                                  const selected = selectedPhoto[r.reportId]?.length
+                                    ? selectedPhoto[r.reportId]
+                                    : r.selectedMarketplacePhotoUrls?.length
+                                      ? r.selectedMarketplacePhotoUrls
+                                      : (r.selectedMarketplacePhotoUrl ? [r.selectedMarketplacePhotoUrl] : []);
+                                  const isSelected = selected.includes(src);
                                   return (
                                     <button
                                       key={`pick-${idx}`}
                                       type="button"
-                                      onClick={() => setSelectedPhoto((prev) => ({ ...prev, [r.reportId]: src }))}
+                                      onClick={() => setSelectedPhoto((prev) => {
+                                        const current = prev[r.reportId]?.length
+                                          ? prev[r.reportId]
+                                          : (r.selectedMarketplacePhotoUrls?.length
+                                            ? r.selectedMarketplacePhotoUrls
+                                            : (r.selectedMarketplacePhotoUrl ? [r.selectedMarketplacePhotoUrl] : []));
+                                        const next = current.includes(src)
+                                          ? current.filter((u) => u !== src)
+                                          : [...current, src];
+                                        return { ...prev, [r.reportId]: next };
+                                      })}
                                       className={`overflow-hidden rounded-lg border-2 transition ${isSelected ? "border-emerald-500" : "border-slate-200 hover:border-slate-300"}`}
                                     >
                                       {/* eslint-disable-next-line @next/next/no-img-element */}

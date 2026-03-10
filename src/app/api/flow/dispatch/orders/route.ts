@@ -24,6 +24,7 @@ export async function GET() {
       lotId: (o as { lotId: string }).lotId,
       product: o.product,
       qty: o.qty,
+      freeQty: o.freeQty ?? 0,
       seller: o.sellerName,
       buyer: o.buyerName,
       deliveryPoint: o.deliveryPoint,

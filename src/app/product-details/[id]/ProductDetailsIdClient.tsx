@@ -64,6 +64,7 @@ type LotDetail = {
   saleType: string;
   qcReport: QCReport | null;
   image: string;
+  images?: string[];
   soldQty: number;
   pendingQty: number;
   availableQty: number;
@@ -116,6 +117,7 @@ export default function ProductDetailsPage() {
   const [deliveryHub, setDeliveryHub] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [hubs, setHubs] = useState<{ id: string; name: string; location: string }[]>([]);
+  const [activeImage, setActiveImage] = useState("");
 
   const fallback = useMemo(
     () => ({
@@ -142,6 +144,7 @@ export default function ProductDetailsPage() {
       .then((data: LotDetail | null) => {
         if (data) {
           setLot(data);
+          setActiveImage((data.images && data.images.length > 0 ? data.images[0] : data.image) || "");
           setQty(MIN_ORDER_BY_UNIT(data.unit));
           if (!data.description && !data.qcReport) setActiveTab("packaging");
         }
@@ -151,7 +154,13 @@ export default function ProductDetailsPage() {
   }, [lotCode]);
 
   const displayName = lot?.title ?? fallback.name;
-  const displayImage = lot?.image ?? fallback.image;
+  const imageGallery = useMemo(() => {
+    const arr = lot?.images?.length
+      ? lot.images
+      : [lot?.image ?? fallback.image];
+    return Array.from(new Set(arr.filter(Boolean)));
+  }, [lot?.images, lot?.image, fallback.image]);
+  const displayImage = activeImage || imageGallery[0] || "";
   // QC checker sets minBidRate — prefer qcReport then lot-level, fallback to basePrice
   const qcPrice = lot?.qcReport?.minBidRate ?? lot?.minBidRate ?? null;
   const displayPrice = qcPrice ?? lot?.basePrice ?? fallback.price;
@@ -347,6 +356,31 @@ export default function ProductDetailsPage() {
                   <ZoomIn className="h-4 w-4" />
                 </button>
               </div>
+
+              {imageGallery.length > 1 && (
+                <div className="border-t border-slate-100 bg-white px-5 py-3">
+                  <div className="flex gap-2 overflow-x-auto">
+                    {imageGallery.map((img, idx) => {
+                      const selected = img === displayImage;
+                      return (
+                        <button
+                          key={`${img}-${idx}`}
+                          type="button"
+                          onClick={() => setActiveImage(img)}
+                          className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 ${selected ? "border-emerald-500" : "border-slate-200"}`}
+                        >
+                          {img.startsWith("data:") ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={img} alt={`Product photo ${idx + 1}`} className="h-full w-full object-cover" />
+                          ) : (
+                            <Image src={img} alt={`Product photo ${idx + 1}`} fill sizes="64px" className="object-cover" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Stock bar */}
               {lot && (

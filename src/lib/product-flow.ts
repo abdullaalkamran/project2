@@ -40,6 +40,11 @@ export type FlowLot = {
   qcSubmittedAt?: string;
   leaderDecision?: "Approved" | "Rejected" | "Pending";
   sellerTransportCost?: number;
+  sellerTransportShare?: string;
+  freeQtyEnabled?: boolean;
+  freeQtyPer?: number;
+  freeQtyAmount?: number;
+  freeQtyUnit?: string;
   sellerPhotoUrls?: string[];
   qcPhotoUrls?: string[];
   saleType?: "AUCTION" | "FIXED_PRICE";

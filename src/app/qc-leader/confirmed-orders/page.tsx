@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
-import PreDispatchGate, { type GateData } from "@/components/PreDispatchGate";
+import PreDispatchGate, { gateReadyForDispatch, roleActionNeeded, type GateData } from "@/components/PreDispatchGate";
 
 type Truck = {
   id: string;
@@ -47,18 +47,24 @@ export default function QCLeaderConfirmedOrdersPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    Promise.all([
+  const loadData = useCallback(async () => {
+    const [ordersData, trucksData] = await Promise.all([
       api.get<DispatchOrder[]>("/api/flow/dispatch/orders"),
       api.get<Truck[]>("/api/flow/trucks"),
-    ])
-      .then(([ordersData, trucksData]) => {
-        setOrders(ordersData ?? []);
-        setTrucks(trucksData ?? []);
-      })
+    ]);
+    setOrders(ordersData ?? []);
+    setTrucks(trucksData ?? []);
+  }, []);
+
+  useEffect(() => {
+    void loadData()
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+    const id = setInterval(() => {
+      void loadData().catch(() => {});
+    }, 5000);
+    return () => clearInterval(id);
+  }, [loadData]);
 
   const availableTrucks = trucks.filter((t) => t.status === "Available");
 
@@ -97,7 +103,7 @@ export default function QCLeaderConfirmedOrdersPage() {
     }
   }
 
-  const pending = orders.filter((o) => !o.preDispatch.qcLeadConfirmed || o.preDispatch.truckPriceBDT <= 0).length;
+  const pending = orders.filter((o) => roleActionNeeded(o.preDispatch, "qc_leader")).length;
 
   if (loading) {
     return (
@@ -149,11 +155,8 @@ export default function QCLeaderConfirmedOrdersPage() {
       <div className="space-y-4">
         {orders.map((o) => {
           const pd = o.preDispatch;
-          const myActionNeeded = !pd.qcLeadConfirmed || pd.truckPriceBDT <= 0;
-          const gateReady =
-            pd.physicallyReceived && pd.qualityChecked && pd.packetQty > 0 &&
-            pd.grossWeightKg > 0 && pd.truckPriceBDT > 0 &&
-            pd.hubManagerConfirmed && pd.qcLeadConfirmed;
+          const myActionNeeded = roleActionNeeded(pd, "qc_leader");
+          const gateReady = gateReadyForDispatch(pd);
           const qrReady = (o.packetQr?.total ?? 0) > 0;
           const isBusy = busy === o.id;
 

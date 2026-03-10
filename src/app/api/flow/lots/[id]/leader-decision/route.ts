@@ -34,31 +34,8 @@ export async function PATCH(
       if (decision === "Approved") {
         if (lot.saleType === "FIXED_PRICE") {
           newStatus = "QC_PASSED";
-          const existingOrder = await prisma.order.findFirst({ where: { lotId: lot.id } });
-          if (!existingOrder) {
-            const salePrice = lot.minBidRate ?? lot.askingPricePerKg ?? lot.basePrice;
-            const orderCode = `ORD-${String(Date.now()).slice(-6)}`;
-            const buyerUser = await prisma.user.findFirst({
-              where: { userRoles: { some: { role: "buyer" } }, status: "ACTIVE" },
-            });
-            await prisma.order.create({
-              data: {
-                orderCode,
-                lotId: lot.id,
-                buyerId: buyerUser?.id ?? null,
-                sellerId: lot.sellerId ?? null,
-                buyerName: buyerUser?.name ?? "Pending Buyer",
-                sellerName: lot.sellerName,
-                product: lot.title,
-                qty: `${lot.quantity} ${lot.unit}`,
-                deliveryPoint: "To be confirmed",
-                winningBid: salePrice,
-                totalAmount: salePrice * lot.quantity,
-                status: "CONFIRMED",
-                sellerStatus: "PENDING_SELLER",
-              },
-            });
-          }
+          // Do not auto-create an order here.
+          // Fixed-price lots become purchasable, and orders are created only when buyers place them.
         } else {
           newStatus = "LIVE";
         }

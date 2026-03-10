@@ -11,10 +11,10 @@ export type PreDispatchCheck = {
   grossWeightKg: number;        // actual confirmed weight (editable, may differ from ordered)
   // Step 3: truck price (qc_leader)
   truckPriceBDT: number;
-  // Step 4: manager final confirmation (hub_manager)
-  hubManagerConfirmed: boolean;
-  // Step 5: QC leader final confirmation (qc_leader)
+  // Step 4: QC leader confirmation (qc_leader)
   qcLeadConfirmed: boolean;
+  // Step 5: manager final confirmation (hub_manager)
+  hubManagerConfirmed: boolean;
   updatedAt: string;
   updatedBy: string;
 };

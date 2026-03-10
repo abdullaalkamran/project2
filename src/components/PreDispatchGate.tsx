@@ -13,6 +13,8 @@ export type GateData = {
   qcLeadConfirmed: boolean;
 };
 
+export type GateRole = "hub_manager" | "qc_leader" | "qc_checker" | string;
+
 type Props = {
   orderCode: string;
   orderedQty: string;
@@ -36,11 +38,11 @@ function toForm(d: GateData): FormState {
   };
 }
 
-function step2Done(f: GateData) {
+export function step2Done(f: GateData) {
   return f.qualityChecked && f.packetQty > 0 && f.grossWeightKg > 0;
 }
 
-function currentStep(f: GateData): number {
+export function currentStep(f: GateData): number {
   if (!f.physicallyReceived) return 1;
   if (!step2Done(f)) return 2;
   if (f.truckPriceBDT <= 0) return 3;
@@ -51,11 +53,30 @@ function currentStep(f: GateData): number {
 
 const CAN_STEP: Record<number, string[]> = {
   1: ["hub_manager"],
-  2: ["hub_manager", "qc_leader", "qc_checker"],
+  2: ["hub_manager", "qc_leader"],
   3: ["qc_leader"],
   4: ["qc_leader"],
   5: ["hub_manager"],
 };
+
+export function canRoleAct(role: GateRole, step: number): boolean {
+  return (CAN_STEP[step] ?? []).includes(role);
+}
+
+export function roleActionNeeded(data: GateData, role: GateRole): boolean {
+  const step = currentStep(data);
+  return step >= 1 && step <= 5 && canRoleAct(role, step);
+}
+
+export function gateReadyForDispatch(data: GateData): boolean {
+  return (
+    data.physicallyReceived &&
+    step2Done(data) &&
+    data.truckPriceBDT > 0 &&
+    data.qcLeadConfirmed &&
+    data.hubManagerConfirmed
+  );
+}
 
 export default function PreDispatchGate({ orderCode, orderedQty, role, initialData, onUpdate }: Props) {
   const [form, setForm] = useState<FormState>(() => toForm(initialData));
@@ -64,7 +85,7 @@ export default function PreDispatchGate({ orderCode, orderedQty, role, initialDa
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const active = currentStep(form);
-  const canInteract = (step: number) => (CAN_STEP[step] ?? []).includes(role);
+  const canInteract = (step: number) => canRoleAct(role, step);
 
   async function save(patch: Partial<FormState>) {
     const merged = { ...form, ...patch };

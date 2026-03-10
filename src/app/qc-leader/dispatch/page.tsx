@@ -8,6 +8,7 @@ import {
   Link2, Send, Camera, FileText, Shield, Users, Clock, ChevronDown, ChevronUp, XCircle,
 } from "lucide-react";
 import api from "@/lib/api";
+import PreDispatchGate, { gateReadyForDispatch, type GateData } from "@/components/PreDispatchGate";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type PendingDriver = {
@@ -63,6 +64,7 @@ type OrderDispatch = {
   lotId: string;
   product: string;
   qty: string;
+  freeQty: number;
   seller: string;
   buyer: string;
   deliveryPoint: string;
@@ -73,6 +75,8 @@ type OrderDispatch = {
   loadConfirmed: boolean;
   dispatched: boolean;
   status: string;
+  preDispatch: GateData;
+  packetQr: { total: number; scanned: number };
 };
 
 // ── Truck status config ───────────────────────────────────────────────────────
@@ -109,6 +113,15 @@ function isAvailable(status: string) {
 function parseKg(qty: string): number {
   const n = parseFloat(qty.replace(/[^0-9.]/g, ""));
   return isNaN(n) ? 0 : n;
+}
+
+function effectiveQtyLabel(o: OrderDispatch): string {
+  const unit = o.qty.split(" ")[1] ?? "";
+  return o.freeQty > 0 ? `${o.qty} + ${o.freeQty} ${unit} free` : o.qty;
+}
+
+function effectiveQtyKg(o: OrderDispatch): number {
+  return parseKg(o.qty) + (o.freeQty ?? 0);
 }
 
 // ── Photo upload widget ───────────────────────────────────────────────────────
@@ -835,10 +848,10 @@ function TruckCapacityBar({
 }) {
   const confirmedKg = orders
     .filter((o) => o.assignedTruck === truckId && o.loadConfirmed && o.id !== currentOrderId)
-    .reduce((s, o) => s + parseKg(o.qty), 0);
+    .reduce((s, o) => s + effectiveQtyKg(o), 0);
   const assignedKg = orders
     .filter((o) => o.assignedTruck === truckId && !o.loadConfirmed && o.id !== currentOrderId)
-    .reduce((s, o) => s + parseKg(o.qty), 0);
+    .reduce((s, o) => s + effectiveQtyKg(o), 0);
 
   const cap          = capacityKg > 0 ? capacityKg : 1;
   const confirmedPct = Math.min(100, (confirmedKg / cap) * 100);
@@ -952,6 +965,10 @@ export default function DispatchAndFleetPage() {
 
   useEffect(() => {
     void reload().finally(() => setLoading(false));
+    const id = setInterval(() => {
+      void reload();
+    }, 5000);
+    return () => clearInterval(id);
   }, [reload]);
 
   // ── Dispatch actions ──────────────────────────────────────────────────────
@@ -1106,8 +1123,8 @@ export default function DispatchAndFleetPage() {
                 <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Fleet Capacity Overview</p>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {trucks.map((t) => {
-                    const confirmedKg = orders.filter((o) => o.assignedTruck === t.id && o.loadConfirmed).reduce((s, o) => s + parseKg(o.qty), 0);
-                    const assignedKg  = orders.filter((o) => o.assignedTruck === t.id && !o.loadConfirmed).reduce((s, o) => s + parseKg(o.qty), 0);
+                    const confirmedKg = orders.filter((o) => o.assignedTruck === t.id && o.loadConfirmed).reduce((s, o) => s + effectiveQtyKg(o), 0);
+                    const assignedKg  = orders.filter((o) => o.assignedTruck === t.id && !o.loadConfirmed).reduce((s, o) => s + effectiveQtyKg(o), 0);
                     const totalKg     = confirmedKg + assignedKg;
                     const cap         = t.capacityKg > 0 ? t.capacityKg : 1;
                     const confirmedPct = Math.min(100, (confirmedKg / cap) * 100);
@@ -1151,6 +1168,8 @@ export default function DispatchAndFleetPage() {
                   const step: 0 | 1 | 2     = o.loadConfirmed ? 2 : o.assignedTruck ? 1 : 0;
                   const assignedTruckData    = o.assignedTruck ? trucks.find((t) => t.id === o.assignedTruck) : null;
                   const isActing             = acting === o.id;
+                  const gateReady            = gateReadyForDispatch(o.preDispatch);
+                  const qrReady              = (o.packetQr?.total ?? 0) > 0;
 
                   return (
                     <div
@@ -1173,7 +1192,7 @@ export default function DispatchAndFleetPage() {
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <p className="text-base font-bold text-slate-900">{o.product}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">{o.qty} · Seller: <span className="font-medium">{o.seller}</span></p>
+                            <p className="text-xs text-slate-500 mt-0.5">{effectiveQtyLabel(o)} · Seller: <span className="font-medium">{o.seller}</span></p>
                           </div>
                           <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs space-y-0.5 min-w-[180px]">
                             <p className="font-semibold text-slate-800">{o.buyer}</p>
@@ -1185,6 +1204,40 @@ export default function DispatchAndFleetPage() {
                         <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-xs text-slate-700">
                           <MapPin size={13} className="text-teal-500 flex-shrink-0" />
                           <span>Delivery: <span className="font-semibold text-slate-900">{o.deliveryPoint}</span></span>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                          <PreDispatchGate
+                            orderCode={o.id}
+                            orderedQty={effectiveQtyLabel(o)}
+                            role="qc_leader"
+                            initialData={o.preDispatch}
+                            onUpdate={(updated) =>
+                              setOrders((prev) =>
+                                prev.map((ord) => (ord.id === o.id ? { ...ord, preDispatch: updated } : ord))
+                              )
+                            }
+                          />
+
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs">
+                            <p className="text-violet-700">
+                              Packet QR: <span className="font-semibold">{o.packetQr?.total ?? 0}</span> generated,{" "}
+                              scanned <span className="font-semibold">{o.packetQr?.scanned ?? 0}</span>
+                            </p>
+                            <a
+                              href={`/hub-shipment/${o.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-md border border-violet-300 bg-white px-2.5 py-1 font-semibold text-violet-700 hover:bg-violet-100"
+                            >
+                              Generate / Print Packet QR
+                            </a>
+                          </div>
+                          {(!gateReady || !qrReady) && (
+                            <p className="mt-2 text-[11px] text-amber-700">
+                              Complete all 5 gate steps and generate packet QR before assigning truck.
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-end gap-3 border-t border-slate-50 pt-3">
@@ -1202,14 +1255,14 @@ export default function DispatchAndFleetPage() {
                                 <select
                                   value={o.assignedTruck ?? ""}
                                   onChange={(e) => void doAction(o.id, { assignedTruck: e.target.value || null }, "Truck assigned")}
-                                  disabled={isActing}
+                                  disabled={isActing || !gateReady || !qrReady}
                                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs focus:border-teal-400 focus:outline-none disabled:opacity-50"
                                 >
                                   <option value="">— Select truck —</option>
                                   {trucks.map((t) => {
-                                    const loadedKg = orders.filter((ord) => ord.assignedTruck === t.id && ord.loadConfirmed).reduce((s, ord) => s + parseKg(ord.qty), 0);
+                                    const loadedKg = orders.filter((ord) => ord.assignedTruck === t.id && ord.loadConfirmed).reduce((s, ord) => s + effectiveQtyKg(ord), 0);
                                     const free     = t.capacityKg - loadedKg;
-                                    const canFit   = free >= parseKg(o.qty);
+                                    const canFit   = free >= effectiveQtyKg(o);
                                     return (
                                       <option key={t.id} value={t.id} disabled={!canFit || !isAvailable(t.status)}>
                                         {t.id} ({t.reg}) · {t.type} · {free} kg free
@@ -1224,7 +1277,7 @@ export default function DispatchAndFleetPage() {
                                     truckId={o.assignedTruck!}
                                     capacityKg={assignedTruckData.capacityKg}
                                     orders={orders}
-                                    previewQtyKg={parseKg(o.qty)}
+                                    previewQtyKg={effectiveQtyKg(o)}
                                     currentOrderId={o.id}
                                   />
                                 )}
@@ -1290,7 +1343,7 @@ export default function DispatchAndFleetPage() {
                                 {orders.filter((x) => x.assignedTruck === o.assignedTruck && x.loadConfirmed).map((x) => (
                                   <div key={x.id} className="flex items-center justify-between text-[11px]">
                                     <span className={`font-medium ${x.id === o.id ? "text-teal-700" : "text-slate-600"}`}>{x.product}</span>
-                                    <span className="text-slate-400">{x.qty}</span>
+                                    <span className="text-slate-400">{effectiveQtyLabel(x)}</span>
                                   </div>
                                 ))}
                               </div>
@@ -1343,7 +1396,7 @@ export default function DispatchAndFleetPage() {
                             <tr key={o.id} className="hover:bg-slate-50">
                               <td className="px-4 py-3 font-mono text-xs text-slate-400">{o.id}</td>
                               <td className="px-4 py-3 font-medium text-slate-900">{o.product}</td>
-                              <td className="px-4 py-3 text-xs text-slate-500">{o.qty}</td>
+                              <td className="px-4 py-3 text-xs text-slate-500">{effectiveQtyLabel(o)}</td>
                               <td className="px-4 py-3 text-xs text-slate-600">{o.buyer}</td>
                               <td className="px-4 py-3"><span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-semibold text-teal-700">{o.assignedTruck ?? "—"}</span></td>
                               <td className="px-4 py-3 text-xs text-slate-500">{truckData?.driverName ?? "—"}</td>
@@ -1634,7 +1687,7 @@ export default function DispatchAndFleetPage() {
                 {trucks.map((t) => {
                   const truckOrders   = orders.filter((o) => o.assignedTruck === t.id);
                   const loadedOrders  = truckOrders.filter((o) => o.loadConfirmed);
-                  const usedKgVal     = loadedOrders.reduce((s, o) => s + parseKg(o.qty), 0);
+                  const usedKgVal     = loadedOrders.reduce((s, o) => s + effectiveQtyKg(o), 0);
                   const cfg           = getTruckStatusCfg(t.status);
                   const isChanging    = changingStatus === t.id;
 
@@ -1738,7 +1791,7 @@ export default function DispatchAndFleetPage() {
                                   <div className="flex items-center gap-2">
                                     <Package size={12} className="text-slate-400 flex-shrink-0" />
                                     <span className="font-medium text-slate-800">{o.product}</span>
-                                    <span className="text-slate-400">{o.qty}</span>
+                                    <span className="text-slate-400">{effectiveQtyLabel(o)}</span>
                                     <span className="font-mono text-[10px] text-slate-300">{o.id}</span>
                                   </div>
                                   <div className="flex items-center gap-2">

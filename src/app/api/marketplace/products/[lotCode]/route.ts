@@ -12,7 +12,7 @@ export async function GET(
   const [lot, lotMedia] = await Promise.all([
     prisma.lot.findUnique({
       where: { lotCode: lotCode.toUpperCase() },
-      include: { qcReport: true, orders: { select: { qty: true, status: true, sellerStatus: true } } },
+      include: { qcReport: true, orders: { select: { qty: true, freeQty: true, status: true, sellerStatus: true } } },
     }),
     readLotMedia(),
   ]);
@@ -25,17 +25,22 @@ export async function GET(
 
   const soldQty = lot.orders
     .filter((o) => o.status !== "CANCELLED" && o.sellerStatus === "ACCEPTED")
-    .reduce((sum, o) => sum + parseQty(o.qty), 0);
+    .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
 
   const pendingQty = lot.orders
     .filter((o) => o.status !== "CANCELLED" && o.sellerStatus === "PENDING_SELLER")
-    .reduce((sum, o) => sum + parseQty(o.qty), 0);
+    .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
 
   const availableQty = Math.max(0, lot.quantity - soldQty);
 
   const mediaRecord = lotMedia.find((m) => m.lotId === lot.lotCode);
-  const image = mediaRecord?.marketplacePhotoUrl ??
-    "https://images.unsplash.com/photo-1603331669572-0216c5c88c7b?auto=format&fit=crop&w=800&q=80";
+  const fallbackImage = "https://images.unsplash.com/photo-1603331669572-0216c5c88c7b?auto=format&fit=crop&w=800&q=80";
+  const images = mediaRecord?.marketplacePhotoUrls?.length
+    ? mediaRecord.marketplacePhotoUrls
+    : mediaRecord?.marketplacePhotoUrl
+      ? [mediaRecord.marketplacePhotoUrl]
+      : [fallbackImage];
+  const image = images[0];
 
   return NextResponse.json({
     // Core identifiers
@@ -89,5 +94,6 @@ export async function GET(
 
     // Image
     image,
+    images,
   });
 }
