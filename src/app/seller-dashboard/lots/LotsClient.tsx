@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import api from "@/lib/api";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type ActiveLot = {
   id: string;
   title: string;
   status: string;
+  rawStatus: string;
   hub: string;
   askingPricePerKg: number;
   createdAt: string;
@@ -18,6 +20,7 @@ type PastLot = {
   id: string;
   title: string;
   status: string;
+  rawStatus: string;
   hub: string;
   createdAt: string;
 };
@@ -45,112 +48,6 @@ function statusClass(status: string): string {
   return STATUS_COLORS[status] ?? "bg-slate-100 text-slate-700 border-slate-200";
 }
 
-// ─── Progress Steps ────────────────────────────────────────────────────────────
-
-const STEPS: { label: string; by: string }[] = [
-  { label: "Submitted",   by: "You" },
-  { label: "At Hub",      by: "Hub Manager" },
-  { label: "QC Review",   by: "QC Checker" },
-  { label: "QC Approved", by: "QC Leader" },
-  { label: "In Market",   by: "Hub Manager" },
-];
-
-function statusToStep(status: string): { step: number; failed: boolean } {
-  switch (status) {
-    case "Waiting Hub Manager Approval":
-      return { step: 0, failed: false };
-    case "Hub Received":
-      return { step: 1, failed: false };
-    case "QC Check":
-    case "Waiting QC Approval":
-      return { step: 2, failed: false };
-    case "QC Failed":
-      return { step: 2, failed: true };
-    case "QC Passed":
-      return { step: 3, failed: false };
-    case "Action Required: Auction Unsold":
-      return { step: 4, failed: false }; // reached market but unsold — show step 5 active
-    case "Price Under Review":
-      return { step: 4, failed: false }; // 2nd cycle in progress
-    case "Approved in Marketplace":
-    case "Live":
-    case "Auction Ended":
-    case "Sold":
-    case "Delivered":
-      return { step: 5, failed: false }; // beyond last index → all 5 steps completed
-    default:
-      return { step: 0, failed: false };
-  }
-}
-
-function LotProgressBar({ status }: { status: string }) {
-  const { step: currentStep, failed } = statusToStep(status);
-
-  return (
-    <div className="flex w-full items-start pt-1">
-      {STEPS.map((step, i) => {
-        const isCompleted = i < currentStep;
-        const isCurrent = i === currentStep && !failed;
-        const isFailed = i === currentStep && failed;
-
-        return (
-          <div key={step.label} className="flex flex-1 flex-col items-center">
-            {/* dot + connector row */}
-            <div className="flex w-full items-center">
-              {/* left line */}
-              {i > 0 && (
-                <div
-                  className={`h-0.5 flex-1 transition-colors ${
-                    i <= currentStep && !failed ? "bg-emerald-400" : "bg-slate-200"
-                  }`}
-                />
-              )}
-              {/* dot */}
-              <div
-                className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[9px] font-bold transition-all ${
-                  isCompleted
-                    ? "bg-emerald-500 text-white"
-                    : isFailed
-                      ? "bg-rose-500 text-white"
-                      : isCurrent
-                        ? "bg-emerald-500 text-white ring-2 ring-emerald-200 ring-offset-1"
-                        : "border-2 border-slate-200 bg-white text-slate-400"
-                }`}
-              >
-                {isCompleted ? "✓" : isFailed ? "✕" : i + 1}
-              </div>
-              {/* right line */}
-              {i < STEPS.length - 1 && (
-                <div
-                  className={`h-0.5 flex-1 transition-colors ${
-                    i < currentStep && !failed ? "bg-emerald-400" : "bg-slate-200"
-                  }`}
-                />
-              )}
-            </div>
-            {/* label + role */}
-            <div className="mt-1 text-center leading-tight">
-              <p
-                className={`text-[9px] font-medium ${
-                  isCompleted
-                    ? "text-emerald-600"
-                    : isFailed
-                      ? "text-rose-500"
-                      : isCurrent
-                        ? "text-emerald-700 font-semibold"
-                        : "text-slate-400"
-                }`}
-              >
-                {isFailed ? "QC Failed" : step.label}
-              </p>
-              <p className="text-[8px] text-slate-400">{step.by}</p>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
@@ -432,10 +329,10 @@ export default function LotsClient() {
                 </div>
               </div>
 
-              {/* Progress bar */}
+              {/* Progress tracker */}
               <div className="border-t border-slate-100 px-5 pb-4 pt-3">
                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Journey</p>
-                <LotProgressBar status={lot.status} />
+                <LotLifecycleTracker lotStatus={lot.rawStatus} compact />
               </div>
 
               {/* Action Required banner */}
@@ -529,10 +426,10 @@ export default function LotsClient() {
                 </div>
               </div>
 
-              {/* Progress bar */}
+              {/* Progress tracker */}
               <div className="border-t border-slate-100 px-5 pb-4 pt-3">
                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Journey</p>
-                <LotProgressBar status={lot.status} />
+                <LotLifecycleTracker lotStatus={lot.rawStatus} compact />
               </div>
 
               <div className="border-t border-slate-100 px-4 py-2.5">

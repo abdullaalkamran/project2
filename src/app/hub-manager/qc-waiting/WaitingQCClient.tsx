@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
 import Pagination from "@/components/Pagination";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 const PAGE_SIZE = 15;
 
@@ -18,6 +19,7 @@ type WaitingRow = {
   qty: string;
   received: string;
   currentStatus: string;
+  rawLotStatus: string;
   timeline: Array<{ label: string; at: string; state: "done" | "current" | "pending" }>;
 };
 
@@ -99,6 +101,7 @@ function toRow(l: FlowLot): WaitingRow {
     qty: `${l.quantity} ${l.unit}`,
     received: l.receivedAt ? new Date(l.receivedAt).toLocaleString() : "-",
     currentStatus,
+    rawLotStatus: l.status,
     timeline: buildTimeline(l, currentStatus),
   };
 }
@@ -166,8 +169,9 @@ export default function WaitingQCClient() {
             </button>
 
             {expanded[r.id] && (
-              <div className="border-t border-slate-100 p-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Status Timeline</p>
+              <div className="border-t border-slate-100 p-4 space-y-4">
+                <LotLifecycleTracker lotStatus={r.rawLotStatus} />
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status Timeline</p>
                 <div className="space-y-3">
                   {r.timeline.map((event, idx) => (
                     <div key={`${r.id}-${idx}`} className="flex items-start gap-3">

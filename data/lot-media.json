@@ -1,5 +1,22 @@
 [
   {
+    "lotId": "LOT-317002",
+    "sellerPhotoUrls": [
+      "/uploads/lots/1773248174689-6eua173z.webp"
+    ],
+    "qcPhotoUrls": [
+      "/uploads/lots/1773248174689-6eua173z.webp",
+      "/uploads/lots/410a7003-23fa-4797-8377-6771a8b51933.webp",
+      "/uploads/lots/ad5c3da4-f1eb-4d96-8add-b5c0d39d1bb7.jpeg"
+    ],
+    "marketplacePhotoUrl": "/uploads/lots/1773248174689-6eua173z.webp",
+    "marketplacePhotoUrls": [
+      "/uploads/lots/1773248174689-6eua173z.webp",
+      "/uploads/lots/410a7003-23fa-4797-8377-6771a8b51933.webp",
+      "/uploads/lots/ad5c3da4-f1eb-4d96-8add-b5c0d39d1bb7.jpeg"
+    ]
+  },
+  {
     "lotId": "LOT-745777",
     "sellerPhotoUrls": [
       "/uploads/lots/1773163703644-d4zata41.webp"

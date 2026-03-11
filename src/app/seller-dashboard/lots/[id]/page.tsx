@@ -5,77 +5,12 @@ import { getSessionUser } from "@/lib/session";
 import { toSellerStatusLabel } from "@/lib/lot-status";
 import QuickMessageModal from "./QuickMessageModal";
 import DeactivateButton from "./DeactivateButton";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
-// ── Dispatch step progress bar for a single order ────────────────────────────
-function DispatchProgress({
-  sellerStatus,
-  assignedTruck,
-  loadConfirmed,
-  dispatched,
-  arrivedAt,
-  pickedUpAt,
-}: {
-  sellerStatus: string;
-  assignedTruck: string | null;
-  loadConfirmed: boolean;
-  dispatched: boolean;
-  arrivedAt: Date | null;
-  pickedUpAt: Date | null;
-}) {
-  const steps = [
-    { label: "Accepted", done: sellerStatus === "ACCEPTED" },
-    { label: "Truck Assigned", done: !!assignedTruck },
-    { label: "Loaded", done: loadConfirmed },
-    { label: "Dispatched", done: dispatched },
-    { label: "Arrived", done: !!arrivedAt },
-    { label: "Picked Up", done: !!pickedUpAt },
-  ];
-
-  const currentStep = steps.filter((s) => s.done).length;
-
-  return (
-    <div className="flex w-full items-start pt-1">
-      {steps.map((step, i) => {
-        const isCompleted = i < currentStep;
-        const isCurrent = i === currentStep;
-        return (
-          <div key={step.label} className="flex flex-1 flex-col items-center">
-            <div className="flex w-full items-center">
-              {i > 0 && (
-                <div className={`h-0.5 flex-1 ${isCompleted ? "bg-emerald-400" : "bg-slate-200"}`} />
-              )}
-              <div
-                className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
-                  isCompleted
-                    ? "bg-emerald-500 text-white"
-                    : isCurrent
-                      ? "bg-emerald-500 text-white ring-2 ring-emerald-200 ring-offset-1"
-                      : "border-2 border-slate-200 bg-white text-slate-400"
-                }`}
-              >
-                {isCompleted ? "✓" : i + 1}
-              </div>
-              {i < steps.length - 1 && (
-                <div className={`h-0.5 flex-1 ${isCompleted ? "bg-emerald-400" : "bg-slate-200"}`} />
-              )}
-            </div>
-            <p
-              className={`mt-1 text-center text-[9px] font-medium leading-tight ${
-                isCompleted ? "text-emerald-600" : isCurrent ? "text-emerald-700 font-semibold" : "text-slate-300"
-              }`}
-            >
-              {step.label}
-            </p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ── Seller-status badge ───────────────────────────────────────────────────────
 function SellerStatusBadge({ status }: { status: string }) {
@@ -318,23 +253,22 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
                   </div>
                 </div>
 
-                {/* Dispatch progress — only for accepted orders */}
+                {/* Lifecycle tracker — only for accepted orders */}
                 {isAccepted && (
                   <div className="border-t border-slate-100 px-5 pb-4 pt-3">
                     <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                      Dispatch Progress
+                      Journey
                       {order.assignedTruck && (
                         <span className="ml-2 font-normal normal-case text-slate-500">
                           — Truck: <span className="font-semibold text-slate-700">{order.assignedTruck}</span>
                         </span>
                       )}
                     </p>
-                    <DispatchProgress
-                      sellerStatus={order.sellerStatus}
-                      assignedTruck={order.assignedTruck}
+                    <LotLifecycleTracker
+                      lotStatus={lot.status}
+                      orderStatus={order.status}
                       loadConfirmed={order.loadConfirmed}
                       dispatched={order.dispatched}
-                      arrivedAt={order.arrivedAt}
                       pickedUpAt={order.pickedUpAt}
                     />
                     {order.dispatched && !order.arrivedAt && (

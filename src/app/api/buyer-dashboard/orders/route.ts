@@ -42,7 +42,7 @@ export async function GET() {
     },
     orderBy: { confirmedAt: "desc" },
     include: {
-      lot: { select: { lotCode: true, hubId: true, unit: true } },
+      lot: { select: { lotCode: true, hubId: true, unit: true, status: true } },
     },
   });
 
@@ -70,6 +70,7 @@ export async function GET() {
       winningBid: o.winningBid,
       totalAmount: o.totalAmount,
       hub: o.lot?.hubId ?? "—",
+      lotStatus: o.lot?.status ?? "LIVE",
       deliveryPoint: o.deliveryPoint ?? o.lot?.hubId ?? "—",
       status: o.status,
       confirmedAt: o.confirmedAt.toLocaleDateString("en-BD", {

@@ -6,6 +6,7 @@ import { Search, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react"
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
 import Pagination from "@/components/Pagination";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 const PAGE_SIZE = 15;
 
@@ -22,6 +23,7 @@ type InventoryRow = {
   verdict: string | null;
   arrivedAt: string;
   status: InventoryStatus;
+  rawLotStatus: string;
   timeline: Array<{ label: string; at: string; state: "done" | "current" | "pending" }>;
 };
 
@@ -39,11 +41,6 @@ const verdictColors: Record<string, string> = {
   FAILED: "bg-red-50 text-red-600",
 };
 
-const timelineDot: Record<"done" | "current" | "pending", string> = {
-  done: "bg-emerald-500",
-  current: "bg-sky-500",
-  pending: "bg-slate-300",
-};
 
 function mapStatus(l: FlowLot): InventoryStatus {
   if (l.status === "IN_QC") return "In QC";
@@ -108,6 +105,7 @@ function toRow(l: FlowLot): InventoryRow {
         })
       : "—",
     status,
+    rawLotStatus: l.status,
     timeline: buildTimeline(l, status),
   };
 }
@@ -290,18 +288,7 @@ export default function InventoryClient() {
 
             {expanded[item.id] && (
               <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Product Timeline</p>
-                <div className="space-y-2">
-                  {item.timeline.map((event, idx) => (
-                    <div key={`${item.id}-${idx}`} className="flex items-start gap-3">
-                      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${timelineDot[event.state]}`} />
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">{event.label}</p>
-                        <p className="text-xs text-slate-500">{event.at}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <LotLifecycleTracker lotStatus={item.rawLotStatus} />
               </div>
             )}
           </div>

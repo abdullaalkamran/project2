@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Navigation, PackageCheck } from "lucide-react";
+import { Navigation, PackageCheck } from "lucide-react";
 import api from "@/lib/api";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type TrackOrder = {
   id: string; product: string; qty: string; buyer: string;
@@ -83,6 +84,15 @@ export default function DispatchTrackClient() {
                 <p className="text-xs text-slate-400">Total</p>
                 <p className="text-sm font-bold text-emerald-700">৳ {o.totalAmount.toLocaleString()}</p>
               </div>
+            </div>
+
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <LotLifecycleTracker
+                lotStatus="LIVE"
+                orderStatus={o.status}
+                loadConfirmed={o.loadConfirmed}
+                dispatched={o.dispatched}
+              />
             </div>
 
             {o.distributorName && (

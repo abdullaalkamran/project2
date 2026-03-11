@@ -21,6 +21,11 @@ function fallbackFromLots(lots: Array<{
   askingPricePerKg: number;
   basePrice: number;
   sellerTransportCost: number | null;
+  sellerTransportShare: string | null;
+  freeQtyEnabled: boolean;
+  freeQtyPer: number | null;
+  freeQtyAmount: number | null;
+  freeQtyUnit: string | null;
 }>, qcReports: Map<string, { transportCost: number | null }>): QCPendingApprovalRecord[] {
   return lots.map((l) => ({
     reportId: `QCR-${l.lotCode}`,
@@ -37,6 +42,11 @@ function fallbackFromLots(lots: Array<{
     minBidRate: l.minBidRate ?? l.basePrice,
     transportCost: qcReports.get(l.lotCode)?.transportCost ?? undefined,
     sellerTransportCost: l.sellerTransportCost ?? undefined,
+    sellerTransportShare: l.sellerTransportShare ?? "YES",
+    freeQtyEnabled: l.freeQtyEnabled,
+    freeQtyPer: l.freeQtyPer ?? undefined,
+    freeQtyAmount: l.freeQtyAmount ?? undefined,
+    freeQtyUnit: l.freeQtyUnit ?? undefined,
     notes: l.qcNotes ?? "",
     qcNote: "",
     askingPricePerKg: l.askingPricePerKg,
@@ -86,6 +96,11 @@ export async function GET(req: NextRequest) {
         askingPricePerKg: true,
         basePrice: true,
         sellerTransportCost: true,
+        sellerTransportShare: true,
+        freeQtyEnabled: true,
+        freeQtyPer: true,
+        freeQtyAmount: true,
+        freeQtyUnit: true,
       },
     });
     // Fetch QC reports for transport costs

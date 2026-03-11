@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, SlidersHorizontal, X, ChevronDown, Download } from "lucide-react";
 import api from "@/lib/api";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type OrderItem = {
   id: string;
@@ -34,22 +35,8 @@ type OrderItem = {
   actualWeightKg: number | null;
   actualQty: number | null;
   actualQtyUnit: string;
+  lotStatus: string;
 };
-
-// ── Step progress ─────────────────────────────────────────────────────────────
-const DELIVERY_STEPS = [
-  { key: "CONFIRMED",        label: "Confirmed"  },
-  { key: "DISPATCHED",       label: "Dispatched" },
-  { key: "HUB_RECEIVED",    label: "At Hub"     },
-  { key: "OUT_FOR_DELIVERY", label: "In Transit" },
-  { key: "ARRIVED",          label: "Arrived"    },
-  { key: "PICKED_UP",        label: "Delivered"  },
-];
-
-function deliveryStepIndex(status: string) {
-  const i = DELIVERY_STEPS.findIndex((s) => s.key === status);
-  return i === -1 ? 0 : i;
-}
 
 function resolveDisplayStatus(status: string, sellerStatus: string) {
   if (status === "CANCELLED" || sellerStatus === "DECLINED") return "CANCELLED";
@@ -97,77 +84,6 @@ const TRANSPORT_PAYER_LABEL: Record<OrderItem["transportPaidBy"], string> = {
   NONE: "Not applied",
 };
 
-function StepBar({ status, sellerStatus }: { status: string; sellerStatus: string }) {
-  const display = resolveDisplayStatus(status, sellerStatus);
-
-  if (display === "CANCELLED") {
-    return (
-      <div className="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2">
-        <span className="text-xs font-semibold text-red-500">✕ Order Cancelled by seller</span>
-      </div>
-    );
-  }
-
-  if (display === "AWAITING_SELLER") {
-    return (
-      <div className="flex items-center gap-3">
-        <div className="flex flex-col items-center shrink-0">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-amber-400 bg-amber-50">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-400" />
-          </div>
-          <span className="mt-0.5 text-[9px] font-medium text-amber-600">Order<br/>Placed</span>
-        </div>
-        <div className="mb-3 h-px flex-1 border-b border-dashed border-amber-200" />
-        {DELIVERY_STEPS.map((step, i) => (
-          <div key={step.key} className="flex flex-1 items-center">
-            <div className="flex flex-col items-center shrink-0">
-              <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-slate-200 bg-white text-[10px] font-bold text-slate-300">
-                {i + 1}
-              </div>
-              <span className="mt-0.5 text-[9px] font-medium leading-none text-slate-400">{step.label}</span>
-            </div>
-            {i < DELIVERY_STEPS.length - 1 && (
-              <div className="mb-3 h-px flex-1 mx-1 bg-slate-100" />
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  const current = deliveryStepIndex(status);
-  return (
-    <div className="flex items-center gap-0 w-full">
-      {DELIVERY_STEPS.map((step, i) => {
-        const done   = i <= current;
-        const active = i === current;
-        return (
-          <div key={step.key} className="flex flex-1 items-center min-w-0">
-            <div className="flex flex-col items-center shrink-0">
-              <div
-                className={`flex h-6 w-6 items-center justify-center rounded-full border-2 text-[10px] font-bold transition-all ${
-                  done ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-200 bg-white text-slate-300"
-                } ${active ? "ring-2 ring-emerald-200 ring-offset-1" : ""}`}
-              >
-                {done ? (
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : i + 1}
-              </div>
-              <span className={`mt-0.5 text-[9px] font-medium leading-none ${done ? "text-emerald-600" : "text-slate-400"}`}>
-                {step.label}
-              </span>
-            </div>
-            {i < DELIVERY_STEPS.length - 1 && (
-              <div className={`mb-3 h-px flex-1 mx-1 ${i < current ? "bg-emerald-400" : "bg-slate-100"}`} />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ── Filter helpers ────────────────────────────────────────────────────────────
 type StatusFilter = "ALL" | "AWAITING_SELLER" | "CONFIRMED" | "DISPATCHED" | "HUB_RECEIVED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "PICKED_UP" | "CANCELLED";
@@ -451,10 +367,23 @@ export default function BuyerOrdersClient() {
                   </span>
                 </div>
 
-                {/* Row 2: step progress bar */}
-                <div className="border-b border-slate-50 px-5 py-4">
-                  <StepBar status={o.status} sellerStatus={o.sellerStatus} />
-                </div>
+                {/* Row 2: lifecycle tracker */}
+                {resolveDisplayStatus(o.status, o.sellerStatus) === "CANCELLED" ? (
+                  <div className="border-b border-slate-50 px-5 py-3">
+                    <div className="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2">
+                      <span className="text-xs font-semibold text-red-500">✕ Order Cancelled by seller</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-b border-slate-50 px-5 py-4">
+                    <LotLifecycleTracker
+                      lotStatus={o.lotStatus}
+                      orderStatus={resolveDisplayStatus(o.status, o.sellerStatus) === "AWAITING_SELLER" ? null : o.status}
+                      loadConfirmed={o.loadConfirmed}
+                      dispatched={o.dispatched}
+                    />
+                  </div>
+                )}
 
                 {/* Row 3: truck/load + product data */}
                 <div className="grid grid-cols-1 divide-y divide-slate-50 sm:grid-cols-[auto_1fr] sm:divide-x sm:divide-y-0">

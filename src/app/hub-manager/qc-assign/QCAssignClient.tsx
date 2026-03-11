@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
 import Pagination from "@/components/Pagination";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 const PAGE_SIZE = 15;
 
@@ -12,6 +13,7 @@ type LotRow = {
   askingPricePerKg: string; weight: string; received: string;
   leader: string; checker: string; saved: boolean;
   qcStatus: QcStatus; verdict: string | null; minBidRate: string | null; leaderDecision: string | null;
+  rawLotStatus: string;
 };
 
 function mapQcStatus(l: FlowLot): QcStatus {
@@ -41,6 +43,7 @@ function toRow(l: FlowLot): LotRow {
     verdict: l.verdict ?? null,
     minBidRate: l.minBidRate ? `BDT ${l.minBidRate}` : null,
     leaderDecision: l.leaderDecision ?? null,
+    rawLotStatus: l.status,
   };
 }
 
@@ -142,6 +145,9 @@ export default function HubQCAssignPage() {
                 <p className="text-slate-400">Received: {l.received}</p>
               </div>
             </div>
+
+            {/* Lifecycle tracker */}
+            <LotLifecycleTracker lotStatus={l.rawLotStatus} compact />
 
             {/* QC result tiles — shown when inspection is done */}
             {(l.verdict || l.minBidRate) && (

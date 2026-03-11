@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import Pagination from "@/components/Pagination";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 const PAGE_SIZE = 15;
 
@@ -62,6 +64,7 @@ export default function AdminAuctionsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [acting, setActing] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetch("/api/admin/auctions")

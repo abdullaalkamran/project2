@@ -5,6 +5,13 @@ import { toast } from "sonner";
 import { CheckCircle, XCircle, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 import api from "@/lib/api";
 import type { QCPendingApprovalRecord } from "@/lib/qc-approvals";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
+
+function approvalLotStatus(r: QCPendingApprovalRecord): string {
+  if (r.decision === "approved") return "QC_PASSED";
+  if (r.decision === "rejected" || r.verdict === "FAILED") return "QC_FAILED";
+  return "QC_SUBMITTED";
+}
 
 type Decision = "Pending" | "Approved" | "Rejected" | "Re-inspect";
 
@@ -188,6 +195,7 @@ export default function ApprovalsClient() {
 
                 {isExpanded && (
                   <div className="space-y-5 border-t border-slate-100 p-5">
+                    <LotLifecycleTracker lotStatus={approvalLotStatus(r)} />
                     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                       <div className="rounded-xl bg-slate-50 p-3">
                         <p className="text-xs text-slate-400">Checker</p>

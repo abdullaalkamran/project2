@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  Calendar,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -12,7 +11,6 @@ import {
   Filter,
   Loader2,
   Search,
-  X,
   AlertTriangle,
   XCircle,
   FileText,
@@ -21,6 +19,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 /* ─── types ─── */
 type HistoryItem = {
@@ -35,6 +34,7 @@ type HistoryItem = {
   submittedAt: string;
   leaderDecision: "Approved" | "Rejected" | "Pending";
   seller: string;
+  rawLotStatus: string;
 };
 
 type VerdictFilter = "all" | "PASSED" | "FAILED" | "CONDITIONAL";
@@ -74,6 +74,11 @@ function toHistory(lot: FlowLot): HistoryItem | null {
     submittedAt: lot.qcSubmittedAt,
     leaderDecision: lot.leaderDecision || "Pending",
     seller: lot.sellerName,
+    rawLotStatus: lot.leaderDecision === "Approved"
+      ? "QC_PASSED"
+      : lot.leaderDecision === "Rejected" || lot.verdict === "FAILED"
+        ? "QC_FAILED"
+        : "QC_SUBMITTED",
   };
 }
 
@@ -296,6 +301,7 @@ export default function HistoryClient() {
               {/* Expanded Detail */}
               {isExpanded && (
                 <div className="border-t border-slate-100 px-5 pb-5 pt-4 space-y-4">
+                  <LotLifecycleTracker lotStatus={item.rawLotStatus} />
                   {/* Timeline */}
                   <div className="space-y-3">
                     <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Timeline</h4>

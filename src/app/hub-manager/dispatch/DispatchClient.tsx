@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import Pagination from "@/components/Pagination";
 import PreDispatchGate, { gateReadyForDispatch, type GateData } from "@/components/PreDispatchGate";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 const PAGE_SIZE = 15;
 
@@ -36,47 +37,6 @@ type DispatchOrder = {
   packetQr: { total: number; scanned: number };
 };
 
-// ─── Load progress mini-bar ─────────────────────────────────────────────────
-
-const LOAD_STEPS = ["Truck Assigned", "Load Ready", "Dispatched"];
-
-function loadStep(order: DispatchOrder): number {
-  if (order.dispatched) return 3;
-  if (order.loadConfirmed) return 2;
-  if (order.assignedTruck) return 1;
-  return 0;
-}
-
-function LoadProgress({ order }: { order: DispatchOrder }) {
-  const current = loadStep(order);
-  return (
-    <div className="flex w-full items-start">
-      {LOAD_STEPS.map((label, i) => {
-        const step = i + 1;
-        const isCompleted = step < current || (step === 3 && current === 3);
-        const isCurrent = step === current && current < 3;
-        return (
-          <div key={label} className="flex flex-1 flex-col items-center">
-            <div className="flex w-full items-center">
-              {i > 0 && <div className={`h-0.5 flex-1 ${step <= current ? "bg-emerald-400" : "bg-slate-200"}`} />}
-              <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
-                isCompleted ? "bg-emerald-500 text-white"
-                  : isCurrent ? "bg-amber-400 text-white ring-2 ring-amber-200 ring-offset-1"
-                  : "border-2 border-slate-200 bg-white text-slate-400"
-              }`}>
-                {isCompleted ? "✓" : step}
-              </div>
-              {i < LOAD_STEPS.length - 1 && <div className={`h-0.5 flex-1 ${step < current ? "bg-emerald-400" : "bg-slate-200"}`} />}
-            </div>
-            <p className={`mt-1 text-center text-[9px] font-medium leading-tight ${
-              isCompleted ? "text-emerald-600" : isCurrent ? "text-amber-700 font-semibold" : "text-slate-400"
-            }`}>{label}</p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 // ─── Main ───────────────────────────────────────────────────────────────────
 
@@ -186,7 +146,7 @@ export default function DispatchClient() {
 
       <div className="space-y-4">
         {orders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((order) => {
-          const step = loadStep(order);
+          const step = order.dispatched ? 3 : order.loadConfirmed ? 2 : order.assignedTruck ? 1 : 0;
           const truck = trucks.find((t) => t.id === order.assignedTruck);
           const isBusy = busy === order.id;
           const pd = order.preDispatch;
@@ -237,10 +197,15 @@ export default function DispatchClient() {
                 ))}
               </div>
 
-              {/* Load progress */}
+              {/* Lifecycle tracker */}
               <div className="border-t border-slate-50 px-5 py-4">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Load Progress</p>
-                <LoadProgress order={order} />
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Journey</p>
+                <LotLifecycleTracker
+                  lotStatus="LIVE"
+                  orderStatus={order.status}
+                  loadConfirmed={order.loadConfirmed}
+                  dispatched={order.dispatched}
+                />
               </div>
 
               {/* Pre-dispatch gate — 5-step progress */}

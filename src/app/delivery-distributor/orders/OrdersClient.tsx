@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Package } from "lucide-react";
 import api from "@/lib/api";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type Order = {
   id: string; product: string; qty: string; buyer: string;
@@ -105,6 +106,10 @@ export default function AssignedOrdersClient() {
                 <p className="text-xs text-slate-400">Buyer: {o.buyer}</p>
               </div>
               <p className="text-sm font-bold text-emerald-700">৳ {o.totalAmount.toLocaleString()}</p>
+            </div>
+
+            <div className="mt-4">
+              <LotLifecycleTracker lotStatus="LIVE" orderStatus={o.status} compact />
             </div>
 
             <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-400">

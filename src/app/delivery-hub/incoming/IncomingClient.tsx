@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2, Truck } from "lucide-react";
 import api from "@/lib/api";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type HubOrder = {
   id: string; product: string; qty: string; buyer: string; seller: string;
@@ -105,6 +106,10 @@ export default function HubIncomingClient() {
                   <p className="text-xs font-semibold text-slate-800">{value}</p>
                 </div>
               ))}
+            </div>
+
+            <div className="border-t border-slate-100 px-5 py-4">
+              <LotLifecycleTracker lotStatus="LIVE" orderStatus={o.status} loadConfirmed={o.loadConfirmed} dispatched={o.dispatched} />
             </div>
 
             <div className="border-t border-slate-100 px-5 py-3 flex items-center justify-between gap-3">

@@ -5,6 +5,7 @@ import { Loader2, Truck } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
 import Pagination from "@/components/Pagination";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 const PAGE_SIZE = 15;
 
@@ -156,6 +157,8 @@ export default function ConfirmedOrdersClient() {
                     <p className="text-slate-500">Checker: {o.qcChecker}</p>
                   </div>
                 </div>
+
+                <LotLifecycleTracker lotStatus="LIVE" orderStatus={o.status} dispatched={o.dispatched} compact />
 
                 {o.sellerStatus === "PENDING_SELLER" && (
                   <div className="flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-4 py-2.5 text-xs text-amber-700">

@@ -30,6 +30,7 @@ export async function GET() {
       id: l.lotCode,
       title: `${l.title} — ${l.quantity} ${l.unit}`,
       status: toSellerStatusLabel(l.status),
+      rawStatus: l.status,
       hub: l.hubId,
       askingPricePerKg: l.askingPricePerKg,
       createdAt: l.createdAt.toLocaleDateString("en-BD", {
@@ -45,6 +46,7 @@ export async function GET() {
       id: l.lotCode,
       title: `${l.title} — ${l.quantity} ${l.unit}`,
       status: toSellerStatusLabel(l.status),
+      rawStatus: l.status,
       hub: l.hubId,
       createdAt: l.createdAt.toLocaleDateString("en-BD", {
         month: "short",
