@@ -193,139 +193,132 @@ export default function Home({ cms }: { cms: CMSContent }) {
   return (
     <div className="flex flex-col gap-12">
       <section
-        className={`relative overflow-hidden rounded-3xl ${HERO_BG_THEMES[cms.hero.heroBg ?? "light-green"] ?? HERO_BG_THEMES["light-green"]} p-8 shadow-xl sm:p-10`}
+        className={`relative -mt-10 left-1/2 right-1/2 w-screen -translate-x-1/2 overflow-hidden border-y border-emerald-200/60 ${HERO_BG_THEMES[cms.hero.heroBg ?? "light-green"] ?? HERO_BG_THEMES["light-green"]} min-h-[calc(100vh-5.5rem)] px-4 py-8 shadow-xl sm:-mt-12 sm:min-h-[calc(100vh-6rem)] sm:px-8 sm:py-10 lg:px-16`}
         style={cms.hero.heroBgImage ? { backgroundImage: `url(${cms.hero.heroBgImage})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
       >
-        {/* Semi-transparent overlay when a custom image is set */}
-        {cms.hero.heroBgImage && (
-          <div aria-hidden className="absolute inset-0 bg-white/70" />
-        )}
-        {/* Decorative blobs */}
-        <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-emerald-300/40 blur-3xl" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-green-300/40 blur-3xl" />
+        {cms.hero.heroBgImage && <div aria-hidden className="absolute inset-0 bg-white/72" />}
+        <div aria-hidden className="pointer-events-none absolute -left-24 top-16 h-80 w-80 rounded-full bg-emerald-400/25 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute right-0 top-0 h-64 w-64 -translate-y-1/3 translate-x-1/4 rounded-full bg-lime-300/30 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-24 -right-12 h-96 w-96 rounded-full bg-teal-300/25 blur-3xl" />
 
-        <div className="relative grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
-          {/* LEFT */}
-          <div className="space-y-8">
-            {/* Badges */}
+        <div className="relative mx-auto grid min-h-[calc(100vh-7.5rem)] max-w-6xl gap-8 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
+          <div className="space-y-6 lg:space-y-7">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-400" /> {cms.hero.badge}
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-100/90 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-800">
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                {cms.hero.badge}
               </div>
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                <Users className="h-3 w-3 text-emerald-600" />
-                <span className="font-bold tabular-nums text-emerald-700">{activeBidders}</span> online now
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
+                <Users className="h-3.5 w-3.5 text-emerald-300" />
+                <span className="tabular-nums text-emerald-300">{activeBidders}</span>
+                traders online
               </div>
             </div>
 
-            {/* Headline + sub */}
             <div className="space-y-3">
-              <h1 className="text-balance text-3xl font-bold leading-tight tracking-tight text-slate-900 sm:text-4xl lg:text-[38px] xl:text-[42px]">
-                {cms.hero.headline}<br />
-                <span className="text-emerald-600">{cms.hero.headlineAccent}</span>
+              <h1 className="text-balance text-3xl font-black leading-[1.08] tracking-tight text-slate-900 sm:text-4xl lg:text-[43px]">
+                {cms.hero.headline}
+                <span className="mt-1 block bg-gradient-to-r from-emerald-700 via-emerald-500 to-teal-500 bg-clip-text text-transparent">
+                  {cms.hero.headlineAccent}
+                </span>
               </h1>
-              <p className="max-w-lg text-base text-slate-600 sm:text-lg">
+              <p className="max-w-xl text-[15px] leading-relaxed text-slate-600 sm:text-base">
                 {cms.hero.subheadline}
               </p>
             </div>
 
-            {/* Feature pills */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="flex flex-col items-start gap-1.5 rounded-2xl border border-emerald-200 bg-white/70 px-4 py-3">
-                <ShieldCheck className="h-5 w-5 text-emerald-600" />
-                <span className="text-xs font-semibold text-slate-900">{cms.hero.pill1Title}</span>
-                <span className="text-[11px] leading-snug text-slate-500">{cms.hero.pill1Desc}</span>
-              </div>
-              <div className="flex flex-col items-start gap-1.5 rounded-2xl border border-emerald-200 bg-white/70 px-4 py-3">
-                <Zap className="h-5 w-5 text-emerald-600" />
-                <span className="text-xs font-semibold text-slate-900">{cms.hero.pill2Title}</span>
-                <span className="text-[11px] leading-snug text-slate-500">{cms.hero.pill2Desc}</span>
-              </div>
-              <div className="flex flex-col items-start gap-1.5 rounded-2xl border border-emerald-200 bg-white/70 px-4 py-3">
-                <Truck className="h-5 w-5 text-emerald-600" />
-                <span className="text-xs font-semibold text-slate-900">{cms.hero.pill3Title}</span>
-                <span className="text-[11px] leading-snug text-slate-500">{cms.hero.pill3Desc}</span>
-              </div>
-            </div>
-
-            {/* CTAs */}
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/live"
-                className="rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-400"
+                className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
               >
                 {cms.hero.ctaPrimary}
+                <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/auth/signup"
-                className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-emerald-900 shadow-sm transition hover:bg-slate-100"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
               >
                 {cms.hero.ctaSecondary}
               </Link>
             </div>
-          </div>
 
-          {/* RIGHT: live price tracker */}
-          <div className="relative rounded-3xl border border-emerald-200 bg-white/80 p-6 text-slate-900 shadow-lg backdrop-blur">
-            <div className="flex items-center justify-between border-b border-emerald-200 pb-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-emerald-700">{cms.hero.trackerLabel}</p>
-                <p className="text-xl font-bold">{cms.hero.trackerTitle}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-emerald-200/80 bg-white/80 p-4 backdrop-blur-sm">
+                <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
+                  <ShieldCheck className="h-4 w-4 text-emerald-700" />
+                </div>
+                <p className="text-xs font-semibold text-slate-900">{cms.hero.pill1Title}</p>
+                <p className="mt-1 text-[11px] leading-snug text-slate-500">{cms.hero.pill1Desc}</p>
               </div>
-              <div className="flex flex-col items-end gap-1.5">
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-                  <span className="mr-1 inline-block h-2 w-2 animate-pulse rounded-full bg-lime-500" /> Live
-                </span>
-                <span className="flex items-center gap-1 text-xs text-slate-500">
-                  <Users className="h-3 w-3" />
-                  <span className="font-bold tabular-nums text-slate-900">{activeBidders}</span> bidding
-                </span>
+              <div className="rounded-2xl border border-emerald-200/80 bg-white/80 p-4 backdrop-blur-sm">
+                <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
+                  <Zap className="h-4 w-4 text-emerald-700" />
+                </div>
+                <p className="text-xs font-semibold text-slate-900">{cms.hero.pill2Title}</p>
+                <p className="mt-1 text-[11px] leading-snug text-slate-500">{cms.hero.pill2Desc}</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200/80 bg-white/80 p-4 backdrop-blur-sm">
+                <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
+                  <Truck className="h-4 w-4 text-emerald-700" />
+                </div>
+                <p className="text-xs font-semibold text-slate-900">{cms.hero.pill3Title}</p>
+                <p className="mt-1 text-[11px] leading-snug text-slate-500">{cms.hero.pill3Desc}</p>
               </div>
             </div>
+          </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="relative overflow-hidden rounded-3xl border border-emerald-200/80 bg-white/90 p-5 shadow-lg backdrop-blur-md sm:p-6">
+            <div className="absolute right-0 top-0 h-28 w-28 translate-x-1/3 -translate-y-1/3 rounded-full bg-emerald-300/30 blur-2xl" />
+            <div className="relative flex items-start justify-between border-b border-emerald-100 pb-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700">{cms.hero.trackerLabel}</p>
+                <p className="text-xl font-bold text-slate-900">{cms.hero.trackerTitle}</p>
+              </div>
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                <span className="mr-1 inline-block h-2 w-2 animate-pulse rounded-full bg-lime-500" />
+                Live
+              </span>
+            </div>
+
+            <div className="relative mt-4 space-y-2.5">
               {prices.map((p, idx) => (
                 <div
                   key={p.product}
-                  className={`rounded-2xl border border-emerald-200 p-4 transition-colors duration-500 ${
-                    flashIdx === idx ? "bg-emerald-50" : "bg-white/60 hover:bg-emerald-50/50"
+                  className={`grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-xl border border-emerald-100 px-3 py-2.5 transition ${
+                    flashIdx === idx ? "bg-emerald-50" : "bg-white/70"
                   }`}
                 >
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    {p.product}
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold uppercase tracking-wide text-slate-600">{p.product}</p>
+                    <p className="text-[11px] text-slate-500">24h: ৳{p.range[0].toFixed(2)} - ৳{p.range[1].toFixed(2)}</p>
                   </div>
-                  <div
-                    className={`mt-2 text-2xl font-bold tabular-nums transition-colors duration-500 ${
-                      flashIdx === idx
-                        ? p.dir === "up" ? "text-lime-600" : "text-rose-500"
-                        : "text-slate-900"
-                    }`}
-                  >
-                    ৳{p.price.toFixed(2)}
-                  </div>
-                  <div
-                    className={`mt-1 flex items-center gap-0.5 text-xs font-semibold ${
-                      p.dir === "up" ? "text-lime-600" : "text-rose-500"
-                    }`}
-                  >
+                  <p className="text-lg font-bold tabular-nums text-slate-900">৳{p.price.toFixed(2)}</p>
+                  <p className={`flex items-center text-xs font-semibold ${p.dir === "up" ? "text-lime-600" : "text-rose-500"}`}>
                     {p.dir === "up" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
                     {p.dir === "up" ? "+" : ""}{p.change.toFixed(1)}%
-                  </div>
-                  <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2 text-[11px] text-slate-500">
-                    24h: ৳{p.range[0].toFixed(2)}&ndash;৳{p.range[1].toFixed(2)}
-                  </div>
+                  </p>
                 </div>
               ))}
             </div>
 
-            {/* Activity ticker */}
-            <div className="mt-4 flex items-center gap-2 overflow-hidden rounded-xl bg-emerald-100/70 px-4 py-2.5">
+            <div className="mt-4 flex items-center gap-2 overflow-hidden rounded-xl border border-emerald-200 bg-emerald-100/70 px-3 py-2.5">
               <span className="shrink-0 rounded bg-emerald-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
                 Activity
               </span>
-              <span key={tickerIdx} className="min-w-0 truncate text-xs text-slate-600">
+              <span key={tickerIdx} className="min-w-0 truncate text-xs text-slate-700">
                 {ACTIVITY[tickerIdx]}
               </span>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-[11px] text-slate-600">
+              <span className="inline-flex items-center gap-1">
+                <Users className="h-3.5 w-3.5 text-emerald-700" />
+                <span className="font-semibold tabular-nums text-slate-900">{activeBidders}</span> active bidders
+              </span>
+              <Link href="/marketplace" className="font-semibold text-emerald-700 hover:text-emerald-800">
+                View marketplace
+              </Link>
             </div>
           </div>
         </div>

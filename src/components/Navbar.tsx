@@ -68,6 +68,7 @@ export function Navbar() {
 
   const dashboardHref = role ? roleRedirects[role] : "/buyer-dashboard";
   const isInternalStaff = role ? INTERNAL_ROLES.includes(role) : false;
+  const isLandingPage = pathname === "/";
 
   const hideForHomeWhenLoggedIn = pathname === "/" && isLoggedIn;
   if (hideForHomeWhenLoggedIn) return null;
@@ -80,11 +81,25 @@ export function Navbar() {
       })
     : [];
 
+  const navShellClass = isLandingPage
+    ? "mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5"
+    : "mx-auto flex max-w-6xl items-center justify-between px-4 py-4";
+  const logoBadgeClass = isLandingPage
+    ? "inline-flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-white text-xs font-bold"
+    : "inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white text-sm font-bold";
+  const navItemBaseClass = isLandingPage ? "rounded-full px-3 py-1.5" : "rounded-full px-3 py-2";
+
   return (
-    <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+    <header
+      className={
+        isLandingPage
+          ? "sticky top-0 z-50 border-b border-white/40 bg-white/35 backdrop-blur-md"
+          : "border-b border-slate-200 bg-white/90 backdrop-blur"
+      }
+    >
+      <div className={navShellClass}>
         <Link href={isLoggedIn ? dashboardHref : "/"} className="flex items-center gap-2 font-semibold text-slate-900">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white text-sm font-bold">
+          <span className={logoBadgeClass}>
             P
           </span>
           <span>Paikari</span>
@@ -98,8 +113,8 @@ export function Navbar() {
                 href={item.href}
                 className={
                   active
-                    ? "rounded-full bg-emerald-50 px-3 py-2 text-emerald-700"
-                    : "rounded-full px-3 py-2 hover:bg-slate-100"
+                    ? `${navItemBaseClass} bg-emerald-50 text-emerald-700`
+                    : `${navItemBaseClass} hover:bg-slate-100`
                 }
               >
                 {item.label}
