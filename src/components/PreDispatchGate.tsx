@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import api from "@/lib/api";
 
 export type GateData = {
@@ -8,6 +8,9 @@ export type GateData = {
   qualityChecked: boolean;
   packetQty: number;
   grossWeightKg: number;
+  freeQty: number;
+  step2EditRequested: boolean;
+  step2Unlocked: boolean;
   truckPriceBDT: number;
   hubManagerConfirmed: boolean;
   qcLeadConfirmed: boolean;
@@ -26,6 +29,7 @@ type Props = {
 type FormState = GateData & {
   _packetQty: string;
   _grossWeightKg: string;
+  _freeQty: string;
   _truckPriceBDT: string;
 };
 
@@ -34,6 +38,7 @@ function toForm(d: GateData): FormState {
     ...d,
     _packetQty: String(d.packetQty),
     _grossWeightKg: String(d.grossWeightKg),
+    _freeQty: String(d.freeQty ?? 0),
     _truckPriceBDT: String(d.truckPriceBDT),
   };
 }
@@ -46,17 +51,15 @@ export function currentStep(f: GateData): number {
   if (!f.physicallyReceived) return 1;
   if (!step2Done(f)) return 2;
   if (f.truckPriceBDT <= 0) return 3;
-  if (!f.qcLeadConfirmed) return 4;
-  if (!f.hubManagerConfirmed) return 5;
-  return 6;
+  if (!f.hubManagerConfirmed) return 4;
+  return 5;
 }
 
 const CAN_STEP: Record<number, string[]> = {
   1: ["hub_manager"],
   2: ["hub_manager", "qc_leader"],
   3: ["qc_leader"],
-  4: ["qc_leader"],
-  5: ["hub_manager"],
+  4: ["hub_manager"],
 };
 
 export function canRoleAct(role: GateRole, step: number): boolean {
@@ -73,7 +76,6 @@ export function gateReadyForDispatch(data: GateData): boolean {
     data.physicallyReceived &&
     step2Done(data) &&
     data.truckPriceBDT > 0 &&
-    data.qcLeadConfirmed &&
     data.hubManagerConfirmed
   );
 }
@@ -82,7 +84,31 @@ export default function PreDispatchGate({ orderCode, orderedQty, role, initialDa
   const [form, setForm] = useState<FormState>(() => toForm(initialData));
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
+  const [hubEditing, setHubEditing] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync all step-2 data + flags when polling updates initialData
+  useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      qualityChecked:     initialData.qualityChecked,
+      packetQty:          initialData.packetQty,
+      _packetQty:         String(initialData.packetQty),
+      grossWeightKg:      initialData.grossWeightKg,
+      _grossWeightKg:     String(initialData.grossWeightKg),
+      freeQty:            initialData.freeQty,
+      _freeQty:           String(initialData.freeQty ?? 0),
+      step2EditRequested: initialData.step2EditRequested,
+      step2Unlocked:      initialData.step2Unlocked,
+    }));
+  }, [
+    initialData.qualityChecked,
+    initialData.packetQty,
+    initialData.grossWeightKg,
+    initialData.freeQty,
+    initialData.step2EditRequested,
+    initialData.step2Unlocked,
+  ]);
 
   const active = currentStep(form);
   const canInteract = (step: number) => canRoleAct(role, step);
@@ -98,6 +124,9 @@ export default function PreDispatchGate({ orderCode, orderedQty, role, initialDa
         qualityChecked:      merged.qualityChecked,
         packetQty:           Number(merged._packetQty || 0),
         grossWeightKg:       Number(merged._grossWeightKg || 0),
+        freeQty:             Number(merged._freeQty || 0),
+        step2EditRequested:  merged.step2EditRequested,
+        step2Unlocked:       merged.step2Unlocked,
         truckPriceBDT:       Number(merged._truckPriceBDT || 0),
         hubManagerConfirmed: merged.hubManagerConfirmed,
         qcLeadConfirmed:     merged.qcLeadConfirmed,
@@ -120,7 +149,7 @@ export default function PreDispatchGate({ orderCode, orderedQty, role, initialDa
     void save({ [key]: val } as Partial<FormState>);
   }
 
-  const allDone = active === 6;
+  const allDone = active === 5;
 
   const steps = [
     {
@@ -132,7 +161,7 @@ export default function PreDispatchGate({ orderCode, orderedQty, role, initialDa
     {
       n: 2,
       title: "Weight & Quality Check",
-      desc: `Confirm actual weight and quality. Ordered: ${orderedQty}`,
+      desc: `Confirm actual weight, free qty, and quality. Ordered: ${orderedQty}`,
       done: step2Done(form),
     },
     {
@@ -143,12 +172,6 @@ export default function PreDispatchGate({ orderCode, orderedQty, role, initialDa
     },
     {
       n: 4,
-      title: "QC Leader Confirmation",
-      desc: "QC team leader reviews and confirms quality, weight, and truck price",
-      done: form.qcLeadConfirmed,
-    },
-    {
-      n: 5,
       title: "Manager Final Confirmation",
       desc: "Hub manager gives final approval — unlocks truck assignment",
       done: form.hubManagerConfirmed,
@@ -262,69 +285,162 @@ export default function PreDispatchGate({ orderCode, orderedQty, role, initialDa
                     )}
 
                     {/* Step 2 */}
-                    {step.n === 2 && (
-                      <div className="space-y-2">
-                        <div className="grid gap-2 sm:grid-cols-3">
-                          <div>
-                            <label className="mb-0.5 block text-[10px] font-medium text-slate-500">Packet Qty</label>
-                            <input
-                              type="number"
-                              min={0}
-                              value={form._packetQty}
-                              disabled={!canAct}
-                              onChange={(e) => setForm((p) => ({ ...p, _packetQty: e.target.value }))}
-                              onBlur={() => void save({ packetQty: Number(form._packetQty || 0) })}
-                              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-emerald-400 disabled:bg-slate-50 disabled:text-slate-400"
-                            />
+                    {step.n === 2 && (() => {
+                      // Locked = done and not unlocked (hub manager uses local hubEditing toggle instead)
+                      const isLocked2 = isDone && !form.step2Unlocked && !(role === "hub_manager" && hubEditing);
+                      const editableByRole = canAct && (!isDone || form.step2Unlocked || (role === "hub_manager" && hubEditing));
+
+                      // Read-only summary (locked after submission)
+                      if (isLocked2) {
+                        return (
+                          <div className="space-y-2">
+                            {/* Summary tiles */}
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                { label: "Packet Qty", value: String(form.packetQty) },
+                                { label: "Actual Weight", value: `${form.grossWeightKg} kg` },
+                                { label: "Free Qty", value: form.freeQty > 0 ? String(form.freeQty) : "—", amber: form.freeQty > 0 },
+                                { label: "Quality", value: "✓ Checked", green: true },
+                              ].map((t) => (
+                                <div key={t.label} className={`rounded-lg border px-3 py-2 text-xs ${t.amber ? "border-amber-100 bg-amber-50" : t.green ? "border-emerald-100 bg-emerald-50" : "border-slate-100 bg-slate-50"}`}>
+                                  <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">{t.label}</p>
+                                  <p className={`font-semibold mt-0.5 ${t.amber ? "text-amber-700" : t.green ? "text-emerald-700" : "text-slate-800"}`}>{t.value}</p>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* QC leader: request edit */}
+                            {role === "qc_leader" && (
+                              form.step2EditRequested ? (
+                                <p className="text-[11px] text-amber-600 font-medium">
+                                  ⏳ Edit request sent — awaiting hub manager approval…
+                                </p>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => void save({ step2EditRequested: true })}
+                                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition"
+                                >
+                                  Request Edit Permission
+                                </button>
+                              )
+                            )}
+
+                            {/* Hub manager: edit own data + approve QC edit request */}
+                            {role === "hub_manager" && (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setHubEditing(true)}
+                                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+                                >
+                                  Edit
+                                </button>
+                                {form.step2EditRequested && (
+                                  <div className="flex items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5">
+                                    <p className="text-[11px] font-semibold text-orange-700">QC leader requested edit permission.</p>
+                                    <button
+                                      type="button"
+                                      onClick={() => void save({ step2EditRequested: false, step2Unlocked: true, qualityChecked: false })}
+                                      className="rounded-lg bg-orange-500 px-2.5 py-1 text-xs font-semibold text-white hover:bg-orange-600 transition"
+                                    >
+                                      Allow Edit
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div>
-                            <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
-                              Actual Weight (kg)
-                              {orderedQty && <span className="ml-1 text-slate-400">· ordered: {orderedQty}</span>}
-                            </label>
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              value={form._grossWeightKg}
-                              disabled={!canAct}
-                              onChange={(e) => setForm((p) => ({ ...p, _grossWeightKg: e.target.value }))}
-                              onBlur={() => void save({ grossWeightKg: Number(form._grossWeightKg || 0) })}
-                              className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-emerald-400 disabled:bg-slate-50 disabled:text-slate-400"
-                            />
+                        );
+                      }
+
+                      // Editable form
+                      return (
+                        <div className="space-y-2">
+                          {/* Hub manager editing: Done button to close edit mode */}
+                          {role === "hub_manager" && hubEditing && (
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setHubEditing(false)}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                              >
+                                ✓ Done Editing
+                              </button>
+                            </div>
+                          )}
+                          {/* Row 1: 3 number inputs */}
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">Packet Qty</label>
+                              <input
+                                type="number" min={0}
+                                value={form._packetQty}
+                                disabled={!editableByRole}
+                                onChange={(e) => setForm((p) => ({ ...p, _packetQty: e.target.value }))}
+                                onBlur={() => void save({ packetQty: Number(form._packetQty || 0) })}
+                                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-emerald-400 disabled:bg-slate-50 disabled:text-slate-400"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                Actual Weight (kg)
+                                {orderedQty && <span className="ml-1 normal-case font-normal text-slate-300">ordered: {orderedQty}</span>}
+                              </label>
+                              <input
+                                type="number" min={0} step="0.01"
+                                value={form._grossWeightKg}
+                                disabled={!editableByRole}
+                                onChange={(e) => setForm((p) => ({ ...p, _grossWeightKg: e.target.value }))}
+                                onBlur={() => void save({ grossWeightKg: Number(form._grossWeightKg || 0) })}
+                                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-emerald-400 disabled:bg-slate-50 disabled:text-slate-400"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-amber-500">
+                                Free Qty
+                                {orderedQty && (() => { const unit = orderedQty.split(" ").slice(1).join(" "); return unit ? <span className="ml-1 normal-case font-normal text-slate-300">({unit}, bonus)</span> : <span className="ml-1 normal-case font-normal text-slate-300">(bonus)</span>; })()}
+                              </label>
+                              <input
+                                type="number" min={0} step="0.01"
+                                value={form._freeQty}
+                                disabled={!editableByRole}
+                                onChange={(e) => setForm((p) => ({ ...p, _freeQty: e.target.value }))}
+                                onBlur={() => void save({ freeQty: Number(form._freeQty || 0) })}
+                                placeholder="0"
+                                className="w-full rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs outline-none focus:border-amber-400 disabled:bg-slate-50 disabled:text-slate-400"
+                              />
+                            </div>
                           </div>
-                          <div className="flex flex-col justify-end">
-                            <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs cursor-pointer ${canAct ? "border-slate-200 bg-white hover:border-emerald-300" : "border-slate-100 bg-slate-50 cursor-default"}`}>
+
+                          {/* Row 2: Quality checkbox + weight warning */}
+                          <div className="flex flex-wrap items-center gap-3">
+                            <label className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs cursor-pointer ${editableByRole ? "border-slate-200 bg-white hover:border-emerald-300" : "border-slate-100 bg-slate-50 cursor-default"}`}>
                               <input
                                 type="checkbox"
                                 checked={form.qualityChecked}
-                                disabled={!canAct}
-                                onChange={(e) => void save({ qualityChecked: e.target.checked })}
+                                disabled={!editableByRole}
+                                onChange={(e) => void save({ qualityChecked: e.target.checked, ...(e.target.checked ? { step2Unlocked: false } : {}) })}
                                 className="accent-emerald-500"
                               />
-                              <span className={canAct ? "text-slate-700" : "text-slate-400"}>Quality Checked</span>
+                              <span className={editableByRole ? "text-slate-700" : "text-slate-400"}>Quality Checked</span>
                             </label>
+                            {form._grossWeightKg && Number(form._grossWeightKg) > 0 && (() => {
+                              const ordered = parseFloat(orderedQty);
+                              const actual = Number(form._grossWeightKg);
+                              if (!isNaN(ordered) && actual < ordered * 0.95) {
+                                return <p className="text-[11px] text-amber-700 font-medium">⚠ Actual weight ({actual} kg) is less than ordered ({ordered} kg).</p>;
+                              }
+                              return null;
+                            })()}
                           </div>
+
+                          {!editableByRole && !isDone && (
+                            <p className="text-[11px] text-amber-600">Waiting for QC team to enter weight & quality check…</p>
+                          )}
                         </div>
-                        {form._grossWeightKg && Number(form._grossWeightKg) > 0 && (() => {
-                          const ordered = parseFloat(orderedQty);
-                          const actual = Number(form._grossWeightKg);
-                          if (!isNaN(ordered) && actual < ordered * 0.95) {
-                            return (
-                              <p className="text-[11px] text-amber-700 font-medium">
-                                ⚠ Actual weight ({actual} kg) is less than ordered ({ordered} kg). Manager and QC have adjusted the weight.
-                              </p>
-                            );
-                          }
-                          return null;
-                        })()}
-                        {!canAct && (
-                          <p className="text-[11px] text-amber-600">
-                            {isDone ? "Weight & quality check complete." : "Waiting for QC team to enter weight & quality check…"}
-                          </p>
-                        )}
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Step 3 */}
                     {step.n === 3 && (
@@ -362,29 +478,8 @@ export default function PreDispatchGate({ orderCode, orderedQty, role, initialDa
                       </div>
                     )}
 
-                    {/* Step 4 — QC leader confirmation */}
+                    {/* Step 4 — Hub manager final confirmation */}
                     {step.n === 4 && (
-                      <div>
-                        {isDone ? (
-                          <p className="text-[11px] font-semibold text-emerald-600">
-                            ✓ QC leader confirmed quality, weight, and truck price
-                          </p>
-                        ) : canAct ? (
-                          <button
-                            type="button"
-                            onClick={() => toggle("qcLeadConfirmed")}
-                            className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition"
-                          >
-                            Confirm as QC Leader
-                          </button>
-                        ) : (
-                          <p className="text-[11px] text-amber-600">Waiting for QC leader confirmation…</p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Step 5 — Hub manager final confirmation */}
-                    {step.n === 5 && (
                       <div>
                         {isDone ? (
                           <p className="text-[11px] font-semibold text-emerald-600">

@@ -6,7 +6,6 @@ import { Search, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react"
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
 import Pagination from "@/components/Pagination";
-import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 const PAGE_SIZE = 15;
 
@@ -288,7 +287,6 @@ export default function InventoryClient() {
 
             {expanded[item.id] && (
               <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4">
-                <LotLifecycleTracker lotStatus={item.rawLotStatus} />
               </div>
             )}
           </div>

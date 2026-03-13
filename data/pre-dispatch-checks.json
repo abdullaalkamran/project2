@@ -2,13 +2,16 @@
   {
     "orderCode": "ORD-3MS13J",
     "physicallyReceived": true,
-    "qualityChecked": false,
-    "packetQty": 0,
-    "grossWeightKg": 0,
-    "truckPriceBDT": 0,
-    "hubManagerConfirmed": false,
+    "qualityChecked": true,
+    "packetQty": 11,
+    "grossWeightKg": 120,
+    "freeQty": 0,
+    "step2EditRequested": false,
+    "step2Unlocked": false,
+    "truckPriceBDT": 200,
+    "hubManagerConfirmed": true,
     "qcLeadConfirmed": false,
-    "updatedAt": "2026-03-11T17:23:24.997Z",
+    "updatedAt": "2026-03-13T09:07:17.922Z",
     "updatedBy": "cmmdiufnh0009trztsqpmpovr"
   },
   {
@@ -17,11 +20,14 @@
     "qualityChecked": true,
     "packetQty": 1,
     "grossWeightKg": 15,
+    "freeQty": 0,
+    "step2EditRequested": true,
+    "step2Unlocked": false,
     "truckPriceBDT": 500,
     "hubManagerConfirmed": true,
     "qcLeadConfirmed": true,
-    "updatedAt": "2026-03-10T19:02:55.293Z",
-    "updatedBy": "cmmdiufnh0009trztsqpmpovr"
+    "updatedAt": "2026-03-13T08:50:16.508Z",
+    "updatedBy": "cmmdiufte000ctrzt7rahvv4p"
   },
   {
     "orderCode": "ORD-BINE7M",
@@ -29,10 +35,13 @@
     "qualityChecked": true,
     "packetQty": 5,
     "grossWeightKg": 110,
+    "freeQty": 0,
+    "step2EditRequested": false,
+    "step2Unlocked": false,
     "truckPriceBDT": 500,
     "hubManagerConfirmed": true,
     "qcLeadConfirmed": true,
-    "updatedAt": "2026-03-10T18:54:56.199Z",
+    "updatedAt": "2026-03-13T08:28:29.803Z",
     "updatedBy": "cmmdiufnh0009trztsqpmpovr"
   },
   {

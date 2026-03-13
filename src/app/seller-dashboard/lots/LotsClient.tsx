@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import api from "@/lib/api";
-import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type ActiveLot = {
   id: string;
@@ -12,6 +12,7 @@ type ActiveLot = {
   status: string;
   rawStatus: string;
   hub: string;
+  image: string | null;
   askingPricePerKg: number;
   createdAt: string;
 };
@@ -22,6 +23,7 @@ type PastLot = {
   status: string;
   rawStatus: string;
   hub: string;
+  image: string | null;
   createdAt: string;
 };
 
@@ -300,39 +302,45 @@ export default function LotsClient() {
           )}
           {filteredActive.map((lot) => (
             <div key={lot.id} className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-              <div className="grid gap-3 p-4 md:grid-cols-12">
-                <div className="md:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Lot ID</p>
-                  <p className="font-mono text-xs text-slate-600">{lot.id}</p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2.5">
+                <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                  {lot.image ? (
+                    lot.image.startsWith("data:") ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={lot.image} alt={lot.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <Image src={lot.image} alt={lot.title} fill sizes="36px" className="object-cover" />
+                    )
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-lg">🌾</span>
+                  )}
                 </div>
-                <div className="md:col-span-3">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Product</p>
-                  <p className="text-sm font-semibold text-slate-900">{lot.title}</p>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wide text-slate-400">Lot ID</span>
+                  <span className="font-mono text-[11px] text-slate-600">{lot.id}</span>
                 </div>
-                <div className="md:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Hub</p>
-                  <p className="text-xs text-slate-700">{lot.hub}</p>
+                <div className="flex flex-col flex-1 min-w-[120px]">
+                  <span className="text-[9px] uppercase tracking-wide text-slate-400">Product</span>
+                  <span className="text-[11px] font-semibold text-slate-900 leading-tight">{lot.title}</span>
                 </div>
-                <div className="md:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Asking Price</p>
-                  <p className="text-xs font-semibold text-slate-700">৳ {lot.askingPricePerKg.toLocaleString()}/kg</p>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wide text-slate-400">Hub</span>
+                  <span className="text-[11px] text-slate-700">{lot.hub}</span>
                 </div>
-                <div className="md:col-span-1">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Created</p>
-                  <p className="text-xs text-slate-700">{lot.createdAt}</p>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wide text-slate-400">Price</span>
+                  <span className="text-[11px] font-semibold text-slate-700">৳{lot.askingPricePerKg.toLocaleString()}/kg</span>
                 </div>
-                <div className="md:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Status</p>
-                  <span className={`mt-0.5 inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusClass(lot.status)}`}>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wide text-slate-400">Created</span>
+                  <span className="text-[11px] text-slate-700">{lot.createdAt}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wide text-slate-400">Status</span>
+                  <span className={`mt-0.5 inline-flex rounded-full border px-2 py-px text-[10px] font-semibold ${statusClass(lot.status)}`}>
                     {lot.status}
                   </span>
                 </div>
-              </div>
-
-              {/* Progress tracker */}
-              <div className="border-t border-slate-100 px-5 pb-4 pt-3">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Journey</p>
-                <LotLifecycleTracker lotStatus={lot.rawStatus} compact />
               </div>
 
               {/* Action Required banner */}
@@ -401,35 +409,41 @@ export default function LotsClient() {
           )}
           {filteredPast.map((lot) => (
             <div key={lot.id} className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-              <div className="grid gap-3 p-4 md:grid-cols-12">
-                <div className="md:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Lot ID</p>
-                  <p className="font-mono text-xs text-slate-600">{lot.id}</p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2.5">
+                <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                  {lot.image ? (
+                    lot.image.startsWith("data:") ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={lot.image} alt={lot.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <Image src={lot.image} alt={lot.title} fill sizes="36px" className="object-cover" />
+                    )
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-lg">🌾</span>
+                  )}
                 </div>
-                <div className="md:col-span-4">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Product</p>
-                  <p className="text-sm font-semibold text-slate-900">{lot.title}</p>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wide text-slate-400">Lot ID</span>
+                  <span className="font-mono text-[11px] text-slate-600">{lot.id}</span>
                 </div>
-                <div className="md:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Hub</p>
-                  <p className="text-xs text-slate-700">{lot.hub}</p>
+                <div className="flex flex-col flex-1 min-w-[120px]">
+                  <span className="text-[9px] uppercase tracking-wide text-slate-400">Product</span>
+                  <span className="text-[11px] font-semibold text-slate-900 leading-tight">{lot.title}</span>
                 </div>
-                <div className="md:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Date</p>
-                  <p className="text-xs text-slate-700">{lot.createdAt}</p>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wide text-slate-400">Hub</span>
+                  <span className="text-[11px] text-slate-700">{lot.hub}</span>
                 </div>
-                <div className="md:col-span-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-400">Result</p>
-                  <span className={`mt-0.5 inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusClass(lot.status)}`}>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wide text-slate-400">Date</span>
+                  <span className="text-[11px] text-slate-700">{lot.createdAt}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase tracking-wide text-slate-400">Result</span>
+                  <span className={`mt-0.5 inline-flex rounded-full border px-2 py-px text-[10px] font-semibold ${statusClass(lot.status)}`}>
                     {lot.status}
                   </span>
                 </div>
-              </div>
-
-              {/* Progress tracker */}
-              <div className="border-t border-slate-100 px-5 pb-4 pt-3">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Journey</p>
-                <LotLifecycleTracker lotStatus={lot.rawStatus} compact />
               </div>
 
               <div className="border-t border-slate-100 px-4 py-2.5">

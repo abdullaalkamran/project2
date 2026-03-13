@@ -7,6 +7,7 @@ import {
   SELLER_PAST_STATUSES,
   toSellerStatusLabel,
 } from "@/lib/lot-status";
+import { readLotMedia } from "@/lib/lot-media-store";
 
 export async function GET() {
   const session = await getSessionUser();
@@ -14,15 +15,30 @@ export async function GET() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const lots = await prisma.lot.findMany({
-    where: {
-      OR: [
-        { sellerId: session.userId },
-        { sellerName: session.name },
-      ],
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const [lots, lotMedia] = await Promise.all([
+    prisma.lot.findMany({
+      where: {
+        OR: [
+          { sellerId: session.userId },
+          { sellerName: session.name },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    readLotMedia(),
+  ]);
+
+  function resolveImage(lotCode: string): string | null {
+    const m = lotMedia.find((x) => x.lotId === lotCode);
+    if (!m) return null;
+    return (
+      m.marketplacePhotoUrls?.[0] ??
+      m.marketplacePhotoUrl ??
+      m.sellerPhotoUrls?.[0] ??
+      m.qcPhotoUrls?.[0] ??
+      null
+    );
+  }
 
   const active = lots
     .filter((l) => SELLER_ACTIVE_STATUSES.includes(l.status as (typeof SELLER_ACTIVE_STATUSES)[number]))
@@ -32,6 +48,7 @@ export async function GET() {
       status: toSellerStatusLabel(l.status),
       rawStatus: l.status,
       hub: l.hubId,
+      image: resolveImage(l.lotCode),
       askingPricePerKg: l.askingPricePerKg,
       createdAt: l.createdAt.toLocaleDateString("en-BD", {
         month: "short",
@@ -48,6 +65,7 @@ export async function GET() {
       status: toSellerStatusLabel(l.status),
       rawStatus: l.status,
       hub: l.hubId,
+      image: resolveImage(l.lotCode),
       createdAt: l.createdAt.toLocaleDateString("en-BD", {
         month: "short",
         day: "numeric",

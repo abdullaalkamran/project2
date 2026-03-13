@@ -53,7 +53,7 @@ export type FlowLot = {
   fixedAskingPrice?: number;
 };
 
-export type FlowOrderStatus = "CONFIRMED" | "DISPATCHED" | "ARRIVED" | "PICKED_UP";
+export type FlowOrderStatus = "CONFIRMED" | "DISPATCHED" | "HUB_RECEIVED" | "OUT_FOR_DELIVERY" | "ARRIVED" | "PICKED_UP";
 
 export type FlowOrder = {
   id: string;
@@ -72,6 +72,8 @@ export type FlowOrder = {
   arrivedAt?: string;
   pickedUpAt?: string;
   status: FlowOrderStatus;
+  packetQty?: number;   // confirmed packet count from pre-dispatch gate
+  freeQty?: number;     // bonus units given to buyer, not charged
 };
 
 export type ProductFlowData = {

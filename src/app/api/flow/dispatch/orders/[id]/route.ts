@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notify, notifyMany, userIdByName, getLotParties } from "@/lib/notifications";
 import { getPreDispatchCheck } from "@/lib/pre-dispatch-store";
-import { getShipmentPacketManifest } from "@/lib/shipment-packets-store";
 
 export async function PATCH(
   req: NextRequest,
@@ -36,26 +35,19 @@ export async function PATCH(
         check?.packetQty > 0 &&
         check?.grossWeightKg > 0 &&
         (check?.truckPriceBDT ?? 0) > 0 &&
-        check?.hubManagerConfirmed &&
-        check?.qcLeadConfirmed
+        check?.hubManagerConfirmed
       );
       if (!gatePassed) {
         return NextResponse.json(
           {
             message:
-              "All 5 pre-dispatch steps must be complete before truck assignment: physical arrival, weight/quality check, truck price, manager confirmation, and QC leader confirmation.",
+              "All 4 pre-dispatch steps must be complete before truck assignment: physical arrival, weight/quality check, truck price, and manager confirmation.",
           },
           { status: 400 },
         );
       }
 
-      const manifest = await getShipmentPacketManifest(order.orderCode);
-      if (!manifest || manifest.totalPackets < 1) {
-        return NextResponse.json(
-          { message: "Generate packet QR codes before truck assignment." },
-          { status: 400 },
-        );
-      }
+      // QR codes are recommended but not a hard blocker
     }
 
     const updated = await prisma.order.update({

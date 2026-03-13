@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Navigation, PackageCheck } from "lucide-react";
+import { Navigation, PackageCheck, Phone, Truck } from "lucide-react";
 import api from "@/lib/api";
 import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
@@ -10,6 +10,9 @@ type TrackOrder = {
   deliveryPoint: string; status: string; distributorName: string | null;
   distributorPhone: string | null; pickedUpFromHubAt: string | null; totalAmount: number;
   assignedTruck: string | null; dispatched: boolean; loadConfirmed: boolean;
+  buyerPhone: string | null;
+  truckDriverName: string | null;
+  truckDriverPhone: string | null;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -79,6 +82,22 @@ export default function DispatchTrackClient() {
                   {" "}· Load: <span className="font-semibold text-slate-700">{o.loadConfirmed ? "Confirmed" : "Pending"}</span>
                   {" "}· Dispatch: <span className="font-semibold text-slate-700">{o.dispatched ? "Completed" : "Pending"}</span>
                 </p>
+
+                {/* Contact details */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {o.buyerPhone && (
+                    <a href={`tel:${o.buyerPhone}`}
+                      className="flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-100 transition">
+                      <Phone size={10} /> {o.buyer} · {o.buyerPhone}
+                    </a>
+                  )}
+                  {o.truckDriverName && (
+                    <a href={o.truckDriverPhone ? `tel:${o.truckDriverPhone}` : undefined}
+                      className="flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 hover:bg-violet-100 transition">
+                      <Truck size={10} /> {o.truckDriverName}{o.truckDriverPhone ? ` · ${o.truckDriverPhone}` : ""}
+                    </a>
+                  )}
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-xs text-slate-400">Total</p>

@@ -53,31 +53,61 @@ export async function GET(req: NextRequest) {
     orderBy: { confirmedAt: "desc" },
   });
 
+  // Lookup buyer phones
+  const buyerIds = [...new Set(orders.map((o) => o.buyerId).filter(Boolean) as string[])];
+  const buyerPhoneMap = new Map<string, string | null>();
+  if (buyerIds.length > 0) {
+    const users = await prisma.user.findMany({ where: { id: { in: buyerIds } }, select: { id: true, phone: true } });
+    users.forEach((u) => buyerPhoneMap.set(u.id, u.phone ?? null));
+  }
+
+  // Lookup truck driver info (truckCode is the first token, e.g. "TRK-003 (Alam…)")
+  const truckCodes = [
+    ...new Set(orders.map((o) => o.assignedTruck?.split(" ")[0]).filter(Boolean) as string[]),
+  ];
+  const driverMap = new Map<string, { name: string; phone: string }>();
+  if (truckCodes.length > 0) {
+    const trucks = await prisma.truck.findMany({
+      where: { truckCode: { in: truckCodes } },
+      include: { driver: true },
+    });
+    trucks.forEach((t) => {
+      if (t.driver) driverMap.set(t.truckCode, { name: t.driver.name, phone: t.driver.phone });
+    });
+  }
+
   return NextResponse.json(
-    orders.map((o) => ({
-      id: o.orderCode,
-      product: o.product,
-      qty: o.qty,
-      buyer: o.buyerName,
-      seller: o.sellerName,
-      deliveryPoint: o.deliveryPoint,
-      assignedTruck: o.assignedTruck,
-      loadConfirmed: o.loadConfirmed,
-      dispatched: o.dispatched,
-      status: o.status,
-      confirmedAt: o.confirmedAt.toISOString(),
-      hubReceivedAt: o.hubReceivedAt?.toISOString() ?? null,
-      distributorName: o.distributorName ?? null,
-      distributorPhone: o.distributorPhone ?? null,
-      distributorAssignedAt: o.distributorAssignedAt?.toISOString() ?? null,
-      pickedUpFromHubAt: o.pickedUpFromHubAt?.toISOString() ?? null,
-      arrivedAt: o.arrivedAt?.toISOString() ?? null,
-      handoverScannedAt: o.handoverScannedAt?.toISOString() ?? null,
-      deliveryWeightKg: o.deliveryWeightKg ?? null,
-      hasDamage: o.hasDamage,
-      damageNotes: o.damageNotes ?? null,
-      totalAmount: o.totalAmount,
-      winningBid: o.winningBid,
-    }))
+    orders.map((o) => {
+      const tCode = o.assignedTruck?.split(" ")[0] ?? "";
+      const driver = driverMap.get(tCode) ?? null;
+      return {
+        id: o.orderCode,
+        product: o.product,
+        qty: o.qty,
+        buyer: o.buyerName,
+        seller: o.sellerName,
+        buyerPhone: o.buyerId ? (buyerPhoneMap.get(o.buyerId) ?? null) : null,
+        deliveryPoint: o.deliveryPoint,
+        assignedTruck: o.assignedTruck,
+        truckDriverName: driver?.name ?? null,
+        truckDriverPhone: driver?.phone ?? null,
+        loadConfirmed: o.loadConfirmed,
+        dispatched: o.dispatched,
+        status: o.status,
+        confirmedAt: o.confirmedAt.toISOString(),
+        hubReceivedAt: o.hubReceivedAt?.toISOString() ?? null,
+        distributorName: o.distributorName ?? null,
+        distributorPhone: o.distributorPhone ?? null,
+        distributorAssignedAt: o.distributorAssignedAt?.toISOString() ?? null,
+        pickedUpFromHubAt: o.pickedUpFromHubAt?.toISOString() ?? null,
+        arrivedAt: o.arrivedAt?.toISOString() ?? null,
+        handoverScannedAt: o.handoverScannedAt?.toISOString() ?? null,
+        deliveryWeightKg: o.deliveryWeightKg ?? null,
+        hasDamage: o.hasDamage,
+        damageNotes: o.damageNotes ?? null,
+        totalAmount: o.totalAmount,
+        winningBid: o.winningBid,
+      };
+    })
   );
 }

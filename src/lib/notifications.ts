@@ -19,6 +19,8 @@ export type NotificationType =
   | "ORDER_HUB_RECEIVED"
   | "ORDER_DISTRIBUTOR_ASSIGNED"
   | "ORDER_OUT_FOR_DELIVERY"
+  | "ORDER_ARRIVED"
+  | "ORDER_DELIVERED"
   | "MESSAGE";
 
 export const NOTIF_ICONS: Record<NotificationType, string> = {
@@ -40,6 +42,8 @@ export const NOTIF_ICONS: Record<NotificationType, string> = {
   ORDER_HUB_RECEIVED:          "🏭",
   ORDER_DISTRIBUTOR_ASSIGNED:  "🧑‍💼",
   ORDER_OUT_FOR_DELIVERY:      "🏍️",
+  ORDER_ARRIVED:               "📍",
+  ORDER_DELIVERED:             "✅",
   MESSAGE:                     "💬",
 };
 

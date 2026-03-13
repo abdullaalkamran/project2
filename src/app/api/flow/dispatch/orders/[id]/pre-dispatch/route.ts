@@ -25,6 +25,9 @@ export async function GET(
       qualityChecked: false,
       packetQty: 0,
       grossWeightKg: 0,
+      freeQty: 0,
+      step2EditRequested: false,
+      step2Unlocked: false,
       truckPriceBDT: 0,
       hubManagerConfirmed: false,
       qcLeadConfirmed: false,
@@ -51,6 +54,9 @@ export async function PATCH(
     qualityChecked?: boolean;
     packetQty?: number;
     grossWeightKg?: number;
+    freeQty?: number;
+    step2EditRequested?: boolean;
+    step2Unlocked?: boolean;
     truckPriceBDT?: number;
     hubManagerConfirmed?: boolean;
     qcLeadConfirmed?: boolean;
@@ -79,6 +85,9 @@ export async function PATCH(
     qualityChecked:     body.qualityChecked     ?? previous?.qualityChecked     ?? false,
     packetQty:          Number(body.packetQty          ?? previous?.packetQty          ?? 0),
     grossWeightKg:      Number(body.grossWeightKg      ?? previous?.grossWeightKg      ?? 0),
+    freeQty:            Number(body.freeQty            ?? previous?.freeQty            ?? 0),
+    step2EditRequested: body.step2EditRequested ?? previous?.step2EditRequested ?? false,
+    step2Unlocked:      body.step2Unlocked      ?? previous?.step2Unlocked      ?? false,
     truckPriceBDT:      Math.max(0, Number(body.truckPriceBDT ?? previous?.truckPriceBDT ?? 0)),
     hubManagerConfirmed: body.hubManagerConfirmed ?? previous?.hubManagerConfirmed ?? false,
     qcLeadConfirmed:     body.qcLeadConfirmed     ?? previous?.qcLeadConfirmed     ?? false,
@@ -180,6 +189,15 @@ export async function PATCH(
 
   const saved = await upsertPreDispatchCheck(next);
 
+  // Sync freeQty to order
+  const prevFreeQty = previous?.freeQty ?? 0;
+  if (prevFreeQty !== next.freeQty) {
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { freeQty: next.freeQty },
+    });
+  }
+
   // ── Notifications per step ────────────────────────────────────────────────
   const parties = await getLotParties(order.lotId);
 
@@ -210,6 +228,28 @@ export async function PATCH(
       message: `QC team has completed weight & quality check for order (${orderCode}) — "${order.product}", actual weight: ${saved.grossWeightKg} kg. QC leader is setting truck price.`,
       link: "/hub-manager/dispatch",
     });
+  }
+
+  // Step 2 edit requested → notify hub managers
+  if (saved.step2EditRequested && !previous?.step2EditRequested) {
+    await notifyMany(parties.hubManagerIds, {
+      type: "ORDER_DISPATCHED",
+      title: "Edit Permission Requested",
+      message: `QC leader has requested permission to re-edit weight & quality check for order (${orderCode}) — "${order.product}". Please approve from the Dispatch page.`,
+      link: "/hub-manager/dispatch",
+    });
+  }
+
+  // Hub manager unlocked step 2 → notify QC leader
+  if (saved.step2Unlocked && !previous?.step2Unlocked) {
+    if (parties.qcLeaderId) {
+      await notify(parties.qcLeaderId, {
+        type: "ORDER_DISPATCHED",
+        title: "Edit Permission Granted",
+        message: `Hub manager has approved your request to re-edit weight & quality check for order (${orderCode}) — "${order.product}".`,
+        link: "/qc-leader/confirmed-orders",
+      });
+    }
   }
 
   // Step 3: truck price set → notify QC leader to give their confirmation

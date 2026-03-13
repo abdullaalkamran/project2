@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, Truck } from "lucide-react";
+import { CheckCircle2, Loader2, Phone, Truck } from "lucide-react";
 import api from "@/lib/api";
 import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
@@ -12,6 +12,9 @@ type HubOrder = {
   loadConfirmed: boolean; dispatched: boolean;
   confirmedAt: string; hubReceivedAt: string | null;
   distributorName: string | null; totalAmount: number;
+  buyerPhone: string | null;
+  truckDriverName: string | null;
+  truckDriverPhone: string | null;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -106,6 +109,22 @@ export default function HubIncomingClient() {
                   <p className="text-xs font-semibold text-slate-800">{value}</p>
                 </div>
               ))}
+            </div>
+
+            {/* Contact details */}
+            <div className="flex flex-wrap gap-2 px-5 pb-4">
+              {o.buyerPhone && (
+                <a href={`tel:${o.buyerPhone}`}
+                  className="flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100 transition">
+                  <Phone size={12} /> Buyer: {o.buyer} · {o.buyerPhone}
+                </a>
+              )}
+              {o.truckDriverName && (
+                <a href={o.truckDriverPhone ? `tel:${o.truckDriverPhone}` : undefined}
+                  className="flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-100 transition">
+                  <Truck size={12} /> Driver: {o.truckDriverName}{o.truckDriverPhone ? ` · ${o.truckDriverPhone}` : ""}
+                </a>
+              )}
             </div>
 
             <div className="border-t border-slate-100 px-5 py-4">

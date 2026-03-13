@@ -20,6 +20,7 @@ type ShipmentDoc = {
   scanCode: string;
   scanUrl: string | null;
   qrImageUrl: string;
+  gatePacketQty: number;
   packetSummary: { totalPackets: number; scannedCount: number } | null;
 };
 
@@ -35,11 +36,12 @@ const fmt = (iso: string) =>
 
 export default function ShipmentDocumentClient({ id }: { id: string }) {
   const [doc, setDoc] = useState<ShipmentDoc | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [packetCountInput, setPacketCountInput] = useState("20");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [genError, setGenError] = useState<string | null>(null);
   const [packetCodes, setPacketCodes] = useState<string[]>([]);
   const [scannedCount, setScannedCount] = useState(0);
   const [generating, setGenerating] = useState(false);
+  const [packetsLoaded, setPacketsLoaded] = useState(false);
 
   useEffect(() => {
     document.body.setAttribute("data-receipt", "true");
@@ -49,7 +51,7 @@ export default function ShipmentDocumentClient({ id }: { id: string }) {
   useEffect(() => {
     api.get<ShipmentDoc>(`/api/hub-shipment/${id}`)
       .then(setDoc)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load shipment document"));
+      .catch((e) => setLoadError(e instanceof Error ? e.message : "Failed to load shipment document"));
   }, [id]);
 
   useEffect(() => {
@@ -58,36 +60,49 @@ export default function ShipmentDocumentClient({ id }: { id: string }) {
       .then((data) => {
         setPacketCodes(data.packetCodes ?? []);
         setScannedCount(data.scannedCount ?? 0);
-        if (data.totalPackets > 0) setPacketCountInput(String(data.totalPackets));
       })
       .catch(() => {
         setPacketCodes([]);
         setScannedCount(0);
-      });
+      })
+      .finally(() => setPacketsLoaded(true));
   }, [id]);
 
-  async function generatePacketQrs() {
-    const packetCount = Number(packetCountInput);
-    if (!Number.isFinite(packetCount) || packetCount < 1) {
-      setError("Packet count must be at least 1");
-      return;
-    }
+  // Auto-generate once BOTH doc and packets manifest are loaded
+  useEffect(() => {
+    if (!doc || !packetsLoaded || doc.gatePacketQty < 1 || packetCodes.length > 0 || generating) return;
     setGenerating(true);
+    setGenError(null);
+    api
+      .post<PacketManifestResponse>(`/api/hub-shipment/${id}/packets`, { packetCount: doc.gatePacketQty })
+      .then((data) => {
+        setPacketCodes(data.packetCodes ?? []);
+        setScannedCount(data.scannedCount ?? 0);
+      })
+      .catch((e) => setGenError(e instanceof Error ? e.message : "Auto-generation failed"))
+      .finally(() => setGenerating(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [packetsLoaded, doc?.gatePacketQty]);
+
+  async function regeneratePacketQrs() {
+    if (!doc || doc.gatePacketQty < 1) return;
+    setGenerating(true);
+    setGenError(null);
     try {
-      const data = await api.post<PacketManifestResponse>(`/api/hub-shipment/${id}/packets`, { packetCount });
+      const data = await api.post<PacketManifestResponse>(`/api/hub-shipment/${id}/packets`, { packetCount: doc.gatePacketQty });
       setPacketCodes(data.packetCodes ?? []);
       setScannedCount(data.scannedCount ?? 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to generate packet QR codes");
+      setGenError(e instanceof Error ? e.message : "Failed to generate packet QR codes");
     } finally {
       setGenerating(false);
     }
   }
 
-  if (error) {
+  if (loadError) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6 text-center">
-        <p className="text-sm font-semibold text-red-600">{error}</p>
+        <p className="text-sm font-semibold text-red-600">{loadError}</p>
       </div>
     );
   }
@@ -105,21 +120,15 @@ export default function ShipmentDocumentClient({ id }: { id: string }) {
       <div className="no-print sticky top-0 z-20 border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-2 px-4 py-3">
           <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min={1}
-              max={500}
-              value={packetCountInput}
-              onChange={(e) => setPacketCountInput(e.target.value)}
-              className="w-28 rounded-md border border-slate-300 px-2.5 py-2 text-xs outline-none focus:border-slate-500"
-              placeholder="Packets"
-            />
+            <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <span className="font-semibold text-slate-800">{doc.gatePacketQty}</span> packets (from gate)
+            </span>
             <button
-              onClick={() => void generatePacketQrs()}
-              disabled={generating}
+              onClick={() => void regeneratePacketQrs()}
+              disabled={generating || doc.gatePacketQty < 1}
               className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
             >
-              {generating ? "Generating..." : "Generate Packet QR"}
+              {generating ? "Generating..." : "Regenerate QR"}
             </button>
           </div>
           <button

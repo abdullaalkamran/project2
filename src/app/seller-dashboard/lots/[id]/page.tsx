@@ -5,14 +5,156 @@ import { getSessionUser } from "@/lib/session";
 import { toSellerStatusLabel } from "@/lib/lot-status";
 import QuickMessageModal from "./QuickMessageModal";
 import DeactivateButton from "./DeactivateButton";
-import LotLifecycleTracker from "@/components/LotLifecycleTracker";
+import type { Order } from "@prisma/client";
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
 
-// ── Seller-status badge ───────────────────────────────────────────────────────
+// ── Lot phase progress bar (Create Lot → Live in Market) ─────────────────────
+
+const LOT_PHASES = [
+  { label: "Lot Created",       sublabel: "Seller submitted"       },
+  { label: "Received at Hub",   sublabel: "Hub manager accepted"   },
+  { label: "QC Inspection",     sublabel: "Quality check"          },
+  { label: "QC Approved",       sublabel: "Grade & price set"      },
+  { label: "Listed in Market",  sublabel: "Buyers can order"       },
+  { label: "Orders Active",     sublabel: "Qty being fulfilled"    },
+];
+
+function lotPhaseActive(status: string, saleType: string, soldQty: number): number {
+  if (soldQty > 0 || status === "SOLD" || status === "DELIVERED") return 6;
+  if (status === "LIVE" || status === "AUCTION_ENDED" || status === "AUCTION_UNSOLD") return 5;
+  if (status === "QC_PASSED" && saleType === "FIXED_PRICE") return 5;
+  if (status === "FIXED_PRICE_REVIEW") return 4;
+  if (status === "QC_PASSED") return 4;
+  if (status === "QC_SUBMITTED") return 3;
+  if (status === "IN_QC") return 2;
+  if (status === "AT_HUB") return 1;
+  return 0;
+}
+
+function LotPhaseBar({ status, saleType, soldQty }: { status: string; saleType: string; soldQty: number }) {
+  const active = lotPhaseActive(status, saleType, soldQty);
+  const total  = LOT_PHASES.length;
+  return (
+    <div className="overflow-x-auto pb-1">
+      <div className="flex items-start" style={{ minWidth: `${total * 88}px` }}>
+        {LOT_PHASES.map((step, i) => {
+          const isDone   = i < active;
+          const isActive = i === active;
+          const isLast   = i === total - 1;
+          return (
+            <div key={i} className="flex flex-1 flex-col items-center">
+              <div className="flex w-full items-center">
+                <div className={`h-0.5 flex-1 ${
+                  i === 0 ? "invisible" : isDone ? "bg-emerald-400" : isActive ? "bg-gradient-to-r from-emerald-400 to-slate-200" : "bg-slate-200"
+                }`} />
+                <div className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[9px] font-bold transition-all ${
+                  isDone ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                  : isActive ? "border-emerald-500 bg-white text-emerald-600 shadow-[0_0_0_3px_rgba(16,185,129,0.15)]"
+                  : "border-slate-200 bg-white text-slate-400"
+                }`}>
+                  {isDone ? (
+                    <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : isActive ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  ) : (
+                    <span>{i + 1}</span>
+                  )}
+                </div>
+                <div className={`h-0.5 flex-1 ${ isLast ? "invisible" : isDone ? "bg-emerald-400" : "bg-slate-200" }`} />
+              </div>
+              <div className="mt-1.5 px-0.5 text-center">
+                <p className={`text-[9px] font-semibold leading-tight ${ isDone ? "text-emerald-700" : isActive ? "text-emerald-700" : "text-slate-400" }`}>{step.label}</p>
+                <p className={`mt-0.5 text-[8px] leading-tight ${ isDone ? "text-emerald-500" : isActive ? "text-emerald-500" : "text-slate-300" }`}>{step.sublabel}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── 10-step individual order progress bar ─────────────────────────────────────
+
+const ORDER_STEPS = [
+  { label: "Order Placed",         sublabel: "Waiting for seller"    },
+  { label: "Order Confirmed",      sublabel: "Seller accepted"       },
+  { label: "Goods at Hub",         sublabel: "Arrived at hub"        },
+  { label: "Weight & QC Checked",  sublabel: "Hub verified"          },
+  { label: "Truck Confirmed",      sublabel: "Vehicle assigned"      },
+  { label: "In Transit",           sublabel: "On the way"            },
+  { label: "Hub Received",         sublabel: "At delivery hub"       },
+  { label: "QTY & Weight Checked", sublabel: "Delivery man verified" },
+  { label: "Ready for Pickup",     sublabel: "Set for collection"    },
+  { label: "Delivered",            sublabel: "Picked up by buyer"    },
+];
+
+function orderStepActive(order: Order): number {
+  if (order.status === "PICKED_UP" || order.pickedUpAt) return 10;
+  if (order.status === "ARRIVED")                       return 9;
+  if (order.status === "OUT_FOR_DELIVERY")              return 8;
+  if (order.status === "HUB_RECEIVED")                  return 7;
+  if (order.dispatched || order.status === "DISPATCHED") return 6;
+  if (order.assignedTruck)                              return 5;
+  if (order.deliveryWeightKg != null)                   return 4;
+  if (order.loadConfirmed)                              return 3;
+  const s = order.sellerStatus;
+  if (s === "ACCEPTED" || s === "CONFIRMED" || order.status === "CONFIRMED") return 2;
+  return 1;
+}
+
+function OrderStepBar({ order }: { order: Order }) {
+  const active = orderStepActive(order);
+  const total  = ORDER_STEPS.length;
+  return (
+    <div className="overflow-x-auto pb-1">
+      <div className="flex items-start" style={{ minWidth: `${total * 72}px` }}>
+        {ORDER_STEPS.map((step, i) => {
+          const isDone   = i < active;
+          const isActive = i === active;
+          const isLast   = i === total - 1;
+          return (
+            <div key={i} className="flex flex-1 flex-col items-center">
+              <div className="flex w-full items-center">
+                <div className={`h-0.5 flex-1 ${
+                  i === 0 ? "invisible" : isDone ? "bg-emerald-400" : isActive ? "bg-gradient-to-r from-emerald-400 to-slate-200" : "bg-slate-200"
+                }`} />
+                <div className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[9px] font-bold transition-all ${
+                  isDone ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                  : isActive ? "border-blue-500 bg-white text-blue-600 shadow-[0_0_0_3px_rgba(59,130,246,0.14)]"
+                  : "border-slate-200 bg-white text-slate-400"
+                }`}>
+                  {isDone ? (
+                    <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : isActive ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                  ) : (
+                    <span>{i + 1}</span>
+                  )}
+                </div>
+                <div className={`h-0.5 flex-1 ${ isLast ? "invisible" : isDone ? "bg-emerald-400" : "bg-slate-200" }`} />
+              </div>
+              <div className="mt-1.5 px-0.5 text-center">
+                <p className={`text-[9px] font-semibold leading-tight ${ isDone ? "text-emerald-700" : isActive ? "text-blue-700" : "text-slate-400" }`}>{step.label}</p>
+                <p className={`mt-0.5 text-[8px] leading-tight ${ isDone ? "text-emerald-500" : isActive ? "text-blue-400" : "text-slate-300" }`}>{step.sublabel}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 function SellerStatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     PENDING_SELLER: "bg-amber-50 text-amber-700 border-amber-200",
@@ -183,6 +325,12 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
             </div>
           </div>
         )}
+
+        {/* Lot phase step bar */}
+        <div className="mt-5 border-t border-slate-100 pt-4">
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Lot Phase</p>
+          <LotPhaseBar status={lot.status} saleType={lot.saleType} soldQty={acceptedQty} />
+        </div>
       </div>
 
       {/* Per-buyer order cards */}
@@ -253,32 +401,21 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
                   </div>
                 </div>
 
-                {/* Lifecycle tracker — only for accepted orders */}
+                {/* 10-step order progress — only for accepted orders */}
                 {isAccepted && (
-                  <div className="border-t border-slate-100 px-5 pb-4 pt-3">
+                  <div className="border-t border-slate-100 px-5 pb-5 pt-3">
                     <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                      Journey
+                      Order Progress
                       {order.assignedTruck && (
                         <span className="ml-2 font-normal normal-case text-slate-500">
                           — Truck: <span className="font-semibold text-slate-700">{order.assignedTruck}</span>
                         </span>
                       )}
                     </p>
-                    <LotLifecycleTracker
-                      lotStatus={lot.status}
-                      orderStatus={order.status}
-                      loadConfirmed={order.loadConfirmed}
-                      dispatched={order.dispatched}
-                      pickedUpAt={order.pickedUpAt}
-                    />
-                    {order.dispatched && !order.arrivedAt && (
-                      <p className="mt-2 text-xs text-slate-400">
-                        Awaiting arrival confirmation at delivery hub.
-                      </p>
-                    )}
+                    <OrderStepBar order={order} />
                     {order.pickedUpAt && (
-                      <p className="mt-2 text-xs font-semibold text-emerald-600">
-                        ✓ Buyer picked up on{" "}
+                      <p className="mt-3 text-xs font-semibold text-emerald-600">
+                        ✓ Delivered on{" "}
                         {order.pickedUpAt.toLocaleDateString("en-BD", {
                           month: "short",
                           day: "numeric",

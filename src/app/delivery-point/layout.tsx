@@ -12,7 +12,7 @@ const nav = [
     group: "Incoming",
     items: [
       { label: "Incoming Orders", href: "/delivery-point/incoming", badge: "4" },
-      { label: "Confirm Arrival", href: "/delivery-point/arrivals" },
+      { label: "Delivery Inspection", href: "/delivery-point/arrivals" },
     ],
   },
   {

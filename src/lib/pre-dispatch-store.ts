@@ -9,11 +9,15 @@ export type PreDispatchCheck = {
   qualityChecked: boolean;
   packetQty: number;
   grossWeightKg: number;        // actual confirmed weight (editable, may differ from ordered)
+  freeQty: number;              // bonus qty given to buyer, not charged
   // Step 3: truck price (qc_leader)
   truckPriceBDT: number;
-  // Step 4: QC leader confirmation (qc_leader)
+  // Step 2 edit control
+  step2EditRequested: boolean;  // QC leader requested re-edit
+  step2Unlocked: boolean;       // Hub manager granted permission to re-edit
+  // Step 3: truck price (qc_leader)
   qcLeadConfirmed: boolean;
-  // Step 5: manager final confirmation (hub_manager)
+  // Step 4: manager final confirmation (hub_manager)
   hubManagerConfirmed: boolean;
   updatedAt: string;
   updatedBy: string;
@@ -55,7 +59,13 @@ export async function getPreDispatchCheck(orderCode: string): Promise<PreDispatc
 export async function upsertPreDispatchCheck(row: PreDispatchCheck): Promise<PreDispatchCheck> {
   const all = await readPreDispatchChecks();
   // Ensure backward compat: migrate old records missing truckPriceBDT
-  const normalized: PreDispatchCheck = { ...row, truckPriceBDT: row.truckPriceBDT ?? 0 };
+  const normalized: PreDispatchCheck = {
+    ...row,
+    truckPriceBDT: row.truckPriceBDT ?? 0,
+    freeQty: row.freeQty ?? 0,
+    step2EditRequested: row.step2EditRequested ?? false,
+    step2Unlocked: row.step2Unlocked ?? false,
+  };
   const next = [normalized, ...all.filter((r) => r.orderCode !== normalized.orderCode)];
   await writePreDispatchChecks(next);
   return normalized;

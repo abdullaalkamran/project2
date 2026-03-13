@@ -27,6 +27,8 @@ type BuyerActiveBid = {
 type BuyerOrder = {
   id: string;
   lot: string;
+  qty: string;
+  freeQty: number;
   amount: string;
   status: string;
   date: string;
@@ -170,6 +172,7 @@ export default function BuyerOverviewPage() {
               <tr>
                 <th className="px-5 py-3 text-left">Order ID</th>
                 <th className="px-5 py-3 text-left">Lot</th>
+                <th className="px-5 py-3 text-left">Qty</th>
                 <th className="px-5 py-3 text-left">Amount</th>
                 <th className="px-5 py-3 text-left">Status</th>
                 <th className="px-5 py-3 text-left">Date</th>
@@ -180,6 +183,14 @@ export default function BuyerOverviewPage() {
                 <tr key={o.id} className="hover:bg-slate-50">
                   <td className="px-5 py-4 font-mono text-xs text-slate-500">{o.id}</td>
                   <td className="px-5 py-4 font-medium text-slate-900">{o.lot}</td>
+                  <td className="px-5 py-4 text-slate-700">
+                    {o.qty}
+                    {o.freeQty > 0 && (
+                      <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                        +{o.freeQty} free
+                      </span>
+                    )}
+                  </td>
                   <td className="px-5 py-4 font-semibold text-slate-900">{o.amount}</td>
                   <td className="px-5 py-4">
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusColors[o.status]}`}>{o.status}</span>

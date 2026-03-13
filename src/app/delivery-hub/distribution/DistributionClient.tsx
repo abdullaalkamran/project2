@@ -10,7 +10,9 @@ import {
   ChevronRight,
   Loader2,
   PackageCheck,
+  Phone,
   Scale,
+  Truck,
   UserCheck,
   Users,
   X,
@@ -37,6 +39,9 @@ type HubOrder = {
   hasDamage: boolean;
   damageNotes: string | null;
   totalAmount: number;
+  buyerPhone: string | null;
+  truckDriverName: string | null;
+  truckDriverPhone: string | null;
 };
 
 type DeliveryMan = { id: string; name: string; phone: string; hubId: string | null };
@@ -313,13 +318,27 @@ function OrderCard({
         <p className="text-sm font-bold text-emerald-700">৳ {order.totalAmount.toLocaleString()}</p>
       </div>
 
-      <div className="border-t border-slate-50 bg-slate-50/60 px-5 py-2.5 overflow-x-auto">
-        <StepBar current={currentStep} />
-      </div>
+      {/* Contact details — buyer + truck driver */}
+      {(order.buyerPhone || order.truckDriverName) && (
+        <div className="flex flex-wrap gap-2 px-5 pb-4">
+          {order.buyerPhone && (
+            <a href={`tel:${order.buyerPhone}`}
+              className="flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100 transition">
+              <Phone size={12} /> Buyer: {order.buyer} · {order.buyerPhone}
+            </a>
+          )}
+          {order.truckDriverName && (
+            <a href={order.truckDriverPhone ? `tel:${order.truckDriverPhone}` : undefined}
+              className="flex items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-100 transition">
+              <Truck size={12} /> Driver: {order.truckDriverName}{order.truckDriverPhone ? ` · ${order.truckDriverPhone}` : ""}
+            </a>
+          )}
+        </div>
+      )}
 
       {!isDone && (
-        <div className="border-t border-slate-100 p-5 space-y-4">
-          {currentStep === 1 && (
+        <div className="border-t border-slate-50 px-5 pb-5 space-y-4">
+          {currentStep === 1 && !order.distributorName && (
             <div className="space-y-3">
               <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                 <UserCheck size={15} className="text-amber-500" /> Assign Delivery Man

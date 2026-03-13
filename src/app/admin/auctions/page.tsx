@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import Pagination from "@/components/Pagination";
 import LotLifecycleTracker from "@/components/LotLifecycleTracker";
@@ -151,7 +151,11 @@ export default function AdminAuctionsPage() {
             ) : paginated.map((l) => {
               const st = STATUS_MAP[l.status] ?? { label: l.status, color: "bg-slate-100 text-slate-500" };
               return (
-                <tr key={l.id} className="hover:bg-slate-50">
+                <React.Fragment key={l.id}>
+                <tr
+                  className="hover:bg-slate-50 cursor-pointer"
+                  onClick={() => setExpanded((prev) => ({ ...prev, [l.id]: !prev[l.id] }))}
+                >
                   <td className="px-5 py-4 font-mono text-xs text-slate-500">{l.lotCode}</td>
                   <td className="px-5 py-4 font-medium text-slate-900 max-w-[200px] truncate">{l.title}</td>
                   <td className="px-5 py-4 text-slate-500">{l.seller}</td>
@@ -162,18 +166,35 @@ export default function AdminAuctionsPage() {
                   </td>
                   <td className="px-5 py-4 text-slate-500">{fmtEnds(l.auctionEndsAt, l.status)}</td>
                   <td className="px-5 py-4">
-                    {l.status === "LIVE" && (
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {l.status === "LIVE" && (
+                        <button
+                          type="button"
+                          disabled={acting === l.id}
+                          onClick={() => forceEnd(l)}
+                          className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-50"
+                        >
+                          {acting === l.id ? "…" : "Force End"}
+                        </button>
+                      )}
                       <button
                         type="button"
-                        disabled={acting === l.id}
-                        onClick={() => forceEnd(l)}
-                        className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-50"
+                        onClick={() => setExpanded((prev) => ({ ...prev, [l.id]: !prev[l.id] }))}
+                        className="ml-auto text-slate-400 hover:text-slate-600"
                       >
-                        {acting === l.id ? "…" : "Force End"}
+                        {expanded[l.id] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
+                {expanded[l.id] && (
+                  <tr key={`${l.id}-detail`}>
+                    <td colSpan={8} className="bg-slate-50/80 px-6 pb-5 pt-4 border-b border-slate-100">
+                      <LotLifecycleTracker lotStatus={l.status} />
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               );
             })}
             {!loading && filtered.length === 0 && (

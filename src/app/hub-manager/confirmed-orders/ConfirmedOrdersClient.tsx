@@ -158,7 +158,7 @@ export default function ConfirmedOrdersClient() {
                   </div>
                 </div>
 
-                <LotLifecycleTracker lotStatus="LIVE" orderStatus={o.status} dispatched={o.dispatched} compact />
+                <LotLifecycleTracker lotStatus="LIVE" orderStatus={o.status} dispatched={o.dispatched} compact orderOnly />
 
                 {o.sellerStatus === "PENDING_SELLER" && (
                   <div className="flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-4 py-2.5 text-xs text-amber-700">

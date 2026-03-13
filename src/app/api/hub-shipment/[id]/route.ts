@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { buildShipmentScanCode } from "@/lib/shipment-scan";
 import { getShipmentPacketManifest } from "@/lib/shipment-packets-store";
+import { getPreDispatchCheck } from "@/lib/pre-dispatch-store";
 
 export async function GET(
   req: NextRequest,
@@ -37,7 +38,10 @@ export async function GET(
   const scanUrl = origin ? `${origin}/delivery-distributor/pickup?scan=${encodeURIComponent(scanCode)}` : null;
   const qrData = scanUrl ?? scanCode;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrData)}`;
-  const packetManifest = await getShipmentPacketManifest(order.orderCode);
+  const [packetManifest, gateCheck] = await Promise.all([
+    getShipmentPacketManifest(order.orderCode),
+    getPreDispatchCheck(order.orderCode),
+  ]);
 
   return NextResponse.json({
     orderCode: order.orderCode,
@@ -55,6 +59,7 @@ export async function GET(
     scanCode,
     scanUrl,
     qrImageUrl,
+    gatePacketQty: gateCheck?.packetQty ?? 0,
     packetSummary: packetManifest
       ? {
           totalPackets: packetManifest.totalPackets,

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Search, SlidersHorizontal, X, ChevronDown, Download } from "lucide-react";
 import api from "@/lib/api";
-import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type OrderItem = {
   id: string;
@@ -36,6 +35,7 @@ type OrderItem = {
   actualQty: number | null;
   actualQtyUnit: string;
   lotStatus: string;
+  thumbnail: string | null;
 };
 
 function resolveDisplayStatus(status: string, sellerStatus: string) {
@@ -77,6 +77,96 @@ const STATUS_ACTIVE_CHIP: Record<string, string> = {
   CANCELLED:       "ring-2 ring-red-400 bg-red-100 text-red-700",
 };
 
+// ── 4-step delivery stepper ─────────────────────────────────────────────────
+
+// ── 10-step delivery stepper ────────────────────────────────────────────────
+
+const DELIVERY_STEPS: { label: string; sublabel: string }[] = [
+  { label: "Order Placed",           sublabel: "Waiting for seller" },
+  { label: "Order Confirmed",         sublabel: "Seller accepted"    },
+  { label: "Goods at Hub",            sublabel: "Arrived at hub"     },
+  { label: "Weight & QC Checked",     sublabel: "Hub verified"       },
+  { label: "Truck Confirmed",         sublabel: "Vehicle assigned"   },
+  { label: "In Transit",              sublabel: "On the way"         },
+  { label: "Hub Received",             sublabel: "At delivery hub"       },
+  { label: "QTY & Weight Checked",    sublabel: "Delivery man verified" },
+  { label: "Ready for Pickup",        sublabel: "Set for collection"    },
+  { label: "Delivered",               sublabel: "Picked up by buyer"    },
+];
+
+// Returns number of COMPLETED steps (0–10). Step i is done if i < result, active if i === result.
+function deliveryActiveStep(o: OrderItem): number {
+  if (o.status === "PICKED_UP")       return 10; // all done
+  if (o.status === "ARRIVED")         return 9;
+  if (o.status === "OUT_FOR_DELIVERY") return 8;
+  if (o.status === "HUB_RECEIVED")    return 7;
+  if (o.dispatched || o.status === "DISPATCHED") return 6;
+  if (o.assignedTruck)                return 5;
+  if (o.actualWeightKg != null || o.actualQty != null) return 4;
+  if (o.loadConfirmed)                return 3;
+  const s = o.sellerStatus;
+  if (s === "ACCEPTED" || s === "CONFIRMED" || o.status === "CONFIRMED") return 2;
+  return 1; // order placed, awaiting seller
+}
+
+function DeliveryStepBar({ o }: { o: OrderItem }) {
+  const active = deliveryActiveStep(o);
+  const total  = DELIVERY_STEPS.length;
+  return (
+    <div className="overflow-x-auto pb-1 -mx-1 px-1">
+      <div className="flex items-start" style={{ minWidth: `${total * 72}px` }}>
+        {DELIVERY_STEPS.map((step, i) => {
+          const isDone   = i < active;
+          const isActive = i === active;
+          const isLast   = i === total - 1;
+          return (
+            <div key={i} className="flex flex-1 flex-col items-center">
+              {/* connector + dot row */}
+              <div className="flex w-full items-center">
+                <div className={`h-0.5 flex-1 transition-colors duration-300 ${
+                  i === 0 ? "invisible"
+                  : isDone ? "bg-emerald-400"
+                  : isActive ? "bg-gradient-to-r from-emerald-400 to-slate-200"
+                  : "bg-slate-200"
+                }`} />
+                <div className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[9px] font-bold transition-all duration-300 ${
+                  isDone
+                    ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                    : isActive
+                    ? "border-blue-500 bg-white text-blue-600 shadow-[0_0_0_3px_rgba(59,130,246,0.14)]"
+                    : "border-slate-200 bg-white text-slate-400"
+                }`}>
+                  {isDone ? (
+                    <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : isActive ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  ) : (
+                    <span>{i + 1}</span>
+                  )}
+                </div>
+                <div className={`h-0.5 flex-1 transition-colors duration-300 ${
+                  isLast ? "invisible" : isDone ? "bg-emerald-400" : "bg-slate-200"
+                }`} />
+              </div>
+              {/* labels */}
+              <div className="mt-1.5 px-0.5 text-center">
+                <p className={`text-[9px] font-semibold leading-tight ${
+                  isDone ? "text-emerald-700" : isActive ? "text-blue-700" : "text-slate-400"
+                }`}>{step.label}</p>
+                <p className={`mt-0.5 text-[8px] leading-tight ${
+                  isDone ? "text-emerald-500" : isActive ? "text-blue-400" : "text-slate-300"
+                }`}>{step.sublabel}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const TRANSPORT_PAYER_LABEL: Record<OrderItem["transportPaidBy"], string> = {
   BUYER: "Buyer",
   SELLER: "Seller",
@@ -93,17 +183,6 @@ type SortOption   = "NEWEST" | "OLDEST" | "AMOUNT_HIGH" | "AMOUNT_LOW";
 const DATE_LABELS: Record<DateFilter, string>  = { ALL: "All time", "7D": "Last 7 days", "30D": "Last 30 days", "90D": "Last 90 days" };
 const SORT_LABELS: Record<SortOption, string>  = { NEWEST: "Newest first", OLDEST: "Oldest first", AMOUNT_HIGH: "Highest amount", AMOUNT_LOW: "Lowest amount" };
 
-const STATUS_FILTER_ITEMS: { key: StatusFilter; label: string }[] = [
-  { key: "ALL",             label: "All" },
-  { key: "AWAITING_SELLER", label: "Awaiting Seller" },
-  { key: "CONFIRMED",       label: "Confirmed" },
-  { key: "DISPATCHED",      label: "Dispatched" },
-  { key: "HUB_RECEIVED",    label: "At Hub" },
-  { key: "OUT_FOR_DELIVERY", label: "Out for Delivery" },
-  { key: "ARRIVED",         label: "Arrived" },
-  { key: "PICKED_UP",       label: "Delivered" },
-  { key: "CANCELLED",       label: "Cancelled" },
-];
 
 function daysAgo(n: number) {
   const d = new Date();
@@ -352,8 +431,25 @@ export default function BuyerOrdersClient() {
             return (
               <div key={o.id} className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
 
-                {/* Row 1: product meta + status */}
-                <div className="flex items-center gap-4 border-b border-slate-50 px-5 py-3">
+                {/* Row 1: product image + meta + status */}
+                <div className="flex items-center gap-3 border-b border-slate-50 px-4 py-3">
+                  {/* Thumbnail */}
+                  <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
+                    {o.thumbnail ? (
+                      <img
+                        src={o.thumbnail}
+                        alt={o.product}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <svg className="h-6 w-6 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5M3.75 3h16.5A2.25 2.25 0 0122.5 5.25v13.5A2.25 2.25 0 0120.25 21H3.75A2.25 2.25 0 011.5 18.75V5.25A2.25 2.25 0 013.75 3z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  {/* Meta */}
                   <div className="min-w-0 flex-1">
                     <span className="font-semibold text-slate-900">{o.product}</span>
                     <span className="ml-2 font-mono text-xs text-slate-400">{o.lotCode}</span>
@@ -367,21 +463,16 @@ export default function BuyerOrdersClient() {
                   </span>
                 </div>
 
-                {/* Row 2: lifecycle tracker */}
-                {resolveDisplayStatus(o.status, o.sellerStatus) === "CANCELLED" ? (
+                {/* Row 2: 10-step delivery progress bar */}
+                {display === "CANCELLED" ? (
                   <div className="border-b border-slate-50 px-5 py-3">
                     <div className="flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2">
-                      <span className="text-xs font-semibold text-red-500">✕ Order Cancelled by seller</span>
+                      <span className="text-xs font-semibold text-red-500">✕ Order Cancelled</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="border-b border-slate-50 px-5 py-4">
-                    <LotLifecycleTracker
-                      lotStatus={o.lotStatus}
-                      orderStatus={resolveDisplayStatus(o.status, o.sellerStatus) === "AWAITING_SELLER" ? null : o.status}
-                      loadConfirmed={o.loadConfirmed}
-                      dispatched={o.dispatched}
-                    />
+                  <div className="border-b border-slate-50 px-5 py-5">
+                    <DeliveryStepBar o={o} />
                   </div>
                 )}
 

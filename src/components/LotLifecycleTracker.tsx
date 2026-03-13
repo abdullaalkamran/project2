@@ -7,6 +7,8 @@ type Props = {
   dispatched?: boolean;
   pickedUpAt?: Date | string | null;
   compact?: boolean;
+  orderOnly?: boolean;
+  hideHeader?: boolean;
 };
 
 type StepState = "done" | "active" | "failed" | "grey";
@@ -239,20 +241,23 @@ function ProgressHeader({ states, allSteps }: { states: StepState[]; allSteps: s
 
 export default function LotLifecycleTracker(props: Props) {
   const states    = computeStates(props);
-  const allSteps  = [...LOT_STEPS, ...ORDER_STEPS];
-  const { compact } = props;
+  const { compact, orderOnly, hideHeader } = props;
+  const visibleStates = orderOnly ? states.slice(6, 12) : states;
+  const allSteps  = orderOnly ? ORDER_STEPS : [...LOT_STEPS, ...ORDER_STEPS];
 
   return (
     <div className={compact ? "space-y-1.5" : "space-y-1"}>
-      {!compact && <ProgressHeader states={states} allSteps={allSteps} />}
+      {!compact && !hideHeader && <ProgressHeader states={visibleStates} allSteps={allSteps} />}
 
       <div className={compact ? "space-y-1.5" : "space-y-5"}>
+        {!orderOnly && (
+          <PhaseRow
+            steps={LOT_STEPS} states={states.slice(0, 6)} offset={1}
+            compact={compact} label="Lot Phase" icon={PHASE_ICON_LOT} color="text-slate-400"
+          />
+        )}
         <PhaseRow
-          steps={LOT_STEPS} states={states.slice(0, 6)} offset={1}
-          compact={compact} label="Lot Phase" icon={PHASE_ICON_LOT} color="text-slate-400"
-        />
-        <PhaseRow
-          steps={ORDER_STEPS} states={states.slice(6, 12)} offset={7}
+          steps={ORDER_STEPS} states={states.slice(6, 12)} offset={orderOnly ? 1 : 7}
           compact={compact} label="Order & Delivery" icon={PHASE_ICON_ORDER} color="text-slate-400"
         />
       </div>

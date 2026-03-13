@@ -40,6 +40,10 @@ interface LotState {
   sellerName: string;
   sellerId: string | null;
   qcVerdict: string | null;
+  freeQtyEnabled: boolean;
+  freeQtyPer: number;
+  freeQtyAmount: number;
+  freeQtyUnit: string;
 }
 
 const MAX_BIDS = 20;
@@ -184,6 +188,10 @@ export function LiveClient() {
     seller: lotData?.sellerName ?? searchParams.get("seller") ?? "Rahim Traders",
     rating: searchParams.get("rating") ?? "4.8",
     sellerId: lotData?.sellerId ?? searchParams.get("sellerId") ?? "",
+    freeQtyEnabled: lotData?.freeQtyEnabled ?? false,
+    freeQtyPer: lotData?.freeQtyPer ?? 0,
+    freeQtyAmount: lotData?.freeQtyAmount ?? 0,
+    freeQtyUnit: lotData?.freeQtyUnit ?? "kg",
   }), [lotData, searchParams]);
 
   // A seller cannot bid on their own product
@@ -755,6 +763,14 @@ export function LiveClient() {
                 <p className="text-lg font-bold text-emerald-700">৳ {totalPrice.toLocaleString()}</p>
               </div>
             </div>
+            {lotMeta.freeQtyEnabled && lotMeta.freeQtyAmount > 0 && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5">
+                <span className="text-lg">🎁</span>
+                <p className="text-sm font-semibold text-emerald-800">
+                  Free {lotMeta.freeQtyAmount} {lotMeta.freeQtyUnit} for every {lotMeta.freeQtyPer} {lotMeta.freeQtyUnit} purchased
+                </p>
+              </div>
+            )}
 
             <div className="mt-3 flex items-center gap-3">
               <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-slate-100">

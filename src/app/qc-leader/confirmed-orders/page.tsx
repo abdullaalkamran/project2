@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import PreDispatchGate, { gateReadyForDispatch, roleActionNeeded, type GateData } from "@/components/PreDispatchGate";
 
 type Truck = {
@@ -46,6 +47,7 @@ export default function QCLeaderConfirmedOrdersPage() {
   const [selectedTruck, setSelectedTruck] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<Record<string, string>>({});
+  const [gateOpen, setGateOpen] = useState<Record<string, boolean>>({});
 
   const loadData = useCallback(async () => {
     const [ordersData, trucksData] = await Promise.all([
@@ -217,43 +219,65 @@ export default function QCLeaderConfirmedOrdersPage() {
                 ))}
               </div>
 
-              {/* Pre-dispatch gate */}
-              <div className="mx-5 mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <PreDispatchGate
-                  orderCode={o.id}
-                  orderedQty={o.qty}
-                  role="qc_leader"
-                  initialData={o.preDispatch}
-                  onUpdate={(updated) =>
-                    setOrders((prev) =>
-                      prev.map((order) => (order.id === o.id ? { ...order, preDispatch: updated } : order))
-                    )
-                  }
-                />
-              </div>
-
-              {/* Packet QR */}
-              <div className="mx-5 mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-xs">
-                <p className="text-violet-700">
-                  Packet QR:{" "}
-                  <span className="font-semibold">{o.packetQr?.total ?? 0}</span> generated,{" "}
-                  scanned <span className="font-semibold">{o.packetQr?.scanned ?? 0}</span>
-                </p>
-                <a
-                  href={`/hub-shipment/${o.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-lg border border-violet-300 bg-white px-3 py-1.5 font-semibold text-violet-700 hover:bg-violet-100 transition"
-                >
-                  Generate / Print Packet QR →
-                </a>
-              </div>
+              {/* Pre-dispatch gate — collapsible */}
+              {(() => {
+                const isGateOpen = o.id in gateOpen ? gateOpen[o.id] : myActionNeeded;
+                return (
+                  <div className="mx-5 mb-4 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setGateOpen((p) => ({ ...p, [o.id]: !isGateOpen }))}
+                      className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-slate-100 transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Pre-Dispatch Gate</span>
+                        {gateReady ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">✓ Complete</span>
+                        ) : (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 animate-pulse">Action Required</span>
+                        )}
+                      </div>
+                      {isGateOpen ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                    </button>
+                    {isGateOpen && (
+                      <div className="border-t border-slate-200 p-4">
+                        <PreDispatchGate
+                          orderCode={o.id}
+                          orderedQty={o.qty}
+                          role="qc_leader"
+                          initialData={o.preDispatch}
+                          onUpdate={(updated) =>
+                            setOrders((prev) =>
+                              prev.map((order) => (order.id === o.id ? { ...order, preDispatch: updated } : order))
+                            )
+                          }
+                        />
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs">
+                          <p className="text-violet-700">
+                            Packet QR: <span className="font-semibold">{o.packetQr?.total ?? 0}</span> generated,{" "}
+                            scanned <span className="font-semibold">{o.packetQr?.scanned ?? 0}</span>
+                          </p>
+                          <a href={`/hub-shipment/${o.id}`} target="_blank" rel="noreferrer"
+                            className="rounded-lg border border-violet-300 bg-white px-3 py-1.5 font-semibold text-violet-700 hover:bg-violet-100 transition">
+                            Generate / Print Packet QR →
+                          </a>
+                        </div>
+                        {(!gateReady || !qrReady) && (
+                          <p className="mt-2 text-[11px] text-amber-700">
+                            Complete all 4 gate steps and generate packet QR to unlock truck assignment.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Truck assignment — shown once gate + QR are ready */}
               <div className="border-t border-slate-100 px-5 py-4">
                 {!gateReady || !qrReady ? (
                   <p className="text-[11px] text-amber-700">
-                    Complete all 5 gate steps and generate packet QR to unlock truck assignment.
+                    Complete all 4 gate steps and generate packet QR to unlock truck assignment.
                   </p>
                 ) : (
                   <>

@@ -34,6 +34,8 @@ export async function GET() {
   const recentOrders = orders.slice(0, 5).map((o) => ({
     id: o.orderCode,
     lot: o.product,
+    qty: o.qty,
+    freeQty: o.freeQty,
     amount: `BDT ${o.totalAmount.toLocaleString()}`,
     status: o.status === "ARRIVED" ? "Delivered" : o.status === "DISPATCHED" ? "In Transit" : o.status === "CONFIRMED" ? "Pending Payment" : o.status,
     date: o.confirmedAt.toLocaleDateString("en-BD", { month: "short", day: "numeric", year: "numeric" }),

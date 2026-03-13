@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { getPreDispatchCheck } from "@/lib/pre-dispatch-store";
+import { readLotMedia } from "@/lib/lot-media-store";
 
 function extractUnitFromQty(qty: string) {
   const rest = qty.replace(/^\s*[\d.]+\s*/, "").trim();
@@ -33,6 +34,10 @@ export async function GET() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  // Load all lot media upfront (one read for all orders)
+  const lotMediaRows = await readLotMedia();
+  const mediaByLotId = new Map(lotMediaRows.map((m) => [m.lotId, m]));
+
   const orders = await prisma.order.findMany({
     where: {
       OR: [
@@ -48,6 +53,13 @@ export async function GET() {
 
   const result = await Promise.all(orders.map(async (o) => {
     const pd = await getPreDispatchCheck(o.orderCode);
+    const lotCode = o.lot?.lotCode ?? "";
+    const media = mediaByLotId.get(lotCode);
+    const thumbnail =
+      media?.marketplacePhotoUrls?.[0] ??
+      media?.marketplacePhotoUrl ??
+      media?.sellerPhotoUrls?.[0] ??
+      null;
     // productAmount defaults to 0 in old orders; derive from totalAmount (set at creation = product price only)
     const productAmount = o.productAmount > 0 ? o.productAmount : o.totalAmount;
     const platformFeeRate = o.platformFeeRate ?? 5;
@@ -97,6 +109,7 @@ export async function GET() {
       actualWeightKg: pd?.grossWeightKg ?? null,
       actualQty,
       actualQtyUnit: qtyUnit,
+      thumbnail,
     };
   }));
 

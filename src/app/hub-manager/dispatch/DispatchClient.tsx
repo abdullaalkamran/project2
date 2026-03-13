@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/api";
 import Pagination from "@/components/Pagination";
-import PreDispatchGate, { gateReadyForDispatch, type GateData } from "@/components/PreDispatchGate";
+import PreDispatchGate, { gateReadyForDispatch, roleActionNeeded, type GateData } from "@/components/PreDispatchGate";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 const PAGE_SIZE = 15;
@@ -47,6 +48,7 @@ export default function DispatchClient() {
   const [selectedTruck, setSelectedTruck] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [gateOpen, setGateOpen] = useState<Record<string, boolean>>({});
 
   const loadData = useCallback(async () => {
     const [ordersData, trucksData] = await Promise.all([
@@ -205,44 +207,70 @@ export default function DispatchClient() {
                   orderStatus={order.status}
                   loadConfirmed={order.loadConfirmed}
                   dispatched={order.dispatched}
+                  orderOnly
+                  hideHeader
                 />
               </div>
 
-              {/* Pre-dispatch gate — 5-step progress */}
-              <div className="mx-5 mb-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <PreDispatchGate
-                  orderCode={order.id}
-                  orderedQty={order.qty}
-                  role="hub_manager"
-                  initialData={order.preDispatch}
-                  onUpdate={(updated) =>
-                    setOrders((prev) =>
-                      prev.map((o) => (o.id === order.id ? { ...o, preDispatch: updated } : o))
-                    )
-                  }
-                />
-
-                {/* Packet QR row */}
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs">
-                  <p className="text-violet-700">
-                    Packet QR: <span className="font-semibold">{order.packetQr?.total ?? 0}</span> generated,{" "}
-                    scanned <span className="font-semibold">{order.packetQr?.scanned ?? 0}</span>
-                  </p>
-                  <a
-                    href={`/hub-shipment/${order.id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-md border border-violet-300 bg-white px-2.5 py-1 font-semibold text-violet-700 hover:bg-violet-100"
-                  >
-                    Generate / Print Packet QR
-                  </a>
-                </div>
-                {(!gateReady || !qrReady) && (
-                  <p className="mt-2 text-[11px] text-amber-700">
-                    Complete all 5 gate steps and generate packet QR before assigning truck.
-                  </p>
-                )}
-              </div>
+              {/* Pre-dispatch gate — collapsible */}
+              {(() => {
+                const myActionNeeded = roleActionNeeded(order.preDispatch, "hub_manager");
+                const isGateOpen = order.id in gateOpen ? gateOpen[order.id] : myActionNeeded;
+                return (
+                  <div className="mx-5 mb-4 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setGateOpen((p) => ({ ...p, [order.id]: !isGateOpen }))}
+                      className="flex w-full items-center justify-between px-4 py-2.5 text-left hover:bg-slate-100 transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Pre-Dispatch Gate</span>
+                        {gateReady ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">✓ Complete</span>
+                        ) : (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 animate-pulse">Action Required</span>
+                        )}
+                      </div>
+                      {isGateOpen ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                    </button>
+                    {isGateOpen && (
+                      <div className="border-t border-slate-200 p-4">
+                        <PreDispatchGate
+                          orderCode={order.id}
+                          orderedQty={order.qty}
+                          role="hub_manager"
+                          initialData={order.preDispatch}
+                          onUpdate={(updated) =>
+                            setOrders((prev) =>
+                              prev.map((o) => (o.id === order.id ? { ...o, preDispatch: updated } : o))
+                            )
+                          }
+                        />
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs">
+                          <p className="text-violet-700">
+                            Packet QR: <span className="font-semibold">{order.packetQr?.total ?? 0}</span> generated,{" "}
+                            scanned <span className="font-semibold">{order.packetQr?.scanned ?? 0}</span>
+                          </p>
+                          <a href={`/hub-shipment/${order.id}`} target="_blank" rel="noreferrer"
+                            className="rounded-md border border-violet-300 bg-white px-2.5 py-1 font-semibold text-violet-700 hover:bg-violet-100">
+                            Generate / Print Packet QR
+                          </a>
+                        </div>
+                        {!gateReady && (
+                          <p className="mt-2 text-[11px] text-amber-700">
+                            Complete all 4 gate steps before assigning a truck.
+                          </p>
+                        )}
+                        {gateReady && !qrReady && (
+                          <p className="mt-2 text-[11px] text-slate-500">
+                            Tip: Generate packet QR codes before dispatching (optional but recommended).
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Truck info (if assigned) */}
               {order.assignedTruck && (
@@ -291,7 +319,7 @@ export default function DispatchClient() {
                     </select>
                     <button
                       onClick={() => assignTruck(order.id)}
-                      disabled={isBusy || !selectedTruck[order.id] || !gateReady || !qrReady}
+                      disabled={isBusy || !selectedTruck[order.id] || !gateReady}
                       className="rounded-xl bg-slate-800 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-900 disabled:opacity-40"
                     >
                       {isBusy ? "Assigning…" : "Assign Truck"}

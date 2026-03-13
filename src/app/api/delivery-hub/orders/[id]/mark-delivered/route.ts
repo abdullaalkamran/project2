@@ -28,12 +28,23 @@ export async function PATCH(
       },
     });
 
+    const receiptLink = `/delivery-receipt/${updated.orderCode}`;
+
     if (order.buyerId) {
       await notify(order.buyerId, {
         type: "ORDER_DELIVERED",
         title: "Order Delivered",
         message: `Your order "${order.product}" (${order.orderCode}) has been successfully delivered at ${order.deliveryPoint}.`,
-        link: "/buyer-dashboard/orders",
+        link: receiptLink,
+      });
+    }
+
+    if (order.sellerId) {
+      await notify(order.sellerId, {
+        type: "ORDER_DELIVERED",
+        title: "Order Delivered to Buyer",
+        message: `Your order "${order.product}" (${order.orderCode}) has been delivered to ${order.buyerName} at ${order.deliveryPoint}.`,
+        link: receiptLink,
       });
     }
 

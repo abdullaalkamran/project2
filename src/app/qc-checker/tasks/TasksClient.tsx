@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { ClipboardCheck, Filter, Loader2, RotateCcw, Search } from "lucide-react";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
-import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type TaskStatus = "Pending" | "In Progress" | "Submitted";
 
@@ -257,11 +256,6 @@ export default function TasksClient() {
                   <p className="text-slate-400">Assigned: {t.assignedAt}</p>
                   <p className="text-slate-400">By: {t.assignedBy}</p>
                 </div>
-              </div>
-
-              {/* Journey tracker */}
-              <div className="pt-1">
-                <LotLifecycleTracker lotStatus={t.rawLotStatus} compact />
               </div>
 
               {/* Actions */}

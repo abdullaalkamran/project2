@@ -449,74 +449,87 @@ export default function SellerOrdersClient() {
   );
 }
 
-// ── Delivery step progress bar ────────────────────────────────────────────────
+// ── 10-step delivery stepper (mirrors buyer view) ───────────────────────────
+
+const DELIVERY_STEPS: { label: string; sublabel: string }[] = [
+  { label: "Order Placed",          sublabel: "Waiting for seller"   },
+  { label: "Order Confirmed",        sublabel: "Seller accepted"      },
+  { label: "Goods at Hub",           sublabel: "Arrived at hub"       },
+  { label: "Weight & QC Checked",    sublabel: "Hub verified"         },
+  { label: "Truck Confirmed",        sublabel: "Vehicle assigned"     },
+  { label: "In Transit",             sublabel: "On the way"           },
+  { label: "Hub Received",           sublabel: "At delivery hub"      },
+  { label: "QTY & Weight Checked",   sublabel: "Delivery man verified"},
+  { label: "Ready for Pickup",       sublabel: "Set for collection"   },
+  { label: "Delivered",              sublabel: "Picked up by buyer"   },
+];
+
+// Seller API returns mapped status labels (e.g. "Delivered", "At Hub")
+function sellerActiveStep(o: OrderItem): number {
+  if (o.status === "Delivered" || o.delivered) return 10;
+  if (o.status === "Arrived")                  return 9;
+  if (o.status === "Out for Delivery")         return 8;
+  if (o.status === "At Hub")                   return 7;
+  if (o.dispatched || o.status === "Dispatched") return 6;
+  if (o.assignedTruck)                          return 5;
+  if (o.actualWeightKg != null)                 return 4;
+  if (o.loadConfirmed)                          return 3;
+  const s = o.sellerStatus;
+  if (s === "ACCEPTED" || s === "CONFIRMED" || o.status === "Confirmed") return 2;
+  return 1;
+}
+
 function DeliveryProgress({ order: o }: { order: OrderItem }) {
-  const accepted = o.sellerStatus === "ACCEPTED" || o.sellerStatus === "CONFIRMED";
-  const statusIdx = STATUS_ORDER.indexOf(o.status);
-
-  const steps = [
-    { label: "Confirmed",   done: true },
-    { label: "Accepted",    done: accepted },
-    { label: "Dispatched",  done: accepted && statusIdx >= STATUS_ORDER.indexOf("Dispatched") },
-    { label: "At Hub",      done: accepted && statusIdx >= STATUS_ORDER.indexOf("At Hub") },
-    { label: "In Transit",  done: accepted && statusIdx >= STATUS_ORDER.indexOf("Out for Delivery") },
-    { label: "Arrived",     done: accepted && statusIdx >= STATUS_ORDER.indexOf("Arrived") },
-    { label: "Delivered",   done: o.delivered || o.status === "Delivered" },
-  ];
-
-  const activeIdx = steps.findIndex((s) => !s.done);
-  const completedCount = steps.filter((s) => s.done).length;
-  // Progress line width: reaches the active dot, or 100% if all done
-  const pct = completedCount === steps.length
-    ? 100
-    : activeIdx <= 0
-      ? 0
-      : Math.round((activeIdx / (steps.length - 1)) * 100);
-
+  const active = sellerActiveStep(o);
+  const total  = DELIVERY_STEPS.length;
   return (
-    <div className="space-y-2 pt-1">
-      <div className="relative flex items-center justify-between">
-        <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-slate-200" />
-        <div
-          className="absolute left-0 top-1/2 h-0.5 -translate-y-1/2 bg-emerald-500 transition-all duration-500"
-          style={{ width: `${pct}%` }}
-        />
-        {steps.map((step, i) => {
-          const isActive = i === activeIdx;
+    <div className="overflow-x-auto pb-1 -mx-1 px-1">
+      <div className="flex items-start" style={{ minWidth: `${total * 72}px` }}>
+        {DELIVERY_STEPS.map((step, i) => {
+          const isDone   = i < active;
+          const isActive = i === active;
+          const isLast   = i === total - 1;
           return (
-            <div key={i} className="relative flex flex-col items-center" style={{ flex: "1 1 0", minWidth: 0 }}>
-              <div
-                className={`z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 transition
-                  ${step.done
-                    ? "border-emerald-500 bg-emerald-500 text-white"
+            <div key={i} className="flex flex-1 flex-col items-center">
+              {/* connector + dot row */}
+              <div className="flex w-full items-center">
+                <div className={`h-0.5 flex-1 transition-colors duration-300 ${
+                  i === 0 ? "invisible"
+                  : isDone ? "bg-emerald-400"
+                  : isActive ? "bg-gradient-to-r from-emerald-400 to-slate-200"
+                  : "bg-slate-200"
+                }`} />
+                <div className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[9px] font-bold transition-all duration-300 ${
+                  isDone
+                    ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
                     : isActive
-                      ? "border-emerald-400 bg-white ring-2 ring-emerald-100"
-                      : "border-slate-300 bg-white"}`}
-              >
-                {step.done ? (
-                  <svg viewBox="0 0 10 8" fill="none" className="h-2.5 w-2.5">
-                    <path d="M1 4l2.5 2.5L9 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                ) : isActive ? (
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                ) : null}
+                    ? "border-blue-500 bg-white text-blue-600 shadow-[0_0_0_3px_rgba(59,130,246,0.14)]"
+                    : "border-slate-200 bg-white text-slate-400"
+                }`}>
+                  {isDone ? (
+                    <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : isActive ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  ) : (
+                    <span>{i + 1}</span>
+                  )}
+                </div>
+                <div className={`h-0.5 flex-1 transition-colors duration-300 ${
+                  isLast ? "invisible" : isDone ? "bg-emerald-400" : "bg-slate-200"
+                }`} />
+              </div>
+              {/* labels */}
+              <div className="mt-1.5 px-0.5 text-center">
+                <p className={`text-[9px] font-semibold leading-tight ${
+                  isDone ? "text-emerald-700" : isActive ? "text-blue-700" : "text-slate-400"
+                }`}>{step.label}</p>
+                <p className={`mt-0.5 text-[8px] leading-tight ${
+                  isDone ? "text-emerald-500" : isActive ? "text-blue-400" : "text-slate-300"
+                }`}>{step.sublabel}</p>
               </div>
             </div>
-          );
-        })}
-      </div>
-      <div className="flex items-start justify-between">
-        {steps.map((step, i) => {
-          const isActive = i === activeIdx;
-          return (
-            <p
-              key={i}
-              className={`text-center text-[9px] font-medium leading-tight transition
-                ${step.done ? "text-emerald-700" : isActive ? "text-emerald-500 font-semibold" : "text-slate-400"}`}
-              style={{ flex: "1 1 0", minWidth: 0 }}
-            >
-              {step.label}
-            </p>
           );
         })}
       </div>
