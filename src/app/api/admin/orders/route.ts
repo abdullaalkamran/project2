@@ -20,6 +20,7 @@ export async function GET() {
       orderCode: o.orderCode,
       product: o.product,
       qty: o.qty,
+      freeQty: o.freeQty ?? 0,
       buyer: o.buyerName,
       seller: o.sellerName,
       amount: o.totalAmount,

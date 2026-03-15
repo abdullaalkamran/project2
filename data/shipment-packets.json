@@ -1,5 +1,25 @@
 [
   {
+    "orderCode": "ORD-785045",
+    "totalPackets": 10,
+    "packetCodes": [
+      "PKT-ORD-785045-001",
+      "PKT-ORD-785045-002",
+      "PKT-ORD-785045-003",
+      "PKT-ORD-785045-004",
+      "PKT-ORD-785045-005",
+      "PKT-ORD-785045-006",
+      "PKT-ORD-785045-007",
+      "PKT-ORD-785045-008",
+      "PKT-ORD-785045-009",
+      "PKT-ORD-785045-010"
+    ],
+    "scannedCodes": [],
+    "createdBy": "cmmdiufte000ctrzt7rahvv4p",
+    "createdAt": "2026-03-15T16:47:47.718Z",
+    "updatedAt": "2026-03-15T16:47:47.718Z"
+  },
+  {
     "orderCode": "ORD-Z8G42W",
     "totalPackets": 1,
     "packetCodes": [

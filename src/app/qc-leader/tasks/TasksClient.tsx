@@ -5,7 +5,9 @@ import { toast } from "sonner";
 import {
   Search, ChevronDown, ChevronUp, CheckCircle2, XCircle, RotateCcw,
   X, ChevronLeft, ChevronRight, ImageOff, UserCheck, Bell, AlertTriangle, CheckCircle,
+  Truck, Weight, DollarSign, PackageCheck, PenLine, ArrowRight, SendHorizonal,
 } from "lucide-react";
+import Link from "next/link";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
 import type { QCPendingApprovalRecord } from "@/lib/qc-approvals";
@@ -14,7 +16,31 @@ import type { QCPendingApprovalRecord } from "@/lib/qc-approvals";
 const CHECKERS = ["Mamun Hossain", "Sadia Islam", "Farhan Ahmed", "Reza Islam", "Fatima Begum"];
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-type Tab = "tasks" | "assign" | "approvals";
+type Tab = "tasks" | "assign" | "approvals" | "transport";
+
+type PreDispatch = {
+  physicallyReceived: boolean;
+  qualityChecked: boolean;
+  packetQty: number;
+  grossWeightKg: number;
+  freeQty: number;
+  step2EditRequested: boolean;
+  step2Unlocked: boolean;
+  truckPriceBDT: number;
+  hubManagerConfirmed: boolean;
+  qcLeadConfirmed: boolean;
+};
+
+type TransportOrder = {
+  id: string;
+  product: string;
+  qty: string;
+  seller: string;
+  buyer: string;
+  assignedTruck: string | null;
+  loadConfirmed: boolean;
+  preDispatch: PreDispatch;
+};
 type TaskStatus = "Assigned" | "In Progress" | "Submitted" | "Approved" | "Rejected";
 
 type TaskRow = {
@@ -148,6 +174,10 @@ export default function TasksClient() {
   const [checkerSel, setCheckerSel] = useState<Record<string, string>>({});
   const [assigning, setAssigning]   = useState<string | null>(null);
 
+  // ── Transport Tasks state ─────────────────────────────────────────────────
+  const [transportOrders, setTransportOrders] = useState<TransportOrder[]>([]);
+  const [transportLoading, setTransportLoading] = useState(true);
+
   // ── Pending Approvals state ───────────────────────────────────────────────
   const [reports, setReports]               = useState<UiReport[]>([]);
   const [appLoading, setAppLoading]         = useState(true);
@@ -188,6 +218,18 @@ export default function TasksClient() {
     }
   }, []);
 
+  // ── Load: transport orders ────────────────────────────────────────────────
+  const loadTransport = useCallback(async () => {
+    try {
+      const data = await api.get<TransportOrder[]>("/api/flow/dispatch/orders");
+      setTransportOrders(data ?? []);
+    } catch {
+      // silent — transport section will show empty
+    } finally {
+      setTransportLoading(false);
+    }
+  }, []);
+
   // ── Load: approvals ───────────────────────────────────────────────────────
   const loadApprovals = useCallback(async () => {
     try {
@@ -213,7 +255,8 @@ export default function TasksClient() {
   useEffect(() => {
     void loadLots();
     void loadApprovals();
-  }, [loadLots, loadApprovals]);
+    void loadTransport();
+  }, [loadLots, loadApprovals, loadTransport]);
 
   // ── Derived counts ────────────────────────────────────────────────────────
   const counts = useMemo(() => {
@@ -238,6 +281,32 @@ export default function TasksClient() {
 
   const pendingApprovals = useMemo(() => reports.filter((r) => r.decisionLabel === "Pending"), [reports]);
   const doneApprovals    = useMemo(() => reports.filter((r) => r.decisionLabel !== "Pending"), [reports]);
+
+  // ── Transport task groups ─────────────────────────────────────────────────
+  const transportGroups = useMemo(() => {
+    const needsWeightCheck = transportOrders.filter((o) =>
+      o.preDispatch.physicallyReceived && !o.preDispatch.qualityChecked
+    );
+    const editUnlocked = transportOrders.filter((o) => o.preDispatch.step2Unlocked);
+    const needsTruckPrice = transportOrders.filter((o) =>
+      o.preDispatch.qualityChecked && (!o.preDispatch.truckPriceBDT || o.preDispatch.truckPriceBDT === 0)
+    );
+    const needsTruck = transportOrders.filter((o) =>
+      o.preDispatch.hubManagerConfirmed && !o.assignedTruck
+    );
+    const needsLoad = transportOrders.filter((o) =>
+      !!o.assignedTruck && o.loadConfirmed !== true
+    );
+    const readyToDispatch = transportOrders.filter((o) =>
+      !!o.assignedTruck && o.loadConfirmed === true
+    );
+    return { needsWeightCheck, editUnlocked, needsTruckPrice, needsTruck, needsLoad, readyToDispatch };
+  }, [transportOrders]);
+
+  const transportPendingCount = useMemo(() => {
+    const { needsWeightCheck, editUnlocked, needsTruckPrice, needsTruck, needsLoad, readyToDispatch } = transportGroups;
+    return needsWeightCheck.length + editUnlocked.length + needsTruckPrice.length + needsTruck.length + needsLoad.length + readyToDispatch.length;
+  }, [transportGroups]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const decideTask = async (lotId: string, decision: "Approved" | "Rejected" | "Re-inspect") => {
@@ -369,6 +438,7 @@ export default function TasksClient() {
           { key: "tasks",     label: "All Tasks",          badge: rows.length > 0 ? String(rows.length) : null },
           { key: "assign",    label: "Assign Checker",     badge: assignLots.length > 0 ? String(assignLots.length) : null },
           { key: "approvals", label: "Pending Approvals",  badge: pendingApprovalCount > 0 ? String(pendingApprovalCount) : null },
+          { key: "transport", label: "Transport Tasks",    badge: transportPendingCount > 0 ? String(transportPendingCount) : null },
         ] as const).map((t) => (
           <button
             key={t.key}
@@ -1010,6 +1080,145 @@ export default function TasksClient() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* Tab: Transport Tasks                                             */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {tab === "transport" && (
+        <div className="space-y-6">
+          {transportLoading && (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}
+            </div>
+          )}
+
+          {!transportLoading && transportPendingCount === 0 && (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 text-sm text-emerald-700 shadow-sm flex items-center gap-3">
+              <CheckCircle2 size={18} className="shrink-0" />
+              No pending transport or pre-dispatch tasks right now.
+            </div>
+          )}
+
+          {!transportLoading && (() => {
+            const { needsWeightCheck, editUnlocked, needsTruckPrice, needsTruck, needsLoad, readyToDispatch } = transportGroups;
+            const groups = [
+              {
+                key: "editUnlocked",
+                title: "Weight Edit Permission Granted",
+                desc: "Hub manager unlocked re-entry — update weight & quality now.",
+                urgency: "high" as const,
+                icon: <PenLine size={16} />,
+                orders: editUnlocked,
+                color: "border-rose-200 bg-rose-50",
+                badge: "bg-rose-100 text-rose-700",
+              },
+              {
+                key: "needsWeightCheck",
+                title: "Needs Weight & Quality Check",
+                desc: "Product physically arrived — enter actual weight and quality data.",
+                urgency: "high" as const,
+                icon: <Weight size={16} />,
+                orders: needsWeightCheck,
+                color: "border-cyan-200 bg-cyan-50",
+                badge: "bg-cyan-100 text-cyan-700",
+              },
+              {
+                key: "needsTruckPrice",
+                title: "Truck Price Not Set",
+                desc: "Quality check complete — set the transport cost to proceed.",
+                urgency: "medium" as const,
+                icon: <DollarSign size={16} />,
+                orders: needsTruckPrice,
+                color: "border-indigo-200 bg-indigo-50",
+                badge: "bg-indigo-100 text-indigo-700",
+              },
+              {
+                key: "needsTruck",
+                title: "Truck Not Yet Assigned",
+                desc: "Pre-dispatch gate complete — assign a truck to dispatch.",
+                urgency: "high" as const,
+                icon: <Truck size={16} />,
+                orders: needsTruck,
+                color: "border-amber-200 bg-amber-50",
+                badge: "bg-amber-100 text-amber-700",
+              },
+              {
+                key: "needsLoad",
+                title: "Load Not Confirmed",
+                desc: "Truck assigned — confirm that goods are loaded before dispatch.",
+                urgency: "high" as const,
+                icon: <PackageCheck size={16} />,
+                orders: needsLoad,
+                color: "border-teal-200 bg-teal-50",
+                badge: "bg-teal-100 text-teal-700",
+              },
+              {
+                key: "readyToDispatch",
+                title: "Ready to Dispatch",
+                desc: "Truck assigned and load confirmed — initiate dispatch from the dispatch page.",
+                urgency: "high" as const,
+                icon: <SendHorizonal size={16} />,
+                orders: readyToDispatch,
+                color: "border-green-200 bg-green-50",
+                badge: "bg-green-100 text-green-700",
+              },
+            ].filter((g) => g.orders.length > 0);
+
+            if (groups.length === 0) return null;
+
+            return (
+              <div className="space-y-4">
+                {groups.map((g) => (
+                  <div key={g.key} className={`rounded-2xl border p-5 ${g.color}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="shrink-0">{g.icon}</span>
+                        <p className="font-semibold text-slate-900">{g.title}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${g.badge}`}>
+                          {g.orders.length}
+                        </span>
+                        {g.urgency === "high" && (
+                          <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                            Urgent
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{g.desc}</p>
+                    <ul className="mt-3 space-y-1.5">
+                      {g.orders.slice(0, 5).map((o) => (
+                        <li key={o.id} className="rounded-lg bg-white/70 px-3 py-2 text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <span className="font-medium text-slate-800">{o.product}</span>
+                              <span className="ml-1.5 font-mono text-[10px] text-slate-400">({o.id})</span>
+                              <p className="text-slate-500">{o.seller} → {o.buyer} · {o.qty}</p>
+                              {o.assignedTruck && (
+                                <p className="text-[11px] text-slate-400">Truck: {o.assignedTruck}</p>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                      {g.orders.length > 5 && (
+                        <li className="px-1 text-[11px] text-slate-400">+{g.orders.length - 5} more</li>
+                      )}
+                    </ul>
+                    <Link
+                      href="/qc-leader/confirmed-orders"
+                      className="mt-3 flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900"
+                    >
+                      Manage in Confirmed Orders <ArrowRight size={12} />
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 

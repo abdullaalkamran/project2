@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import { notify } from "@/lib/notifications";
 
 // PATCH — update payment request status (approve/reject/mark paid)
 export async function PATCH(
@@ -36,6 +37,32 @@ export async function PATCH(
       processedBy: session.name || "Admin",
     },
   });
+
+  // Notify seller of status change
+  if (existing.sellerId) {
+    if (status === "APPROVED") {
+      await notify(existing.sellerId, {
+        type: "PAYMENT_APPROVED",
+        title: "Withdrawal Approved",
+        message: `Your ৳${existing.amount.toLocaleString()} withdrawal (${existing.paymentCode}) has been approved. Payment will be processed shortly.`,
+        link: "/seller-dashboard/finance",
+      });
+    } else if (status === "PAID") {
+      await notify(existing.sellerId, {
+        type: "PAYMENT_PAID",
+        title: "Payment Sent",
+        message: `৳${existing.amount.toLocaleString()} (${existing.paymentCode}) has been paid via ${existing.method}. Ref: ${transactionRef ?? "—"}.`,
+        link: "/seller-dashboard/finance",
+      });
+    } else if (status === "REJECTED") {
+      await notify(existing.sellerId, {
+        type: "PAYMENT_REJECTED",
+        title: "Withdrawal Rejected",
+        message: `Your ৳${existing.amount.toLocaleString()} withdrawal (${existing.paymentCode}) was rejected. Reason: ${rejectedReason ?? "No reason provided"}.`,
+        link: "/seller-dashboard/finance",
+      });
+    }
+  }
 
   return NextResponse.json(updated);
 }

@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const historyOnly = statusFilter === "history";
 
   const statuses = historyOnly
-    ? ["ARRIVED", "PICKED_UP"]
+    ? ["PICKED_UP"]
     : activeOnly
       ? ["HUB_RECEIVED", "OUT_FOR_DELIVERY", "ARRIVED"]
       : ["HUB_RECEIVED", "OUT_FOR_DELIVERY", "ARRIVED", "PICKED_UP"];
@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
         confirmedAt: o.confirmedAt.toISOString(),
         packetQty: check?.packetQty ?? 0,
         freeQty: o.freeQty,
+        truckPriceBDT: check?.truckPriceBDT ?? 0,
         truckDriverName: driver?.name ?? null,
         truckDriverPhone: driver?.phone ?? null,
       };

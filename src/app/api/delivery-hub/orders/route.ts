@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
         id: o.orderCode,
         product: o.product,
         qty: o.qty,
+        freeQty: o.freeQty ?? 0,
         buyer: o.buyerName,
         seller: o.sellerName,
         buyerPhone: o.buyerId ? (buyerPhoneMap.get(o.buyerId) ?? null) : null,

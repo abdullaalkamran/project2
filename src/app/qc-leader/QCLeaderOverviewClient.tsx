@@ -13,6 +13,12 @@ import {
   ShieldCheck,
   ArrowRight,
   Loader2,
+  Truck,
+  Weight,
+  DollarSign,
+  PenLine,
+  PackageCheck,
+  SendHorizonal,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -86,20 +92,31 @@ const URGENCY_STYLES: Record<string, { card: string; badge: string; btn: string 
 };
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
-  approve:      <ClipboardCheck className="h-4 w-4" />,
-  assign:       <UserCheck className="h-4 w-4" />,
-  tasks:        <FlaskConical className="h-4 w-4" />,
-  fixed_review: <ShieldCheck className="h-4 w-4" />,
+  approve:          <ClipboardCheck className="h-4 w-4" />,
+  assign:           <UserCheck      className="h-4 w-4" />,
+  tasks:            <FlaskConical   className="h-4 w-4" />,
+  fixed_review:     <ShieldCheck    className="h-4 w-4" />,
+  transport_edit:   <PenLine        className="h-4 w-4" />,
+  transport_weight: <Weight         className="h-4 w-4" />,
+  transport_price:  <DollarSign     className="h-4 w-4" />,
+  transport_truck:  <Truck          className="h-4 w-4" />,
+  transport_load:     <PackageCheck    className="h-4 w-4" />,
+  transport_dispatch: <SendHorizonal   className="h-4 w-4" />,
 };
 
 const STAT_ICONS: Record<string, React.ReactNode> = {
-  "Pending Approvals":     <ClipboardCheck className="h-5 w-5" />,
-  "In QC Inspection":      <FlaskConical   className="h-5 w-5" />,
-  "Awaiting Checker":      <UserCheck      className="h-5 w-5" />,
-  "Passed Today":          <CheckCircle2   className="h-5 w-5" />,
-  "Rejected Today":        <XCircle        className="h-5 w-5" />,
-  "Total at Hub":          <Layers         className="h-5 w-5" />,
-  "Fixed Price Review":    <BadgeAlert     className="h-5 w-5" />,
+  "Pending Approvals":      <ClipboardCheck className="h-5 w-5" />,
+  "In QC Inspection":       <FlaskConical   className="h-5 w-5" />,
+  "Awaiting Checker":       <UserCheck      className="h-5 w-5" />,
+  "Passed Today":           <CheckCircle2   className="h-5 w-5" />,
+  "Rejected Today":         <XCircle        className="h-5 w-5" />,
+  "Total at Hub":           <Layers         className="h-5 w-5" />,
+  "Fixed Price Review":     <BadgeAlert     className="h-5 w-5" />,
+  "Needs Weight Check":     <Weight         className="h-5 w-5" />,
+  "Needs Truck Price":      <DollarSign     className="h-5 w-5" />,
+  "Needs Truck Assigned":   <Truck          className="h-5 w-5" />,
+  "Awaiting Load Confirm":  <PackageCheck    className="h-5 w-5" />,
+  "Ready to Dispatch":      <SendHorizonal   className="h-5 w-5" />,
 };
 
 const VERDICT_COLORS: Record<string, string> = {
@@ -125,11 +142,12 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const QUICK_LINKS = [
-  { label: "Approval Queue",   sub: "Review QC reports",          href: "/qc-leader/approvals", icon: <ClipboardCheck className="h-5 w-5 text-violet-600" /> },
-  { label: "Assign Checkers",  sub: "Assign inspectors to lots",  href: "/qc-leader/tasks",    icon: <UserCheck className="h-5 w-5 text-blue-600" />      },
-  { label: "Active Tasks",     sub: "Track inspections in progress", href: "/qc-leader/tasks",  icon: <FlaskConical className="h-5 w-5 text-teal-600" />   },
-  { label: "History",          sub: "Browse past decisions",       href: "/qc-leader/history",  icon: <CheckCircle2 className="h-5 w-5 text-emerald-600" />},
-  { label: "Rejected Lots",    sub: "Lots held for issues",        href: "/qc-leader/rejected", icon: <XCircle className="h-5 w-5 text-rose-600" />        },
+  { label: "Approval Queue",    sub: "Review QC reports",              href: "/qc-leader/approvals",        icon: <ClipboardCheck className="h-5 w-5 text-violet-600" /> },
+  { label: "Assign Checkers",   sub: "Assign inspectors to lots",      href: "/qc-leader/tasks",            icon: <UserCheck className="h-5 w-5 text-blue-600" />       },
+  { label: "Active Tasks",      sub: "Track inspections in progress",  href: "/qc-leader/tasks",            icon: <FlaskConical className="h-5 w-5 text-teal-600" />    },
+  { label: "Confirmed Orders",  sub: "Pre-dispatch & truck actions",   href: "/qc-leader/confirmed-orders", icon: <Truck className="h-5 w-5 text-amber-600" />          },
+  { label: "History",           sub: "Browse past decisions",          href: "/qc-leader/history",          icon: <CheckCircle2 className="h-5 w-5 text-emerald-600" /> },
+  { label: "Rejected Lots",     sub: "Lots held for issues",           href: "/qc-leader/rejected",         icon: <XCircle className="h-5 w-5 text-rose-600" />         },
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────

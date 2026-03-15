@@ -10,11 +10,12 @@ import { DEFAULT_CMS } from "@/lib/cms";
 type Status = "idle" | "saving" | "saved" | "error";
 
 const TABS = [
-  { key: "hero",         label: "Hero" },
-  { key: "liveAuctions", label: "Live Auctions" },
-  { key: "categories",   label: "Categories" },
-  { key: "whyPaikari",   label: "Why Paikari" },
-  { key: "newsletter",   label: "Newsletter" },
+  { key: "hero",              label: "Hero" },
+  { key: "liveAuctions",     label: "Live Auctions" },
+  { key: "categories",       label: "Categories" },
+  { key: "whyPaikari",       label: "Why Paikari" },
+  { key: "newsletter",       label: "Newsletter" },
+  { key: "marketplaceBanner", label: "Marketplace Banners" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -251,6 +252,89 @@ function NewsletterForm({ cms, set }: { cms: CMSContent; set: (c: CMSContent) =>
   );
 }
 
+function MarketplaceBannerForm({ cms, set }: { cms: CMSContent; set: (c: CMSContent) => void }) {
+  const mb = cms.marketplaceBanner;
+  const upd = (k: keyof CMSContent["marketplaceBanner"]) => (v: string) =>
+    set({ ...cms, marketplaceBanner: { ...mb, [k]: v } });
+
+  const BannerSlot = ({ n }: { n: 1 | 2 | 3 }) => {
+    const prefix = `b${n}` as "b1" | "b2" | "b3";
+    const enabled = mb[`${prefix}Enabled`] === "true";
+    const image = mb[`${prefix}Image`];
+    return (
+      <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-bold text-slate-700">Banner {n}</p>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <span className="text-xs font-semibold text-slate-500">{enabled ? "Enabled" : "Disabled"}</span>
+            <button
+              type="button"
+              onClick={() => upd(`${prefix}Enabled`)(enabled ? "false" : "true")}
+              className={`relative h-5 w-9 rounded-full transition-colors ${enabled ? "bg-emerald-500" : "bg-slate-300"}`}
+            >
+              <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-[18px]" : "translate-x-0"}`} />
+            </button>
+          </label>
+        </div>
+
+        {/* Banner image */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+            Banner Image <span className="font-normal normal-case text-slate-400">(jpg, png, webp — recommended 1200×400)</span>
+          </p>
+          {image && (
+            <div className="relative w-fit overflow-hidden rounded-xl border border-slate-200">
+              <img src={image} alt={`Banner ${n}`} className="h-24 w-64 object-cover" />
+              <button
+                type="button"
+                onClick={() => upd(`${prefix}Image`)("")}
+                className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold hover:bg-red-600"
+              >✕</button>
+            </div>
+          )}
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">
+            <span>📁 {image ? "Replace image…" : "Upload image…"}</span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const fd = new FormData();
+                fd.append("file", file);
+                const res = await fetch("/api/cms/upload-image", { method: "POST", body: fd });
+                const json = await res.json() as { url?: string; error?: string };
+                if (json.url) upd(`${prefix}Image`)(json.url);
+                else alert(json.error ?? "Upload failed");
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Title" value={mb[`${prefix}Title`]} onChange={upd(`${prefix}Title`)} hint="Bold headline on the banner" />
+          <Field label="Subtitle" value={mb[`${prefix}Subtitle`]} onChange={upd(`${prefix}Subtitle`)} hint="Short description line" />
+          <Field label="Link URL" value={mb[`${prefix}Link`]} onChange={upd(`${prefix}Link`)} hint="e.g. /marketplace or external URL" />
+          <Field label="Button label" value={mb[`${prefix}Label`]} onChange={upd(`${prefix}Label`)} hint='e.g. "Shop now"' />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <SectionGrid>
+      <div className="sm:col-span-2 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-700 font-medium">
+        These banners appear as a carousel in the Marketplace hero section. Enable at least one and upload an image to display it. Disabled banners are hidden.
+      </div>
+      <BannerSlot n={1} />
+      <BannerSlot n={2} />
+      <BannerSlot n={3} />
+    </SectionGrid>
+  );
+}
+
 // ── main page ──────────────────────────────────────────────────────────────────
 
 export default function CMSAdminPage() {
@@ -338,11 +422,12 @@ export default function CMSAdminPage() {
 
           {/* Form panel */}
           <div className="p-6 sm:p-8">
-            {tab === "hero"         && <HeroForm         cms={cms} set={setCms} />}
-            {tab === "liveAuctions" && <LiveAuctionsForm cms={cms} set={setCms} />}
-            {tab === "categories"   && <CategoriesForm   cms={cms} set={setCms} />}
-            {tab === "whyPaikari"   && <WhyForm          cms={cms} set={setCms} />}
-            {tab === "newsletter"   && <NewsletterForm   cms={cms} set={setCms} />}
+            {tab === "hero"               && <HeroForm               cms={cms} set={setCms} />}
+            {tab === "liveAuctions"      && <LiveAuctionsForm      cms={cms} set={setCms} />}
+            {tab === "categories"        && <CategoriesForm        cms={cms} set={setCms} />}
+            {tab === "whyPaikari"        && <WhyForm               cms={cms} set={setCms} />}
+            {tab === "newsletter"        && <NewsletterForm        cms={cms} set={setCms} />}
+            {tab === "marketplaceBanner" && <MarketplaceBannerForm cms={cms} set={setCms} />}
           </div>
 
           {/* Bottom save bar */}

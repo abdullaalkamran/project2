@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Truck } from "lucide-react";
 import api from "@/lib/api";
 
 type Order = {
   id: string; product: string; qty: string; buyer: string;
   deliveryPoint: string; status: string; totalAmount: number;
   distributorAssignedAt: string | null; pickedUpFromHubAt: string | null; arrivedAt: string | null;
+  truckPriceBDT: number;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -39,13 +40,14 @@ export default function DeliveryHistoryClient() {
   );
 
   const totalValue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+  const totalTruckCost = orders.reduce((sum, o) => sum + (o.truckPriceBDT ?? 0), 0);
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Delivery History</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Completed deliveries you have made.</p>
+          <p className="text-slate-500 text-sm mt-0.5">Orders confirmed as delivered to buyers, with truck cost breakdown.</p>
         </div>
         <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2 text-center min-w-[80px]">
           <p className="text-2xl font-bold text-emerald-700">{orders.length}</p>
@@ -54,9 +56,15 @@ export default function DeliveryHistoryClient() {
       </div>
 
       {orders.length > 0 && (
-        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-5 py-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-emerald-700">Total Delivered Value</p>
-          <p className="text-xl font-bold text-emerald-800">৳ {totalValue.toLocaleString()}</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-5 py-3">
+            <p className="text-xs font-medium text-emerald-600">Total Delivered Value</p>
+            <p className="text-xl font-bold text-emerald-800">৳ {totalValue.toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl border border-violet-100 bg-violet-50 px-5 py-3">
+            <p className="text-xs font-medium text-violet-600">Total Truck Cost</p>
+            <p className="text-xl font-bold text-violet-800">৳ {totalTruckCost.toLocaleString()}</p>
+          </div>
         </div>
       )}
 
@@ -82,9 +90,19 @@ export default function DeliveryHistoryClient() {
                 <p className="text-sm font-bold text-slate-900">{o.product}</p>
                 <p className="text-xs text-slate-500">{o.qty} → <span className="font-medium text-slate-700">{o.deliveryPoint}</span></p>
               </div>
-              <div className="text-right">
-                <p className="text-xs text-slate-400">Total</p>
-                <p className="text-sm font-bold text-emerald-700">৳ {o.totalAmount.toLocaleString()}</p>
+              <div className="text-right space-y-1">
+                <div>
+                  <p className="text-xs text-slate-400">Order Total</p>
+                  <p className="text-sm font-bold text-emerald-700">৳ {o.totalAmount.toLocaleString()}</p>
+                </div>
+                {o.truckPriceBDT > 0 && (
+                  <div>
+                    <p className="text-xs text-slate-400">Truck Cost</p>
+                    <p className="text-sm font-semibold text-violet-700 flex items-center justify-end gap-1">
+                      <Truck size={11} /> ৳ {o.truckPriceBDT.toLocaleString()}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

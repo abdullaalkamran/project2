@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notify, notifyMany, userIdByName, getLotParties } from "@/lib/notifications";
-import { getPreDispatchCheck } from "@/lib/pre-dispatch-store";
+import { getPreDispatchCheck, readPreDispatchChecks } from "@/lib/pre-dispatch-store";
 
 export async function PATCH(
   req: NextRequest,
@@ -48,6 +48,38 @@ export async function PATCH(
       }
 
       // QR codes are recommended but not a hard blocker
+    }
+
+    // Truck capacity check — enforce when assigning a truck
+    if (body.assignedTruck && body.assignedTruck !== order.assignedTruck) {
+      const truck = await prisma.truck.findUnique({ where: { id: body.assignedTruck } });
+      if (truck && truck.capacityKg > 0) {
+        // Sum grossWeightKg of all other orders already on this truck (excluding dispatched)
+        const allChecks = await readPreDispatchChecks();
+        const otherOrders = await prisma.order.findMany({
+          where: {
+            assignedTruck: body.assignedTruck,
+            id: { not: order.id },
+            status: { not: "CANCELLED" },
+            dispatched: { not: true },
+          },
+          select: { orderCode: true },
+        });
+        const alreadyLoadedKg = otherOrders.reduce((sum, o) => {
+          const chk = allChecks.find((c) => c.orderCode === o.orderCode);
+          return sum + (chk?.grossWeightKg ?? 0);
+        }, 0);
+        const currentCheck = await getPreDispatchCheck(order.orderCode);
+        const thisOrderKg = currentCheck?.grossWeightKg ?? 0;
+        if (alreadyLoadedKg + thisOrderKg > truck.capacityKg) {
+          return NextResponse.json(
+            {
+              message: `Truck capacity exceeded. Truck ${truck.truckCode} (${truck.reg}) has a capacity of ${truck.capacityKg} kg. Currently loaded: ${alreadyLoadedKg} kg. This order weighs ${thisOrderKg} kg — total would be ${alreadyLoadedKg + thisOrderKg} kg.`,
+            },
+            { status: 400 },
+          );
+        }
+      }
     }
 
     const updated = await prisma.order.update({

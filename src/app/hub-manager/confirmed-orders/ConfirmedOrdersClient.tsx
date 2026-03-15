@@ -14,6 +14,7 @@ type Order = {
   lotId: string;
   product: string;
   qty: string;
+  freeQty: number;
   seller: string;
   buyer: string;
   deliveryPoint: string;
@@ -127,7 +128,9 @@ export default function ConfirmedOrdersClient() {
                       </span>
                     </div>
                     <p className="text-base font-bold text-slate-900">{o.product}</p>
-                    <p className="text-xs text-slate-500">{o.qty} · {o.confirmedAt}</p>
+                    <p className="text-xs text-slate-500">
+                      {o.qty}{o.freeQty > 0 ? ` + ${o.freeQty} free` : ""} · {o.confirmedAt}
+                    </p>
                   </div>
 
                   <div className="flex flex-wrap gap-3">

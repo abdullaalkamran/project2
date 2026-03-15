@@ -5,9 +5,12 @@ import Link from "next/link";
 import {
   Bell,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Gavel,
   LayoutGrid,
   Minus,
+  Search,
   SlidersHorizontal,
   Tag,
   TrendingDown,
@@ -15,10 +18,12 @@ import {
   X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Pagination from "@/components/Pagination";
 import { type Product } from "@/lib/products";
 import api from "@/lib/api";
+import type { CMSContent } from "@/lib/cms";
+import { DEFAULT_CMS } from "@/lib/cms";
 
 /* ─── helpers ──────────────────────────────────────────────────────────────── */
 
@@ -59,6 +64,94 @@ function useCountdown(isoDate: string | null | undefined) {
     return () => clearInterval(id);
   }, [isoDate]);
   return remaining;
+}
+
+/* ─── banner carousel ───────────────────────────────────────────────────────── */
+
+type BannerSlot = { image: string; title: string; subtitle: string; link: string; label: string };
+
+function buildBanners(mb: CMSContent["marketplaceBanner"]): BannerSlot[] {
+  return ([
+    { enabled: mb.b1Enabled === "true", image: mb.b1Image, title: mb.b1Title, subtitle: mb.b1Subtitle, link: mb.b1Link, label: mb.b1Label },
+    { enabled: mb.b2Enabled === "true", image: mb.b2Image, title: mb.b2Title, subtitle: mb.b2Subtitle, link: mb.b2Link, label: mb.b2Label },
+    { enabled: mb.b3Enabled === "true", image: mb.b3Image, title: mb.b3Title, subtitle: mb.b3Subtitle, link: mb.b3Link, label: mb.b3Label },
+  ] as (BannerSlot & { enabled: boolean })[]).filter((b) => b.enabled && b.image);
+}
+
+function BannerCarousel({ banners }: { banners: BannerSlot[] }) {
+  const [active, setActive] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const reset = (idx: number) => {
+    setActive(idx);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setActive((p) => (p + 1) % banners.length), 5000);
+  };
+
+  useEffect(() => {
+    if (banners.length < 2) return;
+    timerRef.current = setTimeout(() => setActive((p) => (p + 1) % banners.length), 5000);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [banners.length]);
+
+  if (banners.length === 0) return null;
+
+  const b = banners[active];
+
+  const slideContent = (
+    <>
+      <img
+        src={b.image}
+        alt={b.title}
+        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
+      />
+      {(b.title || b.subtitle || (b.link && b.label)) && (
+        <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-8">
+          {b.title && (
+            <p className="text-xl font-bold text-white drop-shadow sm:text-2xl">{b.title}</p>
+          )}
+          {b.subtitle && (
+            <p className="mt-1 max-w-sm text-sm text-white/85 drop-shadow">{b.subtitle}</p>
+          )}
+          {b.link && b.label && (
+            <span className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-4 py-1.5 text-xs font-bold text-slate-900 shadow transition group-hover:bg-emerald-50">
+              {b.label} <ChevronRight className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl shadow-sm ring-1 ring-slate-200">
+      {b.link ? (
+        <Link href={b.link} className="relative block h-48 w-full group sm:h-60">{slideContent}</Link>
+      ) : (
+        <div className="relative h-48 w-full group sm:h-60">{slideContent}</div>
+      )}
+
+      {/* nav arrows (only if multiple banners) */}
+      {banners.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => reset((active - 1 + banners.length) % banners.length)}
+            className="absolute left-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow hover:bg-white"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => reset((active + 1) % banners.length)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow hover:bg-white"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </>
+      )}
+    </div>
+  );
 }
 
 const CATEGORY_TABS = [
@@ -289,6 +382,14 @@ export default function MarketplacePage() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading,  setLoading]  = useState(true);
+  const [banners,  setBanners]  = useState<BannerSlot[]>([]);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 120);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const [search,   setSearch]   = useState(() => searchParams.get("q") ?? "");
   const [category, setCategory] = useState("all");
@@ -298,7 +399,7 @@ export default function MarketplacePage() {
   const [sort,     setSort]     = useState("newest");
   const [page,     setPage]     = useState(1);
 
-  /* load products */
+  /* load products + CMS banners */
   useEffect(() => {
     const load = async () => {
       try {
@@ -311,6 +412,11 @@ export default function MarketplacePage() {
       }
     };
     void load();
+
+    fetch("/api/cms")
+      .then((r) => r.json())
+      .then((data: CMSContent) => setBanners(buildBanners(data.marketplaceBanner ?? DEFAULT_CMS.marketplaceBanner)))
+      .catch(() => {/* banners stay empty */});
   }, []);
 
   /* filter + sort */
@@ -356,10 +462,15 @@ export default function MarketplacePage() {
     chips.push({ key: "qty", label: qLabel, clear: () => setQuantity("all") });
   }
 
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   const resetAll = () => {
     setSearch(""); setCategory("all"); setHub("all");
     setStatus("all"); setQuantity("all"); setSort("newest");
+    setFiltersOpen(false);
   };
+
+  const activeFilterCount = [hub !== "all", status !== "all", quantity !== "all", sort !== "newest"].filter(Boolean).length;
 
   /* navigation helpers */
   const handleCardClick = (product: Product) => {
@@ -414,6 +525,13 @@ export default function MarketplacePage() {
           Browse and purchase QC-verified products directly from trusted sellers.
         </p>
 
+        {/* Promo banner carousel */}
+        {banners.length > 0 && (
+          <div className="mt-5">
+            <BannerCarousel banners={banners} />
+          </div>
+        )}
+
         {/* Stats strip */}
         <div className="mt-5 flex flex-wrap gap-3">
           <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-100">
@@ -440,120 +558,125 @@ export default function MarketplacePage() {
         </div>
       </section>
 
-      {/* Filter bar */}
-      <section className="sticky top-20 z-10 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {/* Filter bar — sticky. Collapses to icon-only pill when scrolled. */}
+      <section className={`sticky top-16 z-10 overflow-hidden transition-all duration-200 border border-slate-200 bg-white/95 backdrop-blur-md shadow-sm ${
+        scrolled && !filtersOpen ? "w-fit ml-auto rounded-full shadow-md" : "rounded-2xl"
+      }`}>
 
-        {/* Row 1: search + sort */}
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search products, hubs, sellers…"
-            className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none ring-emerald-100 focus:border-emerald-500 focus:ring-2"
-          />
+        {/* ── Collapsed row (icon pill) when scrolled ── */}
+        {scrolled && (
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((p) => !p)}
+            className={`flex items-center gap-2 px-3 py-2 text-xs font-semibold transition ${
+              filtersOpen || activeFilterCount > 0 ? "text-emerald-700" : "text-slate-600"
+            }`}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {activeFilterCount > 0 && (
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
+                {activeFilterCount}
+              </span>
+            )}
+            {search && <span className="h-2 w-2 rounded-full bg-emerald-400" />}
+          </button>
+        )}
 
-          {/* Sort */}
-          <div className="relative">
-            <SlidersHorizontal className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
-              className="appearance-none rounded-xl border border-slate-200 py-2.5 pl-9 pr-8 text-sm outline-none focus:border-emerald-500"
-            >
-              <option value="newest">Newest</option>
-              <option value="price_asc">Price: Low → High</option>
-              <option value="price_desc">Price: High → Low</option>
-              <option value="bids">Most Bids</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          </div>
-
-          {/* Hub */}
-          <div className="relative">
-            <select
-              value={hub}
-              onChange={(e) => setHub(e.target.value)}
-              className="appearance-none rounded-xl border border-slate-200 px-3 py-2.5 pr-8 text-sm outline-none focus:border-emerald-500"
-            >
-              <option value="all">All Hubs</option>
-              {HUB_OPTIONS.map((h) => (
-                <option key={h} value={h}>{h}</option>
+        {/* ── Full filter row when NOT scrolled ── */}
+        {!scrolled && (
+          <div className="flex items-center gap-2 px-3 py-2.5">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-sm outline-none focus:border-emerald-400 focus:bg-white focus:ring-1 focus:ring-emerald-100"
+              />
+              {search && (
+                <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {CATEGORY_TABS.map((tab) => (
+                <button key={tab.value} type="button" onClick={() => setCategory(tab.value)}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    category === tab.value ? "bg-emerald-500 text-white shadow-sm" : "border border-slate-200 text-slate-500 hover:border-emerald-300 hover:text-emerald-600"
+                  }`}>
+                  {tab.label}
+                </button>
               ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          </div>
-
-          {/* Status */}
-          <div className="relative">
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="appearance-none rounded-xl border border-slate-200 px-3 py-2.5 pr-8 text-sm outline-none focus:border-emerald-500"
-            >
-              <option value="all">All Modes</option>
-              <option value="live">Live Auction</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="fixed">Fixed Price</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          </div>
-
-          {/* Quantity */}
-          <div className="relative">
-            <select
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              className="appearance-none rounded-xl border border-slate-200 px-3 py-2.5 pr-8 text-sm outline-none focus:border-emerald-500"
-            >
-              <option value="all">Any Quantity</option>
-              <option value="small">≤ 500 kg</option>
-              <option value="medium">500–2000 kg</option>
-              <option value="bulk">2000+ kg</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          </div>
-        </div>
-
-        {/* Row 2: category tab pills */}
-        <div className="flex flex-wrap gap-2">
-          {CATEGORY_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() => setCategory(tab.value)}
-              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                category === tab.value
-                  ? "bg-emerald-500 text-white shadow-sm"
-                  : "border border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700"
-              }`}
-            >
-              {tab.label}
+            </div>
+            <button type="button" onClick={() => setFiltersOpen((p) => !p)}
+              className={`relative flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                filtersOpen || activeFilterCount > 0 ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-slate-200 text-slate-600 hover:border-slate-300"
+              }`}>
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">{activeFilterCount}</span>
+              )}
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
             </button>
-          ))}
-        </div>
+          </div>
+        )}
 
-        {/* Row 3: active filter chips */}
-        {chips.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500">Active:</span>
-            {chips.map((chip) => (
-              <button
-                key={chip.key}
-                type="button"
-                onClick={chip.clear}
-                className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
-              >
-                {chip.label}
-                <X className="h-3 w-3" />
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={resetAll}
-              className="text-xs font-semibold text-slate-400 underline hover:text-slate-600"
-            >
-              Clear all
-            </button>
+        {/* ── Expandable panel — shown in BOTH states when filtersOpen ── */}
+        {filtersOpen && (
+          <div className="border-t border-slate-100 px-3 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <select value={hub} onChange={(e) => setHub(e.target.value)}
+                  className="appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-7 text-xs font-medium text-slate-700 outline-none focus:border-emerald-400">
+                  <option value="all">All Hubs</option>
+                  {HUB_OPTIONS.map((h) => <option key={h} value={h}>{h}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+              </div>
+              <div className="relative">
+                <select value={status} onChange={(e) => setStatus(e.target.value)}
+                  className="appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-7 text-xs font-medium text-slate-700 outline-none focus:border-emerald-400">
+                  <option value="all">All Modes</option>
+                  <option value="live">Live Auction</option>
+                  <option value="upcoming">Upcoming</option>
+                  <option value="fixed">Fixed Price</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+              </div>
+              <div className="relative">
+                <select value={quantity} onChange={(e) => setQuantity(e.target.value)}
+                  className="appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-7 text-xs font-medium text-slate-700 outline-none focus:border-emerald-400">
+                  <option value="all">Any Qty</option>
+                  <option value="small">≤ 500 kg</option>
+                  <option value="medium">500–2000 kg</option>
+                  <option value="bulk">2000+ kg</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+              </div>
+              <div className="relative">
+                <select value={sort} onChange={(e) => setSort(e.target.value)}
+                  className="appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-7 text-xs font-medium text-slate-700 outline-none focus:border-emerald-400">
+                  <option value="newest">Newest</option>
+                  <option value="price_asc">Price ↑</option>
+                  <option value="price_desc">Price ↓</option>
+                  <option value="bids">Most Bids</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+              </div>
+              {chips.map((chip) => (
+                <button key={chip.key} type="button" onClick={chip.clear}
+                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                  {chip.label} <X className="h-3 w-3" />
+                </button>
+              ))}
+              {activeFilterCount > 0 && (
+                <button type="button" onClick={resetAll} className="ml-auto text-xs font-semibold text-slate-400 hover:text-slate-600">
+                  Clear all
+                </button>
+              )}
+            </div>
           </div>
         )}
       </section>

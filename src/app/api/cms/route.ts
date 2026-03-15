@@ -8,7 +8,16 @@ const DATA_PATH = path.join(process.cwd(), "data", "cms-content.json");
 
 function readCMS(): CMSContent {
   try {
-    return JSON.parse(fs.readFileSync(DATA_PATH, "utf8")) as CMSContent;
+    const saved = JSON.parse(fs.readFileSync(DATA_PATH, "utf8")) as Partial<CMSContent>;
+    // Deep-merge so newly added CMS sections always have defaults
+    return {
+      hero:               { ...DEFAULT_CMS.hero,               ...(saved.hero ?? {}) },
+      liveAuctions:       { ...DEFAULT_CMS.liveAuctions,       ...(saved.liveAuctions ?? {}) },
+      categories:         { ...DEFAULT_CMS.categories,         ...(saved.categories ?? {}) },
+      whyPaikari:         { ...DEFAULT_CMS.whyPaikari,         ...(saved.whyPaikari ?? {}) },
+      newsletter:         { ...DEFAULT_CMS.newsletter,         ...(saved.newsletter ?? {}) },
+      marketplaceBanner:  { ...DEFAULT_CMS.marketplaceBanner,  ...(saved.marketplaceBanner ?? {}) },
+    };
   } catch {
     return DEFAULT_CMS;
   }

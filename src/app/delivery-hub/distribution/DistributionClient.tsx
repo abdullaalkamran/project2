@@ -24,6 +24,7 @@ type HubOrder = {
   id: string;
   product: string;
   qty: string;
+  freeQty: number;
   buyer: string;
   seller: string;
   deliveryPoint: string;
@@ -307,7 +308,7 @@ function OrderCard({
           <span className="font-mono text-xs text-slate-400">{order.id}</span>
           <p className="text-base font-bold text-slate-900">{order.product}</p>
           <p className="text-sm text-slate-500">
-            {order.qty} · {order.buyer} → <span className="font-medium text-slate-700">{order.deliveryPoint}</span>
+            {order.qty}{order.freeQty > 0 ? ` + ${order.freeQty} free` : ""} · {order.buyer} → <span className="font-medium text-slate-700">{order.deliveryPoint}</span>
           </p>
           {order.distributorName && (
             <p className="text-xs font-semibold text-violet-700">

@@ -10,6 +10,7 @@ type Order = {
   orderCode: string;
   product: string;
   qty: string;
+  freeQty: number;
   buyer: string;
   seller: string;
   amount: number;
@@ -154,9 +155,9 @@ function OrderDetailModal({ order, onClose, onDispatch, acting }: {
 }
 
 function downloadOrdersCSV(orders: Order[]) {
-  const header = "Order ID,Product,Qty,Buyer,Seller,Amount,Hub,Delivery Point,Status,Date";
+  const header = "Order ID,Product,Qty,Free Qty,Buyer,Seller,Amount,Hub,Delivery Point,Status,Date";
   const rows = orders.map((o) =>
-    [o.orderCode, `"${o.product}"`, o.qty, o.buyer, o.seller, o.amount, o.hub, o.deliveryPoint, deriveStatus(o), o.confirmedAt].join(",")
+    [o.orderCode, `"${o.product}"`, o.qty, o.freeQty > 0 ? o.freeQty : "", o.buyer, o.seller, o.amount, o.hub, o.deliveryPoint, deriveStatus(o), o.confirmedAt].join(",")
   );
   const csv = [header, ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
@@ -406,7 +407,7 @@ export default function AdminOrdersPage() {
                   <td className="px-5 py-4 font-mono text-xs text-slate-500">{o.orderCode}</td>
                   <td className="px-5 py-4">
                     <p className="font-medium text-slate-900">{o.product}</p>
-                    <p className="text-xs text-slate-400">Qty: {o.qty}</p>
+                    <p className="text-xs text-slate-400">Qty: {o.qty}{o.freeQty > 0 ? ` + ${o.freeQty} free` : ""}</p>
                   </td>
                   <td className="px-5 py-4 text-slate-700">{o.buyer}</td>
                   <td className="px-5 py-4 text-slate-500">{o.seller}</td>

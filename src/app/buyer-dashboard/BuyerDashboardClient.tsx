@@ -85,8 +85,27 @@ export default function BuyerOverviewPage() {
   const depositAmt = watch("amount");
   const depositMethod = watch("method");
 
-  const onDeposit = (_data: WalletDepositFormData) => {
-    setDepositSuccess(true);
+  const onDeposit = async (data: WalletDepositFormData) => {
+    try {
+      const methodMap: Record<string, string> = {
+        MOBILE_BANKING: "bKash / Nagad",
+        BANK_TRANSFER: "Bank Transfer",
+        CARD: "Card",
+      };
+      const res = await fetch("/api/buyer-dashboard/wallet/deposit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: data.amount, method: methodMap[data.method] ?? data.method }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        console.error("Deposit failed:", json.message);
+        return;
+      }
+      setDepositSuccess(true);
+    } catch {
+      console.error("Deposit network error");
+    }
   };
 
   const openDeposit = () => {

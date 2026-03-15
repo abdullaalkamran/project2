@@ -189,7 +189,7 @@ const STATUS_COLORS: Record<string, string> = {
   ARRIVED:          "border-emerald-200 bg-emerald-50 text-emerald-700",
   PICKED_UP:        "border-slate-200 bg-slate-100 text-slate-500",
 };
-const ALL_STATUSES = ["HUB_RECEIVED","OUT_FOR_DELIVERY","ARRIVED","PICKED_UP"];
+const ALL_STATUSES = ["HUB_RECEIVED","OUT_FOR_DELIVERY","ARRIVED"];
 
 export default function AssignedOrdersClient() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -199,7 +199,7 @@ export default function AssignedOrdersClient() {
   const [scannerFor, setScannerFor] = useState<string | null>(null);
 
   const load = useCallback(() =>
-    api.get<Order[]>("/api/delivery-distributor/orders")
+    api.get<Order[]>("/api/delivery-distributor/orders?status=active")
       .then(setOrders).catch(() => setOrders([])).finally(() => setLoading(false)), []);
 
   useEffect(() => { void load(); }, [load]);

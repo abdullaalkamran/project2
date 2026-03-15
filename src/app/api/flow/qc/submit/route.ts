@@ -101,6 +101,15 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Auto-recalculate freeQty for all orders based on QC-confirmed actual quantity
+    if (typeof body.qty === "number" && lot.freeQtyEnabled && lot.freeQtyPer > 0 && lot.freeQtyAmount > 0) {
+      const newFreeQty = Math.floor(body.qty / lot.freeQtyPer) * lot.freeQtyAmount;
+      await prisma.order.updateMany({
+        where: { lotId: lot.id },
+        data: { freeQty: newFreeQty },
+      });
+    }
+
     // Save QC photos to media store
     if (Array.isArray(body.photos) && body.photos.length > 0) {
       await upsertLotQCPhotos(lot.lotCode, body.photos);

@@ -69,6 +69,26 @@ export type CMSContent = {
     placeholder: string;
     buttonText: string;
   };
+  marketplaceBanner: {
+    b1Enabled: string;
+    b1Image: string;
+    b1Title: string;
+    b1Subtitle: string;
+    b1Link: string;
+    b1Label: string;
+    b2Enabled: string;
+    b2Image: string;
+    b2Title: string;
+    b2Subtitle: string;
+    b2Link: string;
+    b2Label: string;
+    b3Enabled: string;
+    b3Image: string;
+    b3Title: string;
+    b3Subtitle: string;
+    b3Link: string;
+    b3Label: string;
+  };
 };
 
 export const DEFAULT_CMS: CMSContent = {
@@ -143,5 +163,25 @@ export const DEFAULT_CMS: CMSContent = {
     subheading: "Get daily price alerts and exclusive auction invitations.",
     placeholder: "Enter your email address",
     buttonText: "Subscribe now",
+  },
+  marketplaceBanner: {
+    b1Enabled: "false",
+    b1Image: "",
+    b1Title: "",
+    b1Subtitle: "",
+    b1Link: "",
+    b1Label: "Learn more",
+    b2Enabled: "false",
+    b2Image: "",
+    b2Title: "",
+    b2Subtitle: "",
+    b2Link: "",
+    b2Label: "Learn more",
+    b3Enabled: "false",
+    b3Image: "",
+    b3Title: "",
+    b3Subtitle: "",
+    b3Link: "",
+    b3Label: "Learn more",
   },
 };

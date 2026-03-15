@@ -399,16 +399,15 @@ export default function PreDispatchGate({ orderCode, orderedQty, role, initialDa
                             <div>
                               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-amber-500">
                                 Free Qty
-                                {orderedQty && (() => { const unit = orderedQty.split(" ").slice(1).join(" "); return unit ? <span className="ml-1 normal-case font-normal text-slate-300">({unit}, bonus)</span> : <span className="ml-1 normal-case font-normal text-slate-300">(bonus)</span>; })()}
+                                {orderedQty && (() => { const unit = orderedQty.split(" ").slice(1).join(" "); return unit ? <span className="ml-1 normal-case font-normal text-slate-300">({unit}, auto-calculated)</span> : <span className="ml-1 normal-case font-normal text-slate-300">(auto-calculated)</span>; })()}
                               </label>
                               <input
                                 type="number" min={0} step="0.01"
                                 value={form._freeQty}
-                                disabled={!editableByRole}
-                                onChange={(e) => setForm((p) => ({ ...p, _freeQty: e.target.value }))}
-                                onBlur={() => void save({ freeQty: Number(form._freeQty || 0) })}
+                                disabled={true}
+                                readOnly
                                 placeholder="0"
-                                className="w-full rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs outline-none focus:border-amber-400 disabled:bg-slate-50 disabled:text-slate-400"
+                                className="w-full rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs outline-none disabled:bg-slate-50 disabled:text-slate-400 cursor-not-allowed"
                               />
                             </div>
                           </div>

@@ -847,10 +847,10 @@ function TruckCapacityBar({
   previewQtyKg?: number; currentOrderId?: string;
 }) {
   const confirmedKg = orders
-    .filter((o) => o.assignedTruck === truckId && o.loadConfirmed && o.id !== currentOrderId)
+    .filter((o) => o.assignedTruck === truckId && o.loadConfirmed && o.id !== currentOrderId && o.status !== "PICKED_UP" && o.status !== "CANCELLED")
     .reduce((s, o) => s + effectiveQtyKg(o), 0);
   const assignedKg = orders
-    .filter((o) => o.assignedTruck === truckId && !o.loadConfirmed && o.id !== currentOrderId)
+    .filter((o) => o.assignedTruck === truckId && !o.loadConfirmed && o.id !== currentOrderId && o.status !== "PICKED_UP" && o.status !== "CANCELLED")
     .reduce((s, o) => s + effectiveQtyKg(o), 0);
 
   const cap          = capacityKg > 0 ? capacityKg : 1;
@@ -1003,8 +1003,9 @@ export default function DispatchAndFleetPage() {
 
   // ── Derived lists ─────────────────────────────────────────────────────────
   const availableTrucks = trucks.filter((t) => isAvailable(t.status));
-  const pending         = orders.filter((o) => !o.dispatched);
-  const done            = orders.filter((o) => o.dispatched);
+  const activeOrders    = orders.filter((o) => o.status !== "PICKED_UP" && o.status !== "CANCELLED");
+  const pending         = activeOrders.filter((o) => !o.dispatched);
+  const done            = activeOrders.filter((o) => o.dispatched);
 
   const statusCounts = {
     available:   trucks.filter((t) => isAvailable(t.status)).length,
@@ -1124,8 +1125,8 @@ export default function DispatchAndFleetPage() {
                 <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Fleet Capacity Overview</p>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {trucks.map((t) => {
-                    const confirmedKg = orders.filter((o) => o.assignedTruck === t.id && o.loadConfirmed).reduce((s, o) => s + effectiveQtyKg(o), 0);
-                    const assignedKg  = orders.filter((o) => o.assignedTruck === t.id && !o.loadConfirmed).reduce((s, o) => s + effectiveQtyKg(o), 0);
+                    const confirmedKg = orders.filter((o) => o.assignedTruck === t.id && o.loadConfirmed && o.status !== "PICKED_UP" && o.status !== "CANCELLED").reduce((s, o) => s + effectiveQtyKg(o), 0);
+                    const assignedKg  = orders.filter((o) => o.assignedTruck === t.id && !o.loadConfirmed && o.status !== "PICKED_UP" && o.status !== "CANCELLED").reduce((s, o) => s + effectiveQtyKg(o), 0);
                     const totalKg     = confirmedKg + assignedKg;
                     const cap         = t.capacityKg > 0 ? t.capacityKg : 1;
                     const confirmedPct = Math.min(100, (confirmedKg / cap) * 100);
@@ -1712,7 +1713,7 @@ export default function DispatchAndFleetPage() {
             ) : (
               <div className="space-y-4">
                 {trucks.map((t) => {
-                  const truckOrders   = orders.filter((o) => o.assignedTruck === t.id);
+                  const truckOrders   = orders.filter((o) => o.assignedTruck === t.id && o.status !== "PICKED_UP" && o.status !== "CANCELLED");
                   const loadedOrders  = truckOrders.filter((o) => o.loadConfirmed);
                   const usedKgVal     = loadedOrders.reduce((s, o) => s + effectiveQtyKg(o), 0);
                   const cfg           = getTruckStatusCfg(t.status);

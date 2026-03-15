@@ -7,7 +7,7 @@ import api from "@/lib/api";
 import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type HubOrder = {
-  id: string; product: string; qty: string; buyer: string; seller: string;
+  id: string; product: string; qty: string; freeQty: number; buyer: string; seller: string;
   deliveryPoint: string; assignedTruck: string | null; status: string;
   loadConfirmed: boolean; dispatched: boolean;
   confirmedAt: string; hubReceivedAt: string | null;
@@ -87,7 +87,7 @@ export default function HubIncomingClient() {
                   </span>
                 </div>
                 <p className="text-base font-bold text-slate-900">{o.product}</p>
-                <p className="text-sm text-slate-500">{o.qty}</p>
+                <p className="text-sm text-slate-500">{o.qty}{o.freeQty > 0 ? ` + ${o.freeQty} free` : ""}</p>
               </div>
               <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-2 text-right">
                 <p className="text-[10px] text-slate-400">Total Amount</p>

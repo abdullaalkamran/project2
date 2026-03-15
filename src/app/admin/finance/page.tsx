@@ -66,6 +66,32 @@ function downloadCSV(orders: RecentOrder[]) {
   URL.revokeObjectURL(url);
 }
 
+function downloadPaymentReqCSV(rows: PaymentReq[]) {
+  const header = "Code,Seller,Amount,Method,Bank Details,Status,Requested At,Processed At,Processed By,Transaction Ref";
+  const csvRows = rows.map((r) =>
+    [
+      r.paymentCode,
+      `"${r.sellerName}"`,
+      r.amount,
+      r.method,
+      `"${r.bankDetails ?? ""}"`,
+      r.status,
+      r.requestedAt ? new Date(r.requestedAt).toLocaleDateString("en-BD") : "",
+      r.processedAt ? new Date(r.processedAt).toLocaleDateString("en-BD") : "",
+      r.processedBy ?? "",
+      r.transactionRef ?? "",
+    ].join(",")
+  );
+  const csv = [header, ...csvRows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `paikari-payment-requests-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function downloadPayoutCSV(rows: PayoutRow[]) {
   const header = "Seller,Total Orders,Dispatched Orders,Total Earned,Dispatched Revenue,Pending Revenue,Dispatch Rate";
   const csvRows = rows.map((r) =>
@@ -758,8 +784,14 @@ export default function AdminFinancePage() {
                   <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Payment Requests Management</p>
                   <p className="text-xs text-slate-400 mt-0.5">Review, approve, reject, and track seller payment requests.</p>
                 </div>
-                <button type="button" onClick={fetchPayments}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">↻ Refresh</button>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => downloadPaymentReqCSV(filteredPayments)}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">
+                    ↓ Export CSV ({filteredPayments.length})
+                  </button>
+                  <button type="button" onClick={fetchPayments}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">↻ Refresh</button>
+                </div>
               </div>
 
               {/* Stat cards */}

@@ -5,7 +5,7 @@ import { CheckCircle2, Search } from "lucide-react";
 import api from "@/lib/api";
 
 type HubOrder = {
-  id: string; product: string; qty: string; buyer: string; seller: string;
+  id: string; product: string; qty: string; freeQty: number; buyer: string; seller: string;
   deliveryPoint: string; status: string; distributorName: string | null;
   confirmedAt: string; hubReceivedAt: string | null;
   pickedUpFromHubAt: string | null; arrivedAt: string | null;
@@ -126,7 +126,9 @@ export default function HubDeliveryHistoryClient() {
                   <tr key={o.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{o.id}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">{o.product}</td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{o.qty}</td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                      {o.qty}{o.freeQty > 0 ? <span className="ml-1 text-xs font-semibold text-emerald-600">+{o.freeQty} free</span> : null}
+                    </td>
                     <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{o.buyer}</td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{o.seller}</td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap max-w-[140px] truncate">{o.deliveryPoint}</td>

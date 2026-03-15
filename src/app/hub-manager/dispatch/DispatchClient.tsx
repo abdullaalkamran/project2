@@ -49,6 +49,7 @@ export default function DispatchClient() {
   const [busy, setBusy] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [gateOpen, setGateOpen] = useState<Record<string, boolean>>({});
+  const [truckError, setTruckError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const [ordersData, trucksData] = await Promise.all([
@@ -73,9 +74,12 @@ export default function DispatchClient() {
     const truckId = selectedTruck[orderId];
     if (!truckId) return;
     setBusy(orderId);
+    setTruckError(null);
     try {
       const updated = await api.patch<DispatchOrder>(`/api/flow/dispatch/orders/${orderId}`, { assignedTruck: truckId });
       setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...updated } : o)));
+    } catch (err) {
+      setTruckError(err instanceof Error ? err.message : "Failed to assign truck");
     } finally {
       setBusy(null);
     }
@@ -304,27 +308,34 @@ export default function DispatchClient() {
               {/* Action area */}
               <div className="border-t border-slate-100 px-5 py-3">
                 {step === 0 && (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <select
-                      value={selectedTruck[order.id] ?? ""}
-                      onChange={(e) => setSelectedTruck((prev) => ({ ...prev, [order.id]: e.target.value }))}
-                      className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400 min-w-[200px]"
-                    >
-                      <option value="">— Select a truck —</option>
-                      {availableTrucks.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.id} · {t.reg} · {t.type} ({t.capacityKg} kg){t.driverName ? ` · ${t.driverName}` : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => assignTruck(order.id)}
-                      disabled={isBusy || !selectedTruck[order.id] || !gateReady}
-                      className="rounded-xl bg-slate-800 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-900 disabled:opacity-40"
-                    >
-                      {isBusy ? "Assigning…" : "Assign Truck"}
-                    </button>
-                  </div>
+                  <>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <select
+                        value={selectedTruck[order.id] ?? ""}
+                        onChange={(e) => setSelectedTruck((prev) => ({ ...prev, [order.id]: e.target.value }))}
+                        className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400 min-w-[200px]"
+                      >
+                        <option value="">— Select a truck —</option>
+                        {availableTrucks.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.reg} · {t.type} · {t.capacityKg} kg{t.driverName ? ` · ${t.driverName}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => assignTruck(order.id)}
+                        disabled={isBusy || !selectedTruck[order.id] || !gateReady}
+                        className="rounded-xl bg-slate-800 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-900 disabled:opacity-40"
+                      >
+                        {isBusy ? "Assigning…" : "Assign Truck"}
+                      </button>
+                    </div>
+                    {truckError && (
+                      <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+                        {truckError}
+                      </p>
+                    )}
+                  </>
                 )}
                 {step === 1 && (
                   <div className="flex items-center gap-3">

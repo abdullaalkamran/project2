@@ -66,17 +66,17 @@ export async function POST(
   if (!order) return NextResponse.json({ message: "Order not found" }, { status: 404 });
 
   const check = await getPreDispatchCheck(orderCode);
+  // Gate must match gateReadyForDispatch: physicallyReceived + qualityChecked + packetQty + grossWeightKg + truckPriceBDT + hubManagerConfirmed
   const gatePassed = !!(
     check?.physicallyReceived &&
     check?.hubManagerConfirmed &&
-    check?.qcLeadConfirmed &&
     check?.qualityChecked &&
     check?.packetQty > 0 &&
     check?.grossWeightKg > 0
   );
   if (!gatePassed) {
     return NextResponse.json(
-      { message: "Complete physical receive + QC confirmations + packet/weight before QR generation." },
+      { message: "Complete all gate steps (physical receive, QC check, hub manager confirmation) before QR generation." },
       { status: 400 },
     );
   }

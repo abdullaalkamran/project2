@@ -25,7 +25,7 @@ export async function GET(
       qualityChecked: false,
       packetQty: 0,
       grossWeightKg: 0,
-      freeQty: 0,
+      freeQty: order.freeQty ?? 0,  // seed from QC-calculated value on Order
       step2EditRequested: false,
       step2Unlocked: false,
       truckPriceBDT: 0,

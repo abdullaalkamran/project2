@@ -65,5 +65,25 @@
     "subheading": "Get daily price alerts and exclusive auction invitations.",
     "placeholder": "Enter your email address",
     "buttonText": "Get updates"
+  },
+  "marketplaceBanner": {
+    "b1Enabled": "true",
+    "b1Image": "/uploads/hero-bg-1773588708470.png",
+    "b1Title": "",
+    "b1Subtitle": "",
+    "b1Link": "",
+    "b1Label": "Learn more",
+    "b2Enabled": "false",
+    "b2Image": "",
+    "b2Title": "",
+    "b2Subtitle": "",
+    "b2Link": "",
+    "b2Label": "Learn more",
+    "b3Enabled": "false",
+    "b3Image": "",
+    "b3Title": "",
+    "b3Subtitle": "",
+    "b3Link": "",
+    "b3Label": "Learn more"
   }
 }

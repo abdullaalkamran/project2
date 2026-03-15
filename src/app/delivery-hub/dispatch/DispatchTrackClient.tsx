@@ -6,7 +6,7 @@ import api from "@/lib/api";
 import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type TrackOrder = {
-  id: string; product: string; qty: string; buyer: string;
+  id: string; product: string; qty: string; freeQty: number; buyer: string;
   deliveryPoint: string; status: string; distributorName: string | null;
   distributorPhone: string | null; pickedUpFromHubAt: string | null; totalAmount: number;
   assignedTruck: string | null; dispatched: boolean; loadConfirmed: boolean;
@@ -76,7 +76,7 @@ export default function DispatchTrackClient() {
                   </span>
                 </div>
                 <p className="text-base font-bold text-slate-900">{o.product}</p>
-                <p className="text-sm text-slate-500">{o.qty} → <span className="font-medium text-slate-700">{o.deliveryPoint}</span></p>
+                <p className="text-sm text-slate-500">{o.qty}{o.freeQty > 0 ? ` + ${o.freeQty} free` : ""} → <span className="font-medium text-slate-700">{o.deliveryPoint}</span></p>
                 <p className="text-xs text-slate-500">
                   Truck: <span className="font-semibold text-slate-700">{o.assignedTruck ?? "Not assigned"}</span>
                   {" "}· Load: <span className="font-semibold text-slate-700">{o.loadConfirmed ? "Confirmed" : "Pending"}</span>
