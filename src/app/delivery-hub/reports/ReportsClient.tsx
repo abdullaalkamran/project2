@@ -27,7 +27,7 @@ export default function HubReportsClient() {
   useEffect(() => {
     Promise.all([
       api.get<Stats>("/api/delivery-hub/overview"),
-      api.get<HubOrder[]>("/api/delivery-hub/orders"),
+      api.get<HubOrder[]>("/api/delivery-hub/orders?status=tracking"),
     ])
       .then(([s, o]) => { setStats(s); setOrders(o); })
       .finally(() => setLoading(false));

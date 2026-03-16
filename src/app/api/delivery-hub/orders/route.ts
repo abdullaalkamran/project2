@@ -5,7 +5,7 @@ import { getAssignedHubNames } from "@/lib/hub-assignments";
 
 const HUB_STATUSES = ["DISPATCHED", "HUB_RECEIVED", "OUT_FOR_DELIVERY"];
 const HISTORY_STATUSES = ["ARRIVED", "PICKED_UP"];
-const TRACKING_STATUSES = ["DISPATCHED", "HUB_RECEIVED", "OUT_FOR_DELIVERY", "ARRIVED", "PICKED_UP"];
+const TRACKING_STATUSES = ["CONFIRMED", "DISPATCHED", "HUB_RECEIVED", "OUT_FOR_DELIVERY", "ARRIVED", "PICKED_UP"];
 
 export async function GET(req: NextRequest) {
   const session = await getSessionUser();

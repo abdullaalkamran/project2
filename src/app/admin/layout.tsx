@@ -5,13 +5,13 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Menu, X } from "lucide-react";
 
-type Badges = { disputes: number; pendingUsers: number; pendingPayments: number; pendingQC: number };
+type Badges = { disputes: number; pendingUsers: number; pendingPayments: number; pendingQC: number; pendingDeposits: number };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
-  const [badges, setBadges] = useState<Badges>({ disputes: 0, pendingUsers: 0, pendingPayments: 0, pendingQC: 0 });
+  const [badges, setBadges] = useState<Badges>({ disputes: 0, pendingUsers: 0, pendingPayments: 0, pendingQC: 0, pendingDeposits: 0 });
 
   useEffect(() => {
     const load = () => {
@@ -31,6 +31,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: "All Auctions",      href: "/admin/auctions" },
     { label: "All Orders",        href: "/admin/orders" },
     { label: "Revenue & Payouts", href: "/admin/finance",        badge: badges.pendingPayments > 0 ? String(badges.pendingPayments) : undefined, badgeColor: "bg-amber-500" },
+    { label: "Deposit Requests",  href: "/admin/deposit-requests", badge: badges.pendingDeposits > 0 ? String(badges.pendingDeposits) : undefined, badgeColor: "bg-emerald-500" },
     { label: "QC Reports",        href: "/admin/qc-reports",     badge: badges.pendingQC > 0 ? String(badges.pendingQC) : undefined, badgeColor: "bg-teal-500" },
     { label: "Hubs",              href: "/admin/hubs" },
     { label: "Delivery Points",   href: "/admin/delivery-points" },

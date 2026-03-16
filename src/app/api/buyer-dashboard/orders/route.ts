@@ -105,8 +105,10 @@ export async function GET() {
       transportPaidBy,
       platformFee,
       buyerTotalPayable,
-      // Actual weight from pre-dispatch check
-      actualWeightKg: pd?.grossWeightKg ?? null,
+      // Actual weight & pre-dispatch flags
+      actualWeightKg: (pd?.grossWeightKg ?? 0) > 0 ? pd!.grossWeightKg : null,
+      physicallyReceived: pd?.physicallyReceived ?? false,
+      qualityChecked: pd?.qualityChecked ?? false,
       actualQty,
       actualQtyUnit: qtyUnit,
       thumbnail,

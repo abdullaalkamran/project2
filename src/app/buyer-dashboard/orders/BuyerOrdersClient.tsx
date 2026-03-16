@@ -32,6 +32,8 @@ type OrderItem = {
   platformFee: number;
   buyerTotalPayable: number;
   actualWeightKg: number | null;
+  physicallyReceived: boolean;
+  qualityChecked: boolean;
   actualQty: number | null;
   actualQtyUnit: string;
   lotStatus: string;
@@ -95,18 +97,34 @@ const DELIVERY_STEPS: { label: string; sublabel: string }[] = [
 ];
 
 // Returns number of COMPLETED steps (0–10). Step i is done if i < result, active if i === result.
+// Step 0: Order Placed        → always done once order exists
+// Step 1: Order Confirmed     → sellerStatus ACCEPTED/CONFIRMED
+// Step 2: Goods at Hub        → lot.status reached AT_HUB or beyond
+// Step 3: Weight & QC Checked → actualWeightKg > 0 (pre-dispatch weight entered) OR lot QC done
+// Step 4: Truck Confirmed     → assignedTruck set or loadConfirmed
+// Step 5: In Transit          → dispatched / status DISPATCHED
+// Step 6: Hub Received        → status HUB_RECEIVED
+// Step 7: QTY & Weight Checked → status OUT_FOR_DELIVERY
+// Step 8: Ready for Pickup    → status ARRIVED
+// Step 9: Delivered           → status PICKED_UP
+const LOT_STATUSES_AT_OR_PAST_HUB = [
+  "AT_HUB", "IN_QC", "QC_SUBMITTED", "QC_PASSED", "QC_FAILED", "LIVE", "AUCTION_ENDED",
+];
+
 function deliveryActiveStep(o: OrderItem): number {
-  if (o.status === "PICKED_UP")       return 10; // all done
-  if (o.status === "ARRIVED")         return 9;
-  if (o.status === "OUT_FOR_DELIVERY") return 8;
-  if (o.status === "HUB_RECEIVED")    return 7;
+  if (o.status === "PICKED_UP")                  return 10;
+  if (o.status === "ARRIVED")                    return 9;
+  if (o.status === "OUT_FOR_DELIVERY")           return 8;
+  if (o.status === "HUB_RECEIVED")               return 7;
   if (o.dispatched || o.status === "DISPATCHED") return 6;
-  if (o.assignedTruck)                return 5;
-  if (o.actualWeightKg != null || o.actualQty != null) return 4;
-  if (o.loadConfirmed)                return 3;
+  if (o.assignedTruck || o.loadConfirmed)        return 5;
+  // Step 3 done only when pre-dispatch weight check is physically done by hub/QC
+  if (o.qualityChecked && o.actualWeightKg != null && o.actualWeightKg > 0) return 4;
+  // Step 2 done when lot physically arrived at the hub (hub manager received it)
+  if (LOT_STATUSES_AT_OR_PAST_HUB.includes(o.lotStatus)) return 3;
   const s = o.sellerStatus;
-  if (s === "ACCEPTED" || s === "CONFIRMED" || o.status === "CONFIRMED") return 2;
-  return 1; // order placed, awaiting seller
+  if (s === "ACCEPTED" || s === "CONFIRMED")     return 2;
+  return 1;
 }
 
 function DeliveryStepBar({ o }: { o: OrderItem }) {

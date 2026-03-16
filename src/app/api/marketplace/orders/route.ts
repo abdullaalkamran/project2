@@ -55,9 +55,32 @@ export async function POST(req: NextRequest) {
     update: {},
   });
 
-  if (buyerWallet.balance < productAmount) {
+  const requiredAtPlacement = productAmount + platformFee;
+  if (buyerWallet.balance < requiredAtPlacement) {
+    const shortfall = Math.round((requiredAtPlacement - buyerWallet.balance) * 100) / 100;
+    // Notify hub managers and QC leader about the blocked order attempt
+    const parties = await getLotParties(lot.id);
+    await notifyMany(parties.hubManagerIds, {
+      type: "ORDER_PLACED",
+      title: "Order Blocked — Buyer Insufficient Balance",
+      message: `${session.name} tried to order "${lot.title}" (${lot.lotCode}) but wallet balance (৳${buyerWallet.balance.toLocaleString()}) is insufficient. Required: ৳${requiredAtPlacement.toLocaleString()}, Shortfall: ৳${shortfall.toLocaleString()}.`,
+      link: "/hub-manager",
+    });
+    if (parties.qcLeaderId) {
+      await notify(parties.qcLeaderId, {
+        type: "ORDER_PLACED",
+        title: "Order Blocked — Buyer Insufficient Balance",
+        message: `${session.name} could not place an order on "${lot.title}" (${lot.lotCode}) due to insufficient balance. Shortfall: ৳${shortfall.toLocaleString()}.`,
+        link: "/qc-leader",
+      });
+    }
     return NextResponse.json(
-      { message: `Insufficient wallet balance. You need ৳${productAmount.toLocaleString()} but have ৳${buyerWallet.balance.toLocaleString()}. Please add funds.` },
+      {
+        message: `Insufficient wallet balance. You need ৳${requiredAtPlacement.toLocaleString()} (product + platform fee) but have ৳${buyerWallet.balance.toLocaleString()}. Please add ৳${shortfall.toLocaleString()} to your wallet.`,
+        shortfall,
+        required: requiredAtPlacement,
+        available: buyerWallet.balance,
+      },
       { status: 400 }
     );
   }

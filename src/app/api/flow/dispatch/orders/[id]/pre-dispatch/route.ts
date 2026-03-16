@@ -97,6 +97,11 @@ export async function PATCH(
 
   // Sync truck price to order.transportCost and apply buyer wallet delta on every change.
   const prevTruckPrice = previous?.truckPriceBDT ?? 0;
+  // Hoist these so the post-save notification block can read them
+  let buyerInsufficientBalance = false;
+  let buyerDelta = 0;
+  let buyerWallet: { id: string; balance: number } | null = null;
+
   if (prevTruckPrice !== next.truckPriceBDT) {
     // productAmount: use existing if already set, else use totalAmount (= product price at order creation)
     const productAmount = order.productAmount > 0 ? order.productAmount : order.totalAmount;
@@ -105,11 +110,11 @@ export async function PATCH(
     const sellerPayable = productAmount - platformFee;
     const prevSplit = splitTransport(prevTruckPrice);
     const nextSplit = splitTransport(next.truckPriceBDT);
-    const buyerDelta = toMoney(nextSplit.buyerShare - prevSplit.buyerShare);   // +ve charge buyer, -ve refund
+    buyerDelta = toMoney(nextSplit.buyerShare - prevSplit.buyerShare);         // +ve charge buyer, -ve refund
     const sellerDelta = toMoney(nextSplit.sellerShare - prevSplit.sellerShare); // +ve charge seller, -ve refund
 
     const sellerUserId = order.sellerId ?? await userIdByName(order.sellerName);
-    const buyerWallet = order.buyerId
+    buyerWallet = order.buyerId
       ? await prisma.wallet.upsert({
           where: { userId: order.buyerId },
           create: { userId: order.buyerId, balance: 0 },
@@ -140,7 +145,11 @@ export async function PATCH(
       }),
     ];
 
-    if (buyerWallet && buyerDelta !== 0) {
+    // Check buyer balance before charging transport delta
+    if (buyerWallet && buyerDelta > 0 && buyerWallet.balance < buyerDelta) {
+      buyerInsufficientBalance = true;
+      // DO NOT deduct — notifications sent after save below
+    } else if (buyerWallet && buyerDelta !== 0) {
       tx.push(
         prisma.wallet.update({
           where: { id: buyerWallet.id },
@@ -301,6 +310,58 @@ export async function PATCH(
         link: "/buyer-dashboard/orders",
       });
     }
+  }
+
+  // ── Insufficient balance notifications ───────────────────────────────────
+  if (buyerInsufficientBalance) {
+    const shortfall = Math.round((buyerDelta - (buyerWallet?.balance ?? 0)) * 100) / 100;
+    const fmt = (n: number) => `৳${Math.round(n).toLocaleString("en-IN")}`;
+
+    // Notify buyer
+    if (order.buyerId) {
+      await notify(order.buyerId, {
+        type: "ORDER_PLACED",
+        title: "Insufficient Balance — Action Required",
+        message: `Your wallet balance is ${fmt(buyerWallet?.balance ?? 0)}, but order (${orderCode}) for "${order.product}" requires ${fmt(buyerDelta)} for transport cost. You are short by ${fmt(shortfall)}. Please add funds immediately.`,
+        link: "/buyer-dashboard/payments",
+      });
+    }
+
+    // Notify hub managers
+    await notifyMany(parties.hubManagerIds, {
+      type: "ORDER_PLACED",
+      title: "Buyer Insufficient Balance",
+      message: `Buyer "${order.buyerName}" does not have enough wallet balance for transport cost of order (${orderCode}) — "${order.product}". Required: ${fmt(buyerDelta)}, Available: ${fmt(buyerWallet?.balance ?? 0)}, Shortfall: ${fmt(shortfall)}. Please follow up immediately.`,
+      link: "/hub-manager/dispatch",
+    });
+
+    // Notify QC leader
+    if (parties.qcLeaderId) {
+      await notify(parties.qcLeaderId, {
+        type: "ORDER_PLACED",
+        title: "Buyer Insufficient Balance",
+        message: `Buyer "${order.buyerName}" cannot cover the transport cost (${fmt(buyerDelta)}) for order (${orderCode}) — "${order.product}". Wallet balance: ${fmt(buyerWallet?.balance ?? 0)}. Shortfall: ${fmt(shortfall)}.`,
+        link: "/qc-leader/confirmed-orders",
+      });
+    }
+
+    // Notify seller
+    if (parties.sellerId) {
+      await notify(parties.sellerId, {
+        type: "ORDER_PLACED",
+        title: "Buyer Insufficient Balance",
+        message: `Buyer "${order.buyerName}" does not have sufficient funds for transport cost on order (${orderCode}) — "${order.product}". Shortfall: ${fmt(shortfall)}. Dispatch may be delayed.`,
+        link: "/seller-dashboard/orders",
+      });
+    }
+
+    return NextResponse.json({
+      ...saved,
+      insufficientBalance: true,
+      shortfall,
+      required: buyerDelta,
+      available: buyerWallet?.balance ?? 0,
+    });
   }
 
   return NextResponse.json(saved);

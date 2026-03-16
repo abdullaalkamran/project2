@@ -19,28 +19,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "Maximum deposit is ৳ 10,00,000" }, { status: 400 });
   }
 
-  // Upsert wallet
-  const wallet = await prisma.wallet.upsert({
-    where: { userId: session.userId },
-    create: { userId: session.userId, balance: 0, currency: "BDT" },
-    update: {},
+  // Generate a unique deposit code
+  const depositCode = "DEP-" + Date.now().toString(36).toUpperCase().slice(-6) + Math.random().toString(36).toUpperCase().slice(2, 5);
+
+  const request = await prisma.depositRequest.create({
+    data: {
+      depositCode,
+      userId: session.userId,
+      userName: session.name,
+      amount,
+      method,
+      accountDetails: accountDetails ?? null,
+      status: "PENDING",
+    },
   });
 
-  // Create transaction + update balance
-  const [transaction] = await prisma.$transaction([
-    prisma.walletTransaction.create({
-      data: {
-        walletId: wallet.id,
-        type: "DEPOSIT",
-        amount,
-        description: `${method}${accountDetails ? ` — ${accountDetails}` : ""}`,
-      },
-    }),
-    prisma.wallet.update({
-      where: { id: wallet.id },
-      data: { balance: { increment: amount } },
-    }),
-  ]);
-
-  return NextResponse.json({ ok: true, transactionId: transaction.id, newBalance: wallet.balance + amount }, { status: 201 });
+  return NextResponse.json(
+    { ok: true, depositCode: request.depositCode, status: "PENDING" },
+    { status: 201 }
+  );
 }

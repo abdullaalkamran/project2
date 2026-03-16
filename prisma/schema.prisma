@@ -46,6 +46,7 @@ model User {
   qcReports     QCReport[]
   notifications Notification[]
   paymentRequests PaymentRequest[]
+  depositRequests DepositRequest[]
   hubAssignments HubManagerAssignment[]
 
   @@index([email])
@@ -367,6 +368,29 @@ model PaymentRequest {
 
   @@index([sellerId])
   @@index([status])
+}
+
+// ─── Deposit Requests (buyer → admin approval required) ───────────────────────
+
+model DepositRequest {
+  id             String    @id @default(cuid())
+  depositCode    String    @unique
+  userId         String
+  userName       String
+  amount         Float
+  method         String
+  accountDetails String?
+  status         String    @default("PENDING")  // PENDING | APPROVED | REJECTED
+  rejectedReason String?
+  processedBy    String?
+  requestedAt    DateTime  @default(now())
+  processedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt])
 }
 
 // ─── Hubs ─────────────────────────────────────────────────────────────────────

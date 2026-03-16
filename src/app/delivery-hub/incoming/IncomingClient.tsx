@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2, Phone, Truck } from "lucide-react";
 import api from "@/lib/api";
-import LotLifecycleTracker from "@/components/LotLifecycleTracker";
+import DeliveryStepBar from "@/components/DeliveryStepBar";
 
 type HubOrder = {
   id: string; product: string; qty: string; freeQty: number; buyer: string; seller: string;
@@ -87,7 +87,6 @@ export default function HubIncomingClient() {
                   </span>
                 </div>
                 <p className="text-base font-bold text-slate-900">{o.product}</p>
-                <p className="text-sm text-slate-500">{o.qty}{o.freeQty > 0 ? ` + ${o.freeQty} free` : ""}</p>
               </div>
               <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-2 text-right">
                 <p className="text-[10px] text-slate-400">Total Amount</p>
@@ -100,6 +99,8 @@ export default function HubIncomingClient() {
                 { label: "Buyer", value: o.buyer },
                 { label: "Seller", value: o.seller },
                 { label: "Delivery Point", value: o.deliveryPoint },
+                { label: "Qty", value: o.qty },
+                ...(o.freeQty > 0 ? [{ label: "Free Qty", value: `+ ${o.freeQty}` }] : []),
                 { label: "Truck", value: o.assignedTruck ?? "Not assigned yet" },
                 { label: "Dispatch", value: o.dispatched ? "Dispatched from source hub" : "Pending dispatch" },
                 { label: "Load", value: o.loadConfirmed ? "Loaded on truck" : "Load not confirmed" },
@@ -127,8 +128,8 @@ export default function HubIncomingClient() {
               )}
             </div>
 
-            <div className="border-t border-slate-100 px-5 py-4">
-              <LotLifecycleTracker lotStatus="LIVE" orderStatus={o.status} loadConfirmed={o.loadConfirmed} dispatched={o.dispatched} />
+            <div className="border-t border-slate-100 px-5 pt-3 pb-2">
+              <DeliveryStepBar status={o.status} distributorName={o.distributorName} />
             </div>
 
             <div className="border-t border-slate-100 px-5 py-3 flex items-center justify-between gap-3">

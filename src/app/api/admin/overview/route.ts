@@ -33,6 +33,7 @@ export async function GET() {
     lotStatusCounts,
     deliveredOrdersCount,
     pendingPaymentsCount,
+    pendingDepositsCount,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { createdAt: { gte: startOfMonth } } }),
@@ -74,6 +75,7 @@ export async function GET() {
     }),
     prisma.order.count({ where: { delivered: true } }),
     prisma.paymentRequest.count({ where: { status: "PENDING" } }),
+    prisma.depositRequest.count({ where: { status: "PENDING" } }),
   ]);
 
   const thisMonthRevenue = revenueResult._sum.totalAmount ?? 0;
@@ -186,6 +188,7 @@ export async function GET() {
       pendingUsers: pendingUsers,
       pendingPayments: pendingPaymentsCount,
       pendingQC,
+      pendingDeposits: pendingDepositsCount,
     },
     recentUsers: recentUsers.map((u) => ({
       id: u.id,

@@ -16,13 +16,20 @@ export async function GET() {
     },
   });
 
-  // Also pull order payments for this buyer (complement wallet transactions)
-  const orders = await prisma.order.findMany({
-    where: { OR: [{ buyerId: session.userId }, { buyerName: session.name, buyerId: null }] },
-    select: { orderCode: true, product: true, totalAmount: true, confirmedAt: true, status: true },
-    orderBy: { confirmedAt: "desc" },
-    take: 50,
-  });
+  // Order payments + pending deposit requests
+  const [orders, depositRequests] = await Promise.all([
+    prisma.order.findMany({
+      where: { OR: [{ buyerId: session.userId }, { buyerName: session.name, buyerId: null }] },
+      select: { orderCode: true, product: true, totalAmount: true, confirmedAt: true, status: true },
+      orderBy: { confirmedAt: "desc" },
+      take: 50,
+    }),
+    prisma.depositRequest.findMany({
+      where: { userId: session.userId },
+      orderBy: { requestedAt: "desc" },
+      take: 50,
+    }),
+  ]);
 
   const totalDeposited = wallet.transactions
     .filter(t => t.type === "DEPOSIT")
@@ -49,6 +56,17 @@ export async function GET() {
       description: o.product,
       status: "Completed",
       createdAt: o.confirmedAt.toISOString(),
+    })),
+    depositRequests: depositRequests.map(d => ({
+      id: d.id,
+      depositCode: d.depositCode,
+      amount: d.amount,
+      method: d.method,
+      accountDetails: d.accountDetails,
+      status: d.status,
+      rejectedReason: d.rejectedReason,
+      requestedAt: d.requestedAt.toISOString(),
+      processedAt: d.processedAt?.toISOString() ?? null,
     })),
   });
 }

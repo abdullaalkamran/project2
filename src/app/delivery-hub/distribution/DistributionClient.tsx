@@ -303,6 +303,11 @@ function OrderCard({
 
   return (
     <div className={`rounded-2xl border bg-white shadow-sm overflow-hidden ${isDone ? "border-emerald-100" : "border-slate-100"}`}>
+      {/* Step progress */}
+      <div className="border-b border-slate-50 px-5 pt-4 pb-3">
+        <StepBar current={currentStep} />
+      </div>
+
       <div className="flex flex-wrap items-start justify-between gap-3 p-5">
         <div className="space-y-1">
           <span className="font-mono text-xs text-slate-400">{order.id}</span>

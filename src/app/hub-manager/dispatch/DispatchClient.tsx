@@ -24,6 +24,7 @@ type DispatchOrder = {
   lotId: string;
   product: string;
   qty: string;
+  freeQty: number;
   seller: string;
   buyer: string;
   deliveryPoint: string;
@@ -175,7 +176,9 @@ export default function DispatchClient() {
                     )}
                   </div>
                   <p className="text-base font-bold text-slate-900">{order.product}</p>
-                  <p className="text-xs text-slate-500">{order.qty}</p>
+                  <p className="text-xs text-slate-500">
+                    {order.qty}{order.freeQty > 0 && <span className="ml-1 font-semibold text-emerald-600">+ {order.freeQty} free</span>}
+                  </p>
                 </div>
                 <div className="flex gap-3">
                   <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-center min-w-[90px]">
