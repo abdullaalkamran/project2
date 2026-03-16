@@ -30,12 +30,18 @@ export async function GET(req: NextRequest) {
   ]);
   const checkByCode = new Map(checks.map((c) => [c.orderCode, c]));
 
-  // Lookup buyer phones
-  const buyerIds = [...new Set(orders.map((o) => o.buyerId).filter(Boolean) as string[])];
-  const buyerPhoneMap = new Map<string, string | null>();
-  if (buyerIds.length > 0) {
-    const users = await prisma.user.findMany({ where: { id: { in: buyerIds } }, select: { id: true, phone: true } });
-    users.forEach((u) => buyerPhoneMap.set(u.id, u.phone ?? null));
+  // Lookup buyer + seller phones
+  const buyerIds  = [...new Set(orders.map((o) => o.buyerId).filter(Boolean)  as string[])];
+  const sellerIds = [...new Set(orders.map((o) => o.sellerId).filter(Boolean) as string[])];
+  const allUserIds = [...new Set([...buyerIds, ...sellerIds])];
+  const buyerPhoneMap  = new Map<string, string | null>();
+  const sellerPhoneMap = new Map<string, string | null>();
+  if (allUserIds.length > 0) {
+    const users = await prisma.user.findMany({ where: { id: { in: allUserIds } }, select: { id: true, phone: true } });
+    users.forEach((u) => {
+      if (buyerIds.includes(u.id))  buyerPhoneMap.set(u.id, u.phone ?? null);
+      if (sellerIds.includes(u.id)) sellerPhoneMap.set(u.id, u.phone ?? null);
+    });
   }
 
   // Lookup truck driver info
@@ -64,7 +70,8 @@ export async function GET(req: NextRequest) {
         qty: o.qty,
         buyer: o.buyerName,
         seller: o.sellerName,
-        buyerPhone: o.buyerId ? (buyerPhoneMap.get(o.buyerId) ?? null) : null,
+        buyerPhone:  o.buyerId  ? (buyerPhoneMap.get(o.buyerId)   ?? null) : null,
+        sellerPhone: o.sellerId ? (sellerPhoneMap.get(o.sellerId) ?? null) : null,
         deliveryPoint: o.deliveryPoint,
         status: o.status,
         totalAmount: o.totalAmount,

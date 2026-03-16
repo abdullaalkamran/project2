@@ -11,7 +11,9 @@ type Order = {
   deliveryPoint: string; status: string; totalAmount: number;
   distributorAssignedAt: string | null; pickedUpFromHubAt: string | null; arrivedAt: string | null;
   packetQty: number; freeQty: number;
+  seller: string;
   buyerPhone: string | null;
+  sellerPhone: string | null;
   truckDriverName: string | null;
   truckDriverPhone: string | null;
 };
@@ -547,12 +549,18 @@ export default function AssignedOrdersClient() {
               </div>
 
               {/* Contact chips */}
-              {(o.buyerPhone || o.truckDriverName) && (
+              {(o.buyerPhone || o.sellerPhone || o.truckDriverName) && (
                 <div className="border-t border-slate-50 flex flex-wrap gap-2 px-5 py-3">
                   {o.buyerPhone && (
                     <a href={`tel:${o.buyerPhone}`}
                       className="flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100 transition">
-                      <Phone size={11} /> {o.buyer} · {o.buyerPhone}
+                      <Phone size={11} /> Buyer: {o.buyer} · {o.buyerPhone}
+                    </a>
+                  )}
+                  {o.sellerPhone && (
+                    <a href={`tel:${o.sellerPhone}`}
+                      className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition">
+                      <Phone size={11} /> Seller: {o.seller} · {o.sellerPhone}
                     </a>
                   )}
                   {o.truckDriverName && (

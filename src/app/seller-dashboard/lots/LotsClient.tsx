@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import api from "@/lib/api";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 type ActiveLot = {
   id: string;
@@ -341,6 +342,11 @@ export default function LotsClient() {
                     {lot.status}
                   </span>
                 </div>
+              </div>
+
+              {/* Lifecycle tracker */}
+              <div className="border-t border-slate-100 px-3 py-2">
+                <LotLifecycleTracker lotStatus={lot.rawStatus} compact />
               </div>
 
               {/* Action Required banner */}

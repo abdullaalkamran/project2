@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
+import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 /* ─── types ─── */
 type HistoryItem = {
@@ -300,6 +301,7 @@ export default function HistoryClient() {
               {/* Expanded Detail */}
               {isExpanded && (
                 <div className="border-t border-slate-100 px-5 pb-5 pt-4 space-y-4">
+                  <LotLifecycleTracker lotStatus={item.rawLotStatus} />
                   {/* Timeline */}
                   <div className="space-y-3">
                     <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">Timeline</h4>

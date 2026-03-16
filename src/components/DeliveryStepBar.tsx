@@ -21,7 +21,8 @@ function activeStep({ status, distributorName }: Props): number {
   if (status === "OUT_FOR_DELIVERY") return 5;
   if (distributorName)               return 4;
   if (status === "HUB_RECEIVED")     return 3;
-  return 2; // DISPATCHED
+  if (status === "DISPATCHED")       return 2;
+  return 1; // CONFIRMED
 }
 
 export default function DeliveryStepBar({ status, distributorName }: Props) {
@@ -34,7 +35,6 @@ export default function DeliveryStepBar({ status, distributorName }: Props) {
         const step = i + 1;
         const isDone   = step < current || done;
         const isActive = step === current && !done;
-        const isFuture = step > current;
 
         return (
           <div key={step} className="flex items-center">

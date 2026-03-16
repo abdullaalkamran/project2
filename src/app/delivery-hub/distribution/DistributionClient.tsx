@@ -41,6 +41,7 @@ type HubOrder = {
   damageNotes: string | null;
   totalAmount: number;
   buyerPhone: string | null;
+  sellerPhone: string | null;
   truckDriverName: string | null;
   truckDriverPhone: string | null;
 };
@@ -324,13 +325,19 @@ function OrderCard({
         <p className="text-sm font-bold text-emerald-700">৳ {order.totalAmount.toLocaleString()}</p>
       </div>
 
-      {/* Contact details — buyer + truck driver */}
-      {(order.buyerPhone || order.truckDriverName) && (
+      {/* Contact details */}
+      {(order.buyerPhone || order.sellerPhone || order.truckDriverName) && (
         <div className="flex flex-wrap gap-2 px-5 pb-4">
           {order.buyerPhone && (
             <a href={`tel:${order.buyerPhone}`}
               className="flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100 transition">
               <Phone size={12} /> Buyer: {order.buyer} · {order.buyerPhone}
+            </a>
+          )}
+          {order.sellerPhone && (
+            <a href={`tel:${order.sellerPhone}`}
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition">
+              <Phone size={12} /> Seller: {order.seller} · {order.sellerPhone}
             </a>
           )}
           {order.truckDriverName && (

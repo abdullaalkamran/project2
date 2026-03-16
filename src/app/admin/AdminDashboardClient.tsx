@@ -3,87 +3,30 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import {
+  ArrowRight, BarChart3, Bell,
+  Building2, DollarSign, Gavel, Globe, Info, Loader2,
+  MapPin, Package, RefreshCw, ShieldAlert, ShoppingCart,
+  TrendingUp, Truck, Users, Wallet, Warehouse, Wrench,
+} from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type StatItem = { label: string; value: string; sub: string; href: string; color: string; bg: string };
-
-type Revenue = {
-  thisMonth: number; lastMonth: number; allTime: number;
-  platformFees: number; growth: number;
-};
-
-type UserBreakdown = {
-  total: number; sellers: number; buyers: number;
-  suspended: number; pending: number; newThisMonth: number;
-};
-
-type PlatformHealth = {
-  hubCount: number; pendingPayments: number;
-  deliveredOrders: number; lotBreakdown: Record<string, number>;
-};
-
-type HubStat = { id: string; name: string; location: string; type: string; lots: number };
-
+type StatItem    = { label: string; value: string; sub: string; href: string; color: string; bg: string };
+type Revenue     = { thisMonth: number; lastMonth: number; allTime: number; platformFees: number; growth: number };
+type UserBreakdown  = { total: number; sellers: number; buyers: number; suspended: number; pending: number; newThisMonth: number };
+type PlatformHealth = { hubCount: number; pendingPayments: number; deliveredOrders: number; lotBreakdown: Record<string, number> };
+type HubStat     = { id: string; name: string; location: string; type: string; lots: number };
 type RecentUser  = { id: string; name: string; email: string; role: string; status: string; joined: string };
 type RecentLot   = { id: string; lotCode: string; title: string; seller: string; status: string; createdAt: string };
 type RecentOrder = { id: string; orderCode: string; buyer: string; seller: string; product: string; amount: number; status: string; date: string };
 
-// ── Colour maps ───────────────────────────────────────────────────────────────
-
-const statusColors: Record<string, string> = {
-  ACTIVE: "bg-emerald-50 text-emerald-700",
-  PENDING: "bg-orange-50 text-orange-600",
-  SUSPENDED: "bg-red-50 text-red-600",
-};
-
-const orderStatusColors: Record<string, string> = {
-  CONFIRMED: "bg-blue-50 text-blue-700",
-  DISPATCHED: "bg-amber-50 text-amber-700",
-  DELIVERED: "bg-emerald-50 text-emerald-700",
-  CANCELLED: "bg-red-50 text-red-600",
-};
-
-const lotStatusColors: Record<string, string> = {
-  LIVE: "bg-emerald-50 text-emerald-700",
-  QC_PASSED: "bg-blue-50 text-blue-700",
-  IN_QC: "bg-orange-50 text-orange-600",
-  QC_SUBMITTED: "bg-violet-50 text-violet-700",
-  QC_FAILED: "bg-red-50 text-red-600",
-  AUCTION_ENDED: "bg-slate-100 text-slate-500",
-  PENDING_DELIVERY: "bg-slate-50 text-slate-600",
-  AT_HUB: "bg-sky-50 text-sky-700",
-};
-
-const roleColors: Record<string, string> = {
-  admin: "bg-violet-50 text-violet-700",
-  seller: "bg-emerald-50 text-emerald-700",
-  buyer: "bg-sky-50 text-sky-700",
-  hub_manager: "bg-amber-50 text-amber-700",
-  qc_leader: "bg-teal-50 text-teal-700",
-  qc_checker: "bg-teal-50 text-teal-600",
-  delivery_hub_manager: "bg-indigo-50 text-indigo-700",
-  delivery_distributor: "bg-indigo-50 text-indigo-600",
-};
-
-const hubTypeColors: Record<string, string> = {
-  BOTH: "bg-indigo-50 text-indigo-700",
-  RECEIVING: "bg-amber-50 text-amber-700",
-  DELIVERY: "bg-teal-50 text-teal-700",
-};
-
-const hubTypeLabels: Record<string, string> = {
-  BOTH: "Receiving & Delivery",
-  RECEIVING: "Receiving Only",
-  DELIVERY: "Delivery Only",
-};
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtBDT(n: number) {
-  if (n >= 10_000_000) return "৳ " + (n / 10_000_000).toFixed(1) + "Cr";
-  if (n >= 100_000) return "৳ " + (n / 100_000).toFixed(1) + "L";
-  return "৳ " + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  if (n >= 10_000_000) return "৳" + (n / 10_000_000).toFixed(1) + "Cr";
+  if (n >= 100_000)    return "৳" + (n / 100_000).toFixed(1) + "L";
+  return "৳" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 }
 
 function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
@@ -98,21 +41,63 @@ function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
   );
 }
 
+const LOT_STATUS_COLORS: Record<string, string> = {
+  LIVE: "bg-emerald-100 text-emerald-700", QC_PASSED: "bg-blue-100 text-blue-700",
+  IN_QC: "bg-orange-100 text-orange-700", QC_SUBMITTED: "bg-violet-100 text-violet-700",
+  QC_FAILED: "bg-red-100 text-red-600", AUCTION_ENDED: "bg-slate-100 text-slate-500",
+  PENDING_DELIVERY: "bg-slate-100 text-slate-600", AT_HUB: "bg-sky-100 text-sky-700",
+};
+const LOT_STATUS_LABELS: Record<string, string> = {
+  PENDING_DELIVERY: "Pending Delivery", AT_HUB: "At Hub", IN_QC: "In QC",
+  QC_SUBMITTED: "QC Submitted", QC_PASSED: "QC Passed", QC_FAILED: "QC Failed",
+  LIVE: "Live", AUCTION_ENDED: "Ended",
+};
+const ORDER_STATUS_COLORS: Record<string, string> = {
+  CONFIRMED: "bg-blue-100 text-blue-700", DISPATCHED: "bg-amber-100 text-amber-700",
+  HUB_RECEIVED: "bg-sky-100 text-sky-700", OUT_FOR_DELIVERY: "bg-violet-100 text-violet-700",
+  ARRIVED: "bg-teal-100 text-teal-700", PICKED_UP: "bg-emerald-100 text-emerald-700",
+  CANCELLED: "bg-red-100 text-red-600",
+};
+const ROLE_COLORS: Record<string, string> = {
+  admin: "bg-violet-100 text-violet-700", seller: "bg-emerald-100 text-emerald-700",
+  buyer: "bg-sky-100 text-sky-700", hub_manager: "bg-amber-100 text-amber-700",
+  qc_leader: "bg-teal-100 text-teal-700", qc_checker: "bg-teal-100 text-teal-600",
+  delivery_hub_manager: "bg-indigo-100 text-indigo-700", delivery_distributor: "bg-indigo-100 text-indigo-600",
+};
+
+// ── Nav items ─────────────────────────────────────────────────────────────────
+
+const NAV = [
+  { label: "Users",        href: "/admin/users",            Icon: Users        },
+  { label: "Auctions",     href: "/admin/auctions",         Icon: Gavel        },
+  { label: "Orders",       href: "/admin/orders",           Icon: ShoppingCart },
+  { label: "Finance",      href: "/admin/finance",          Icon: DollarSign   },
+  { label: "Deposits",     href: "/admin/deposit-requests", Icon: Wallet       },
+  { label: "QC Reports",   href: "/admin/qc-reports",       Icon: BarChart3    },
+  { label: "Disputes",     href: "/admin/disputes",         Icon: ShieldAlert  },
+  { label: "Hubs",         href: "/admin/hubs",             Icon: Warehouse    },
+  { label: "Delivery Pts", href: "/admin/delivery-points",  Icon: MapPin       },
+  { label: "Fleet",        href: "/admin/hubs",             Icon: Truck        },
+  { label: "CMS",          href: "/admin/cms",              Icon: Globe        },
+  { label: "Settings",     href: "/admin/settings",         Icon: Wrench       },
+];
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function AdminDashboardClient() {
-  const [stats, setStats]               = useState<StatItem[]>([]);
-  const [revenue, setRevenue]           = useState<Revenue | null>(null);
-  const [userBreakdown, setUserBreakdown] = useState<UserBreakdown | null>(null);
+  const [revenue, setRevenue]               = useState<Revenue | null>(null);
+  const [userBreakdown, setUserBreakdown]   = useState<UserBreakdown | null>(null);
   const [platformHealth, setPlatformHealth] = useState<PlatformHealth | null>(null);
-  const [hubs, setHubs]                 = useState<HubStat[]>([]);
-  const [recentUsers, setRecentUsers]   = useState<RecentUser[]>([]);
-  const [recentLots, setRecentLots]     = useState<RecentLot[]>([]);
-  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [refreshing, setRefreshing]     = useState(false);
-  const [lastUpdated, setLastUpdated]   = useState<Date | null>(null);
-  const [activeSection, setActiveSection] = useState<"orders" | "users" | "lots">("orders");
+  const [hubs, setHubs]                     = useState<HubStat[]>([]);
+  const [stats, setStats]                   = useState<StatItem[]>([]);
+  const [recentUsers, setRecentUsers]       = useState<RecentUser[]>([]);
+  const [recentLots, setRecentLots]         = useState<RecentLot[]>([]);
+  const [recentOrders, setRecentOrders]     = useState<RecentOrder[]>([]);
+  const [pendingDeposits, setPendingDeposits] = useState(0);
+  const [loading, setLoading]               = useState(true);
+  const [refreshing, setRefreshing]         = useState(false);
+  const [lastUpdated, setLastUpdated]       = useState<Date | null>(null);
+  const [tab, setTab]                       = useState<"orders" | "users" | "lots">("orders");
 
   const fetchData = useCallback((isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -120,404 +105,405 @@ export default function AdminDashboardClient() {
       stats: StatItem[]; revenue: Revenue; userBreakdown: UserBreakdown;
       platformHealth: PlatformHealth; hubs: HubStat[];
       recentUsers: RecentUser[]; recentLots: RecentLot[]; recentOrders: RecentOrder[];
+      badges?: { pendingDeposits: number; pendingPayments: number };
     }>("/api/admin/overview")
-      .then(data => {
-        setStats(data.stats);
-        setRevenue(data.revenue);
-        setUserBreakdown(data.userBreakdown);
-        setPlatformHealth(data.platformHealth);
-        setHubs(data.hubs ?? []);
-        setRecentUsers(data.recentUsers);
-        setRecentLots(data.recentLots);
-        setRecentOrders(data.recentOrders);
+      .then(d => {
+        setStats(d.stats); setRevenue(d.revenue); setUserBreakdown(d.userBreakdown);
+        setPlatformHealth(d.platformHealth); setHubs(d.hubs ?? []);
+        setRecentUsers(d.recentUsers); setRecentLots(d.recentLots); setRecentOrders(d.recentOrders);
+        setPendingDeposits(d.badges?.pendingDeposits ?? 0);
         setLastUpdated(new Date());
       })
       .finally(() => { setLoading(false); setRefreshing(false); });
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => {
-    const id = setInterval(() => fetchData(true), 60_000);
-    return () => clearInterval(id);
-  }, [fetchData]);
+  useEffect(() => { const id = setInterval(() => fetchData(true), 60_000); return () => clearInterval(id); }, [fetchData]);
 
-  // ── Loading ─────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-8 w-56 rounded-lg bg-slate-100" />
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 rounded-2xl bg-slate-100" />)}
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-24 rounded-2xl bg-slate-100" />)}
-        </div>
-        <div className="h-64 rounded-2xl bg-slate-100" />
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
       </div>
     );
   }
 
-  // ── Alerts ──────────────────────────────────────────────────────────────────
-  const pendingUsers = userBreakdown?.pending ?? 0;
-  const pendingPayments = platformHealth?.pendingPayments ?? 0;
-  const openDisputesVal = parseInt(stats.find(s => s.label === "Open Disputes")?.value ?? "0");
-  const pendingQCVal = parseInt(stats.find(s => s.label === "QC Pending")?.value ?? "0");
+  const pendingUsers     = userBreakdown?.pending ?? 0;
+  const pendingPayments  = platformHealth?.pendingPayments ?? 0;
+  const openDisputes     = parseInt(stats.find(s => s.label === "Open Disputes")?.value ?? "0");
+  const pendingQC        = parseInt(stats.find(s => s.label === "QC Pending")?.value ?? "0");
 
   const alerts = [
-    pendingUsers > 0
-      ? { type: "warn",  msg: `${pendingUsers} account${pendingUsers > 1 ? "s" : ""} pending approval`, href: "/admin/users" }
-      : null,
-    openDisputesVal > 0
-      ? { type: "error", msg: `${openDisputesVal} open dispute${openDisputesVal > 1 ? "s" : ""} need attention`, href: "/admin/disputes" }
-      : null,
-    pendingQCVal > 0
-      ? { type: "info",  msg: `${pendingQCVal} lots awaiting QC inspection`, href: "/admin/qc-reports" }
-      : null,
-    pendingPayments > 0
-      ? { type: "info",  msg: `${pendingPayments} seller payment request${pendingPayments > 1 ? "s" : ""} pending`, href: "/admin/finance" }
-      : null,
-  ].filter(Boolean) as { type: string; msg: string; href: string }[];
+    openDisputes    > 0 ? { Icon: ShieldAlert, msg: `${openDisputes} open dispute${openDisputes > 1 ? "s" : ""} need attention`,        href: "/admin/disputes",         cls: "border-red-200 bg-red-50 text-red-700"       } : null,
+    pendingUsers    > 0 ? { Icon: Bell,         msg: `${pendingUsers} account${pendingUsers > 1 ? "s" : ""} pending approval`,            href: "/admin/users",            cls: "border-amber-200 bg-amber-50 text-amber-700" } : null,
+    pendingDeposits > 0 ? { Icon: Wallet,       msg: `${pendingDeposits} deposit request${pendingDeposits > 1 ? "s" : ""} awaiting approval`, href: "/admin/deposit-requests", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" } : null,
+    pendingPayments > 0 ? { Icon: DollarSign,   msg: `${pendingPayments} seller payment${pendingPayments > 1 ? "s" : ""} pending`,         href: "/admin/finance",          cls: "border-sky-200 bg-sky-50 text-sky-700"       } : null,
+    pendingQC       > 0 ? { Icon: Info,         msg: `${pendingQC} lot${pendingQC > 1 ? "s" : ""} awaiting QC inspection`,                href: "/admin/qc-reports",       cls: "border-violet-200 bg-violet-50 text-violet-700" } : null,
+  ].filter(Boolean) as { Icon: React.ElementType; msg: string; href: string; cls: string }[];
+
+  const lotBreakdown = platformHealth?.lotBreakdown ?? {};
+  const lotTotal = Object.values(lotBreakdown).reduce((a, b) => a + b, 0) || 1;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-indigo-400">Super Admin</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-indigo-400">Super Admin</p>
           <h1 className="text-2xl font-bold text-slate-900">Platform Overview</h1>
-          <p className="mt-0.5 text-sm text-slate-500">Real-time health across all operations</p>
+          {lastUpdated && <p className="mt-0.5 text-xs text-slate-400">Last updated {lastUpdated.toLocaleTimeString()}</p>}
         </div>
-        <div className="flex items-center gap-3">
-          {lastUpdated && (
-            <span className="text-[11px] text-slate-400">Updated {lastUpdated.toLocaleTimeString()}</span>
-          )}
-          <button type="button" onClick={() => fetchData(true)} disabled={refreshing}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition">
-            <svg className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            {refreshing ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
+        <button onClick={() => fetchData(true)} disabled={refreshing}
+          className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 transition">
+          <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+          {refreshing ? "Refreshing…" : "Refresh"}
+        </button>
       </div>
 
       {/* ── Alerts ─────────────────────────────────────────────────────────── */}
       {alerts.length > 0 && (
-        <div className="space-y-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           {alerts.map((a, i) => (
             <Link key={i} href={a.href}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition hover:opacity-90 ${
-                a.type === "error" ? "bg-red-50 text-red-700 border border-red-100"
-                : a.type === "warn" ? "bg-amber-50 text-amber-700 border border-amber-100"
-                : "bg-sky-50 text-sky-700 border border-sky-100"
-              }`}>
-              <span className="text-base leading-none">
-                {a.type === "error" ? "⚠️" : a.type === "warn" ? "🔔" : "ℹ️"}
-              </span>
-              {a.msg}
-              <span className="ml-auto text-xs opacity-60">View →</span>
+              className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-medium transition hover:opacity-90 ${a.cls}`}>
+              <a.Icon size={15} className="shrink-0" />
+              <span className="flex-1">{a.msg}</span>
+              <ArrowRight size={13} className="shrink-0 opacity-60" />
             </Link>
           ))}
         </div>
       )}
 
-      {/* ── KPI Row ────────────────────────────────────────────────────────── */}
-      {revenue && userBreakdown && platformHealth && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {[
-            { label: "This Month",    value: fmtBDT(revenue.thisMonth),    sub: `${revenue.growth >= 0 ? "+" : ""}${revenue.growth}% vs last month`, href: "/admin/finance",  grad: "from-indigo-600 to-violet-600", text: "text-white", sub2: "text-indigo-200" },
-            { label: "All-Time Revenue", value: fmtBDT(revenue.allTime),   sub: "Total GMV",    href: "/admin/finance",  grad: "from-slate-700 to-slate-800", text: "text-white", sub2: "text-slate-300" },
-            { label: "Platform Fees", value: fmtBDT(revenue.platformFees), sub: "Commission earned", href: "/admin/finance",  grad: "from-emerald-500 to-teal-600", text: "text-white", sub2: "text-emerald-100" },
-            { label: "Sellers",       value: String(userBreakdown.sellers), sub: "Registered",   href: "/admin/users/sellers", grad: "from-amber-400 to-orange-500", text: "text-white", sub2: "text-amber-100" },
-            { label: "Buyers",        value: String(userBreakdown.buyers),  sub: "Registered",   href: "/admin/users/buyers",  grad: "from-sky-400 to-blue-500",    text: "text-white", sub2: "text-sky-100" },
-            { label: "Active Hubs",   value: String(platformHealth.hubCount), sub: "Operating",  href: "/admin/hubs",          grad: "from-teal-500 to-cyan-600",   text: "text-white", sub2: "text-teal-100" },
-          ].map(c => (
-            <Link key={c.label} href={c.href}
-              className={`rounded-2xl bg-gradient-to-br ${c.grad} p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}>
-              <p className={`text-[10px] font-semibold uppercase tracking-wider ${c.sub2}`}>{c.label}</p>
-              <p className={`mt-1 text-xl font-bold ${c.text}`}>{c.value}</p>
-              <p className={`mt-0.5 text-[10px] ${c.sub2}`}>{c.sub}</p>
-            </Link>
-          ))}
+      {/* ── Revenue Strip ──────────────────────────────────────────────────── */}
+      {revenue && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Link href="/admin/finance"
+            className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 p-5 shadow-md transition hover:-translate-y-0.5 hover:shadow-lg">
+            <TrendingUp size={40} className="absolute -right-3 -top-3 text-indigo-400/30" />
+            <p className="text-xs font-semibold uppercase tracking-widest text-indigo-200">This Month</p>
+            <p className="mt-1 text-3xl font-bold text-white">{fmtBDT(revenue.thisMonth)}</p>
+            <p className={`mt-1 text-xs font-medium ${revenue.growth >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+              {revenue.growth >= 0 ? "▲" : "▼"} {Math.abs(revenue.growth)}% vs last month
+            </p>
+          </Link>
+          <Link href="/admin/finance"
+            className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 p-5 shadow-md transition hover:-translate-y-0.5 hover:shadow-lg">
+            <BarChart3 size={40} className="absolute -right-3 -top-3 text-slate-600/40" />
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">All-Time GMV</p>
+            <p className="mt-1 text-3xl font-bold text-white">{fmtBDT(revenue.allTime)}</p>
+            <p className="mt-1 text-xs text-slate-400">Total trade value</p>
+          </Link>
+          <Link href="/admin/finance"
+            className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-5 shadow-md transition hover:-translate-y-0.5 hover:shadow-lg">
+            <DollarSign size={40} className="absolute -right-3 -top-3 text-emerald-300/30" />
+            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-100">Platform Fees</p>
+            <p className="mt-1 text-3xl font-bold text-white">{fmtBDT(revenue.platformFees)}</p>
+            <p className="mt-1 text-xs text-emerald-100">Commission earned</p>
+          </Link>
         </div>
       )}
 
-      {/* ── Quick Actions ──────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-2">
-        {[
-          { label: "Users",        href: "/admin/users",        icon: "👥", primary: true },
-          { label: "Auctions",     href: "/admin/auctions",     icon: "🔨", primary: true },
-          { label: "Orders",       href: "/admin/orders",       icon: "📦", primary: false },
-          { label: "QC Reports",   href: "/admin/qc-reports",   icon: "🔬", primary: false },
-          { label: "Finance",      href: "/admin/finance",      icon: "💰", primary: false },
-          { label: "Disputes",     href: "/admin/disputes",     icon: "⚖️",  primary: false },
-          { label: "Hubs",         href: "/admin/hubs",         icon: "🏭", primary: false },
-          { label: "Settings",     href: "/admin/settings",     icon: "⚙️",  primary: false },
-        ].map(a => (
-          <Link key={a.href} href={a.href}
-            className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition ${
-              a.primary
-                ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                : "border border-slate-200 text-slate-700 hover:bg-slate-50"
-            }`}>
-            <span className="text-base leading-none">{a.icon}</span>
-            {a.label}
+      {/* ── Quick Nav ──────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 xl:grid-cols-12">
+        {NAV.map(({ label, href, Icon }) => (
+          <Link key={label} href={href}
+            className="flex flex-col items-center gap-1.5 rounded-2xl border border-slate-100 bg-white px-2 py-3 text-center shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+            <Icon size={18} className="text-slate-500" />
+            <span className="text-[11px] font-semibold text-slate-600">{label}</span>
           </Link>
         ))}
       </div>
 
-      {/* ── Stat Cards ─────────────────────────────────────────────────────── */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* ── Operational Stats ──────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {stats.map(s => (
           <Link key={s.label} href={s.href}
-            className={`rounded-2xl border border-slate-100 p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${s.bg}`}>
-            <p className="text-xs text-slate-500">{s.label}</p>
-            <p className={`mt-1 text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="mt-1 text-xs text-slate-400">{s.sub}</p>
+            className="group rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{s.label}</p>
+            <p className={`mt-1.5 text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">{s.sub}</p>
           </Link>
         ))}
       </div>
 
-      {/* ── User Breakdown + Lot Status ────────────────────────────────────── */}
-      {userBreakdown && platformHealth && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {/* User Breakdown */}
-          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-bold text-slate-800">User Breakdown</p>
-              <Link href="/admin/users" className="text-xs font-semibold text-indigo-600 hover:underline">View all →</Link>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { label: "Total",     value: userBreakdown.total,         color: "text-slate-900",   bg: "bg-slate-50" },
-                { label: "Sellers",   value: userBreakdown.sellers,       color: "text-amber-700",   bg: "bg-amber-50" },
-                { label: "Buyers",    value: userBreakdown.buyers,        color: "text-sky-700",     bg: "bg-sky-50" },
-                { label: "New / Mo",  value: userBreakdown.newThisMonth,  color: "text-indigo-700",  bg: "bg-indigo-50" },
-                { label: "Pending",   value: userBreakdown.pending,       color: "text-orange-700",  bg: "bg-orange-50" },
-                { label: "Suspended", value: userBreakdown.suspended,     color: "text-red-600",     bg: "bg-red-50" },
-              ].map(c => (
-                <div key={c.label} className={`rounded-xl ${c.bg} p-3 text-center`}>
-                  <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">{c.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* ── Main Grid: Activity + Breakdown ────────────────────────────────── */}
+      <div className="grid gap-5 lg:grid-cols-3">
 
-          {/* Lot Status Breakdown */}
-          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-bold text-slate-800">Lot Status Breakdown</p>
-              <Link href="/admin/auctions" className="text-xs font-semibold text-indigo-600 hover:underline">View all →</Link>
-            </div>
-            <div className="space-y-2">
-              {[
-                { key: "PENDING_DELIVERY", label: "Pending Delivery" },
-                { key: "AT_HUB",           label: "At Hub" },
-                { key: "IN_QC",            label: "In QC" },
-                { key: "QC_SUBMITTED",     label: "QC Submitted" },
-                { key: "QC_PASSED",        label: "QC Passed" },
-                { key: "LIVE",             label: "Live Auction" },
-                { key: "AUCTION_ENDED",    label: "Auction Ended" },
-                { key: "QC_FAILED",        label: "QC Failed" },
-              ]
-                .filter(s => (platformHealth.lotBreakdown[s.key] ?? 0) > 0)
-                .map(s => {
-                  const count = platformHealth.lotBreakdown[s.key] ?? 0;
-                  const total = Object.values(platformHealth.lotBreakdown).reduce((a, b) => a + b, 0) || 1;
-                  const pct = Math.round((count / total) * 100);
-                  return (
-                    <div key={s.key} className="flex items-center gap-3">
-                      <span className={`w-28 shrink-0 rounded-full px-2 py-0.5 text-center text-[10px] font-semibold ${lotStatusColors[s.key] ?? "bg-slate-100 text-slate-500"}`}>
-                        {s.label}
-                      </span>
-                      <div className="flex-1 rounded-full bg-slate-100 h-2">
-                        <div className="h-2 rounded-full bg-indigo-400" style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="w-8 text-right text-xs font-semibold text-slate-700">{count}</span>
-                    </div>
-                  );
-                })
-              }
-              {Object.keys(platformHealth.lotBreakdown).length === 0 && (
-                <p className="text-sm text-slate-400">No lots yet.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Hub Status ─────────────────────────────────────────────────────── */}
-      {hubs.length > 0 && (
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm font-bold text-slate-800">Hub Status</p>
-            <Link href="/admin/hubs" className="text-xs font-semibold text-indigo-600 hover:underline">Manage hubs →</Link>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {hubs.map(h => (
-              <div key={h.id} className="flex items-start justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-slate-900 text-sm truncate">{h.name}</p>
-                  <p className="text-xs text-slate-400 truncate">{h.location}</p>
-                  <span className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${hubTypeColors[h.type] ?? "bg-slate-100 text-slate-600"}`}>
-                    {hubTypeLabels[h.type] ?? h.type}
-                  </span>
-                </div>
-                <div className="ml-3 text-right shrink-0">
-                  <p className="text-lg font-bold text-slate-800">{h.lots}</p>
-                  <p className="text-[10px] text-slate-400">lots</p>
-                </div>
-              </div>
+        {/* Activity Table — 2/3 */}
+        <div className="lg:col-span-2 rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="flex items-center gap-1 border-b border-slate-100 px-5 pt-4">
+            {(["orders","users","lots"] as const).map(t => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`rounded-t-lg px-4 py-2 text-sm font-semibold capitalize transition ${
+                  tab === t ? "border-b-2 border-indigo-600 text-indigo-700" : "text-slate-400 hover:text-slate-700"
+                }`}>
+                {t === "lots" ? "Auctions" : t === "orders" ? "Orders" : "Users"}
+              </button>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Activity Tabs ──────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-        {/* Tab header */}
-        <div className="flex items-center gap-1 border-b border-slate-100 px-5 pt-4">
-          {(["orders", "users", "lots"] as const).map(tab => (
-            <button key={tab} type="button" onClick={() => setActiveSection(tab)}
-              className={`rounded-t-lg px-4 py-2 text-sm font-semibold capitalize transition ${
-                activeSection === tab
-                  ? "border-b-2 border-indigo-600 text-indigo-700"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}>
-              Recent {tab === "lots" ? "Auctions" : tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
-          <div className="ml-auto pb-2">
-            <Link href={activeSection === "orders" ? "/admin/orders" : activeSection === "users" ? "/admin/users" : "/admin/auctions"}
-              className="text-xs font-semibold text-indigo-700 hover:underline">
-              View all →
+            <Link href={tab === "orders" ? "/admin/orders" : tab === "users" ? "/admin/users" : "/admin/auctions"}
+              className="ml-auto mb-2 flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline">
+              View all <ArrowRight size={11} />
             </Link>
           </div>
+
+          {tab === "orders" && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[580px] text-sm">
+                <thead>
+                  <tr className="border-b border-slate-50 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    <th className="px-5 py-3">Order</th>
+                    <th className="px-5 py-3">Product</th>
+                    <th className="px-5 py-3">Buyer</th>
+                    <th className="px-5 py-3">Amount</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {recentOrders.length === 0 ? (
+                    <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-400">No orders yet</td></tr>
+                  ) : recentOrders.map(o => (
+                    <tr key={o.id} className="hover:bg-slate-50/60 transition">
+                      <td className="px-5 py-3.5 font-mono text-xs font-semibold text-indigo-600">{o.orderCode}</td>
+                      <td className="px-5 py-3.5 font-medium text-slate-800">{o.product}</td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <Avatar name={o.buyer} size="sm" />
+                          <span className="text-slate-600 text-xs">{o.buyer}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 font-semibold text-slate-800">{fmtBDT(o.amount)}</td>
+                      <td className="px-5 py-3.5">
+                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${ORDER_STATUS_COLORS[o.status] ?? "bg-slate-100 text-slate-600"}`}>
+                          {o.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-slate-400">{o.date}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {tab === "users" && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] text-sm">
+                <thead>
+                  <tr className="border-b border-slate-50 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    <th className="px-5 py-3">Name</th>
+                    <th className="px-5 py-3">Email</th>
+                    <th className="px-5 py-3">Role</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Joined</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {recentUsers.length === 0 ? (
+                    <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-400">No users yet</td></tr>
+                  ) : recentUsers.map(u => (
+                    <tr key={u.id} className="hover:bg-slate-50/60 transition">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <Avatar name={u.name} size="sm" />
+                          <Link href={`/admin/users/${u.id}`} className="font-medium text-slate-800 hover:text-indigo-700 hover:underline text-sm">
+                            {u.name}
+                          </Link>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-slate-500">{u.email}</td>
+                      <td className="px-5 py-3.5">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-500"}`}>
+                          {u.role.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                          u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700"
+                          : u.status === "PENDING" ? "bg-amber-100 text-amber-700"
+                          : "bg-red-100 text-red-600"
+                        }`}>
+                          {u.status.charAt(0) + u.status.slice(1).toLowerCase()}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-slate-400">{u.joined}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {tab === "lots" && (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[500px] text-sm">
+                <thead>
+                  <tr className="border-b border-slate-50 text-left text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    <th className="px-5 py-3">Lot</th>
+                    <th className="px-5 py-3">Title</th>
+                    <th className="px-5 py-3">Seller</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {recentLots.length === 0 ? (
+                    <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-400">No lots yet</td></tr>
+                  ) : recentLots.map(l => (
+                    <tr key={l.id} className="hover:bg-slate-50/60 transition">
+                      <td className="px-5 py-3.5 font-mono text-xs font-semibold text-indigo-600">{l.lotCode}</td>
+                      <td className="px-5 py-3.5 font-medium text-slate-800">{l.title}</td>
+                      <td className="px-5 py-3.5 text-xs text-slate-500">{l.seller}</td>
+                      <td className="px-5 py-3.5">
+                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${LOT_STATUS_COLORS[l.status] ?? "bg-slate-100 text-slate-600"}`}>
+                          {LOT_STATUS_LABELS[l.status] ?? l.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-slate-400">{l.createdAt}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
-        {/* Recent Orders */}
-        {activeSection === "orders" && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                <tr>
-                  <th className="px-5 py-3 text-left">Order</th>
-                  <th className="px-5 py-3 text-left">Product</th>
-                  <th className="px-5 py-3 text-left">Buyer</th>
-                  <th className="px-5 py-3 text-left">Seller</th>
-                  <th className="px-5 py-3 text-left">Amount</th>
-                  <th className="px-5 py-3 text-left">Status</th>
-                  <th className="px-5 py-3 text-left">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {recentOrders.length === 0 ? (
-                  <tr><td colSpan={7} className="px-5 py-10 text-center text-slate-400">No orders yet</td></tr>
-                ) : recentOrders.map(o => (
-                  <tr key={o.id} className="hover:bg-slate-50 transition">
-                    <td className="px-5 py-4 font-mono text-xs text-indigo-600">{o.orderCode}</td>
-                    <td className="px-5 py-4 font-medium text-slate-900">{o.product}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <Avatar name={o.buyer} size="sm" />
-                        <span className="text-slate-600">{o.buyer}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-slate-500">{o.seller}</td>
-                    <td className="px-5 py-4 font-semibold text-slate-800">{fmtBDT(o.amount)}</td>
-                    <td className="px-5 py-4">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${orderStatusColors[o.status] ?? "bg-slate-100 text-slate-600"}`}>
-                        {o.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-slate-500">{o.date}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {/* Right sidebar — 1/3 */}
+        <div className="space-y-4">
 
-        {/* Recent Users */}
-        {activeSection === "users" && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[500px] text-sm">
-              <thead className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                <tr>
-                  <th className="px-5 py-3 text-left">Name</th>
-                  <th className="px-5 py-3 text-left">Email</th>
-                  <th className="px-5 py-3 text-left">Role</th>
-                  <th className="px-5 py-3 text-left">Status</th>
-                  <th className="px-5 py-3 text-left">Joined</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {recentUsers.length === 0 ? (
-                  <tr><td colSpan={5} className="px-5 py-10 text-center text-slate-400">No users yet</td></tr>
-                ) : recentUsers.map(u => (
-                  <tr key={u.id} className="hover:bg-slate-50 transition">
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar name={u.name} />
-                        <Link href={`/admin/users/${u.id}`} className="font-medium text-slate-900 hover:text-indigo-700 hover:underline">
-                          {u.name}
-                        </Link>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-slate-500">{u.email}</td>
-                    <td className="px-5 py-4">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${roleColors[u.role] ?? "bg-slate-100 text-slate-500"}`}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusColors[u.status] ?? "bg-slate-100 text-slate-500"}`}>
-                        {u.status.charAt(0) + u.status.slice(1).toLowerCase()}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-slate-500">{u.joined}</td>
-                  </tr>
+          {/* User Breakdown */}
+          {userBreakdown && (
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users size={14} className="text-slate-400" />
+                  <p className="text-sm font-bold text-slate-800">Users</p>
+                </div>
+                <Link href="/admin/users" className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline">
+                  Manage <ArrowRight size={10} />
+                </Link>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "Total",     value: userBreakdown.total,        color: "text-slate-800",  bg: "bg-slate-50"  },
+                  { label: "Sellers",   value: userBreakdown.sellers,      color: "text-amber-700",  bg: "bg-amber-50"  },
+                  { label: "Buyers",    value: userBreakdown.buyers,       color: "text-sky-700",    bg: "bg-sky-50"    },
+                  { label: "New/Mo",    value: userBreakdown.newThisMonth, color: "text-indigo-700", bg: "bg-indigo-50" },
+                  { label: "Pending",   value: userBreakdown.pending,      color: "text-orange-700", bg: "bg-orange-50" },
+                  { label: "Suspended", value: userBreakdown.suspended,    color: "text-red-600",    bg: "bg-red-50"    },
+                ].map(c => (
+                  <div key={c.label} className={`rounded-xl ${c.bg} p-2.5 text-center`}>
+                    <p className={`text-lg font-bold ${c.color}`}>{c.value}</p>
+                    <p className="text-[10px] text-slate-500">{c.label}</p>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </div>
+            </div>
+          )}
 
-        {/* Recent Lots */}
-        {activeSection === "lots" && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                <tr>
-                  <th className="px-5 py-3 text-left">Lot Code</th>
-                  <th className="px-5 py-3 text-left">Title</th>
-                  <th className="px-5 py-3 text-left">Seller</th>
-                  <th className="px-5 py-3 text-left">Status</th>
-                  <th className="px-5 py-3 text-left">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {recentLots.length === 0 ? (
-                  <tr><td colSpan={5} className="px-5 py-10 text-center text-slate-400">No lots yet</td></tr>
-                ) : recentLots.map(l => (
-                  <tr key={l.id} className="hover:bg-slate-50 transition">
-                    <td className="px-5 py-4 font-mono text-xs text-indigo-600">{l.lotCode}</td>
-                    <td className="px-5 py-4 font-medium text-slate-900">{l.title}</td>
-                    <td className="px-5 py-4 text-slate-500">{l.seller}</td>
-                    <td className="px-5 py-4">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${lotStatusColors[l.status] ?? "bg-slate-100 text-slate-600"}`}>
-                        {l.status}
+          {/* Pending Requests */}
+          {(pendingDeposits > 0 || pendingPayments > 0) && (
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-5 shadow-sm">
+              <div className="mb-3 flex items-center gap-2">
+                <Bell size={14} className="text-amber-500" />
+                <p className="text-sm font-bold text-amber-800">Pending Requests</p>
+              </div>
+              <div className="space-y-2">
+                {pendingDeposits > 0 && (
+                  <Link href="/admin/deposit-requests"
+                    className="flex items-center justify-between rounded-xl border border-emerald-200 bg-white px-3 py-2.5 transition hover:bg-emerald-50">
+                    <div className="flex items-center gap-2">
+                      <Wallet size={14} className="text-emerald-600" />
+                      <span className="text-xs font-semibold text-slate-700">Buyer Deposits</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">{pendingDeposits}</span>
+                      <ArrowRight size={11} className="text-slate-400" />
+                    </div>
+                  </Link>
+                )}
+                {pendingPayments > 0 && (
+                  <Link href="/admin/finance"
+                    className="flex items-center justify-between rounded-xl border border-sky-200 bg-white px-3 py-2.5 transition hover:bg-sky-50">
+                    <div className="flex items-center gap-2">
+                      <DollarSign size={14} className="text-sky-600" />
+                      <span className="text-xs font-semibold text-slate-700">Seller Payouts</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700">{pendingPayments}</span>
+                      <ArrowRight size={11} className="text-slate-400" />
+                    </div>
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Lot Pipeline */}
+          {platformHealth && Object.keys(lotBreakdown).length > 0 && (
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Package size={14} className="text-slate-400" />
+                  <p className="text-sm font-bold text-slate-800">Lot Pipeline</p>
+                </div>
+                <Link href="/admin/auctions" className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline">
+                  View <ArrowRight size={10} />
+                </Link>
+              </div>
+              <div className="space-y-2.5">
+                {[
+                  "PENDING_DELIVERY","AT_HUB","IN_QC","QC_SUBMITTED",
+                  "QC_PASSED","LIVE","AUCTION_ENDED","QC_FAILED",
+                ].filter(k => (lotBreakdown[k] ?? 0) > 0).map(k => {
+                  const count = lotBreakdown[k] ?? 0;
+                  const pct = Math.round((count / lotTotal) * 100);
+                  return (
+                    <div key={k} className="flex items-center gap-2">
+                      <span className={`w-24 shrink-0 rounded-full px-1.5 py-0.5 text-center text-[9px] font-bold ${LOT_STATUS_COLORS[k] ?? "bg-slate-100 text-slate-500"}`}>
+                        {LOT_STATUS_LABELS[k] ?? k}
                       </span>
-                    </td>
-                    <td className="px-5 py-4 text-slate-500">{l.createdAt}</td>
-                  </tr>
+                      <div className="flex-1 rounded-full bg-slate-100 h-1.5">
+                        <div className="h-1.5 rounded-full bg-indigo-400 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="w-5 text-right text-xs font-bold text-slate-600">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Hubs */}
+          {hubs.length > 0 && (
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Building2 size={14} className="text-slate-400" />
+                  <p className="text-sm font-bold text-slate-800">Hubs</p>
+                </div>
+                <Link href="/admin/hubs" className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:underline">
+                  Manage <ArrowRight size={10} />
+                </Link>
+              </div>
+              <div className="space-y-2">
+                {hubs.map(h => (
+                  <div key={h.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-800 truncate">{h.name}</p>
+                      <p className="text-[10px] text-slate-400 truncate">{h.location}</p>
+                    </div>
+                    <div className="ml-3 shrink-0 text-right">
+                      <p className="text-base font-bold text-slate-700">{h.lots}</p>
+                      <p className="text-[9px] text-slate-400">lots</p>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

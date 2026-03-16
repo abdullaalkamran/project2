@@ -6,11 +6,12 @@ import api from "@/lib/api";
 import DeliveryStepBar from "@/components/DeliveryStepBar";
 
 type TrackOrder = {
-  id: string; product: string; qty: string; freeQty: number; buyer: string;
+  id: string; product: string; qty: string; freeQty: number; buyer: string; seller: string;
   deliveryPoint: string; status: string; distributorName: string | null;
   distributorPhone: string | null; pickedUpFromHubAt: string | null; totalAmount: number;
   assignedTruck: string | null; dispatched: boolean; loadConfirmed: boolean;
   buyerPhone: string | null;
+  sellerPhone: string | null;
   truckDriverName: string | null;
   truckDriverPhone: string | null;
 };
@@ -125,7 +126,13 @@ function OrderCard({ o }: { o: TrackOrder }) {
             {o.buyerPhone && (
               <a href={`tel:${o.buyerPhone}`}
                 className="flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-100 transition">
-                <Phone size={10} /> {o.buyer} · {o.buyerPhone}
+                <Phone size={10} /> Buyer: {o.buyer} · {o.buyerPhone}
+              </a>
+            )}
+            {o.sellerPhone && (
+              <a href={`tel:${o.sellerPhone}`}
+                className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 transition">
+                <Phone size={10} /> Seller: {o.seller} · {o.sellerPhone}
               </a>
             )}
             {o.truckDriverName && (

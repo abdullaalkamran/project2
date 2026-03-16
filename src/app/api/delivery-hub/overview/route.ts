@@ -44,6 +44,7 @@ export async function GET() {
   today.setHours(0, 0, 0, 0);
 
   const [
+    confirmedOrders,
     incomingOrders,
     hubReceivedOrders,
     outForDeliveryCount,
@@ -53,6 +54,7 @@ export async function GET() {
     dispatchedToday,
     activeDistributors,
   ] = await Promise.all([
+    prisma.order.findMany({ where: { status: "CONFIRMED",         ...hubFilter }, orderBy: { confirmedAt: "asc" }, take: MAX_ITEMS, select: { orderCode: true, product: true, buyerName: true, deliveryPoint: true } }),
     prisma.order.findMany({ where: { status: "DISPATCHED",        ...hubFilter }, orderBy: { confirmedAt: "asc" }, take: MAX_ITEMS, select: { orderCode: true, product: true, buyerName: true, deliveryPoint: true } }),
     prisma.order.findMany({ where: { status: "HUB_RECEIVED",      ...hubFilter }, orderBy: { hubReceivedAt: "asc" }, take: MAX_ITEMS, select: { orderCode: true, product: true, buyerName: true, deliveryPoint: true, distributorName: true } }),
     prisma.order.count({   where: { status: "OUT_FOR_DELIVERY",   ...hubFilter } }),
@@ -64,7 +66,8 @@ export async function GET() {
   ]);
 
   // Also get total counts
-  const [incomingCount, hubReceivedCount, arrivedCount] = await Promise.all([
+  const [confirmedCount, incomingCount, hubReceivedCount, arrivedCount] = await Promise.all([
+    prisma.order.count({ where: { status: "CONFIRMED",   ...hubFilter } }),
     prisma.order.count({ where: { status: "DISPATCHED",   ...hubFilter } }),
     prisma.order.count({ where: { status: "HUB_RECEIVED", ...hubFilter } }),
     prisma.order.count({ where: { status: "ARRIVED",      ...hubFilter } }),
@@ -75,6 +78,20 @@ export async function GET() {
   const needsAssignCount  = await prisma.order.count({ where: { status: "HUB_RECEIVED", distributorName: null, ...hubFilter } });
 
   const requiredActions = [
+    ...(confirmedCount > 0 ? [{
+      type: "upcoming",
+      title: "Upcoming Orders",
+      desc: "Orders confirmed by sellers — awaiting dispatch from main hub.",
+      count: confirmedCount,
+      urgency: "low" as const,
+      href: "/delivery-hub/dispatch",
+      items: confirmedOrders.map((o) => ({
+        id: o.orderCode,
+        label: o.product,
+        sub: `${o.buyerName} → ${o.deliveryPoint}`,
+        href: "/delivery-hub/dispatch",
+      })),
+    }] : []),
     ...(incomingCount > 0 ? [{
       type: "receive",
       title: "Confirm Incoming Shipments",
@@ -120,6 +137,7 @@ export async function GET() {
   ];
 
   return NextResponse.json({
+    upcoming:           confirmedCount,
     incoming:           incomingCount,
     hubReceived:        hubReceivedCount,
     outForDelivery:     outForDeliveryCount,

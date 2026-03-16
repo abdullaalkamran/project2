@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Box,
   CheckCircle2,
+  Clock,
   Loader2,
   PackageCheck,
   Truck,
@@ -15,6 +16,7 @@ import {
 import api from "@/lib/api";
 
 type Stats = {
+  upcoming: number;
   incoming: number;
   hubReceived: number;
   outForDelivery: number;
@@ -67,9 +69,10 @@ const URGENCY_STYLES: Record<string, { card: string; badge: string; btn: string 
 };
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
-  receive: <Truck       className="h-4 w-4" />,
-  assign:  <UserCheck   className="h-4 w-4" />,
-  deliver: <PackageCheck className="h-4 w-4" />,
+  upcoming: <Clock       className="h-4 w-4" />,
+  receive:  <Truck       className="h-4 w-4" />,
+  assign:   <UserCheck   className="h-4 w-4" />,
+  deliver:  <PackageCheck className="h-4 w-4" />,
 };
 
 export default function DeliveryHubOverviewClient() {
@@ -104,8 +107,9 @@ export default function DeliveryHubOverviewClient() {
   const requiredActions = data?.requiredActions ?? [];
 
   const statCards = [
-    { label: "Incoming Shipments",    value: stats?.incoming ?? 0,           icon: Truck,         color: "text-blue-700",   bg: "bg-blue-50 border-blue-100",   href: "/delivery-hub/incoming"    },
-    { label: "At Hub (Needs Assign)", value: stats?.hubReceived ?? 0,        icon: Box,           color: "text-amber-700",  bg: "bg-amber-50 border-amber-100", href: "/delivery-hub/distribution" },
+    { label: "Upcoming Orders",       value: stats?.upcoming ?? 0,           icon: Clock,         color: "text-sky-700",    bg: "bg-sky-50 border-sky-100",      href: "/delivery-hub/dispatch"    },
+    { label: "Incoming Shipments",    value: stats?.incoming ?? 0,           icon: Truck,         color: "text-blue-700",   bg: "bg-blue-50 border-blue-100",    href: "/delivery-hub/incoming"    },
+    { label: "At Hub (Needs Assign)", value: stats?.hubReceived ?? 0,        icon: Box,           color: "text-amber-700",  bg: "bg-amber-50 border-amber-100",  href: "/delivery-hub/distribution"},
     { label: "Out for Delivery",      value: stats?.outForDelivery ?? 0,     icon: PackageCheck,  color: "text-violet-700", bg: "bg-violet-50 border-violet-100",href: "/delivery-hub/dispatch"    },
     { label: "Active Delivery Men",   value: stats?.activeDistributors ?? 0, icon: Users,         color: "text-emerald-700",bg: "bg-emerald-50 border-emerald-100",href: "/delivery-hub/distribution"},
   ];
@@ -131,7 +135,7 @@ export default function DeliveryHubOverviewClient() {
       )}
 
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {statCards.map(({ label, value, icon: Icon, color, bg, href }) => (
           <Link key={label} href={href} className={`group rounded-2xl border ${bg} p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md`}>
             <div className="flex items-center justify-between">
