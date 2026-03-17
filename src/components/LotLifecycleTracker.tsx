@@ -71,11 +71,11 @@ function computeStates(p: Props): StepState[] {
 
 function Dot({ state, num, compact }: { state: StepState; num: number; compact?: boolean }) {
   const base = "shrink-0 rounded-full flex items-center justify-center transition-all duration-200 cursor-default group-hover/step:scale-125";
-  const sz   = compact ? "w-4 h-4" : "w-8 h-8 text-[11px] font-bold";
+  const sz   = compact ? "w-4 h-4" : "w-5 h-5 text-[9px] font-bold";
 
   if (state === "done") return (
     <div className={`${base} ${sz} bg-emerald-500 shadow-sm group-hover/step:shadow-emerald-300 group-hover/step:shadow-md`}>
-      <svg className={compact ? "w-2 h-2" : "w-4 h-4"} fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={3}>
+      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={3}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
       </svg>
     </div>
@@ -83,16 +83,16 @@ function Dot({ state, num, compact }: { state: StepState; num: number; compact?:
 
   if (state === "failed") return (
     <div className={`${base} ${sz} bg-rose-500 shadow-sm group-hover/step:shadow-rose-300 group-hover/step:shadow-md`}>
-      <svg className={compact ? "w-2 h-2" : "w-4 h-4"} fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={3}>
+      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={3}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
       </svg>
     </div>
   );
 
   if (state === "active") return (
-    <div style={{ boxShadow: "0 0 0 3px rgba(59,130,246,0.15), 0 0 10px rgba(59,130,246,0.25)" }}
+    <div style={{ boxShadow: "0 0 0 3px rgba(59,130,246,0.15), 0 0 8px rgba(59,130,246,0.2)" }}
       className={`${base} ${sz} bg-white border-2 border-blue-500`}>
-      <span className={`${compact ? "w-1.5 h-1.5" : "w-2.5 h-2.5"} rounded-full bg-blue-500 animate-pulse`} />
+      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
     </div>
   );
 
@@ -211,28 +211,15 @@ function ProgressHeader({ states, allSteps }: { states: StepState[]; allSteps: s
   const total       = states.length;
   const activeIdx   = states.findIndex((s) => s === "active");
   const activeLbl   = activeIdx !== -1 ? allSteps[activeIdx] : failedCount > 0 ? "QC Failed" : "Completed";
-  const pct         = Math.round((doneCount / total) * 100);
   const allDone     = doneCount === total;
   const hasFailed   = failedCount > 0;
 
   return (
-    <div className="mb-3 flex items-center gap-3">
-      <div className="flex-1 space-y-1">
-        <div className="flex items-center justify-between text-[10px]">
-          <span className={`font-semibold ${hasFailed ? "text-rose-500" : allDone ? "text-emerald-600" : "text-slate-500"}`}>
-            {hasFailed ? "QC Failed" : allDone ? "All steps complete" : activeLbl}
-          </span>
-          <span className="font-bold text-slate-400">{doneCount}/{total}</span>
-        </div>
-        <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              hasFailed ? "bg-rose-400" : allDone ? "bg-emerald-400" : "bg-blue-400"
-            }`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
+    <div className="mb-2 flex items-center justify-between text-[10px]">
+      <span className={`font-semibold ${hasFailed ? "text-rose-500" : allDone ? "text-emerald-600" : "text-slate-500"}`}>
+        {hasFailed ? "QC Failed" : allDone ? "All steps complete" : activeLbl}
+      </span>
+      <span className="font-bold text-slate-400">{doneCount}/{total}</span>
     </div>
   );
 }

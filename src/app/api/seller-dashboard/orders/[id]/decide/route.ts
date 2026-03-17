@@ -18,7 +18,7 @@ export async function PATCH(
     const order = await prisma.order.findFirst({
       where: {
         orderCode: id,
-        OR: [{ sellerId: session.userId }, { sellerName: session.name }],
+        sellerId: session.userId,
       },
     });
 

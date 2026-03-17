@@ -15,10 +15,7 @@ export async function GET() {
   // Sum sellerPayable for delivered orders
   const deliveredOrders = await prisma.order.findMany({
     where: {
-      OR: [
-        { sellerId: session.userId },
-        { sellerName: session.name },
-      ],
+      sellerId: session.userId,
       delivered: true,
       sellerStatus: "ACCEPTED",
     },
@@ -50,15 +47,17 @@ export async function GET() {
   });
   const totalPending = pendingRequests._sum.amount ?? 0;
 
-  const available = Math.max(0, totalEarned - totalPaid - totalPending);
+  // Wallet balance: credited when admin pays for orders, debited when withdrawal is paid
+  const wallet = await prisma.wallet.findUnique({ where: { userId: session.userId } });
+  const walletBalance = wallet ? Math.max(0, wallet.balance) : 0;
+
+  // Available to withdraw = wallet balance minus any in-progress (PENDING/APPROVED) withdrawal requests
+  const available = Math.max(0, walletBalance - totalPending);
 
   // All orders (for summary)
   const allOrders = await prisma.order.findMany({
     where: {
-      OR: [
-        { sellerId: session.userId },
-        { sellerName: session.name },
-      ],
+      sellerId: session.userId,
       sellerStatus: "ACCEPTED",
     },
     select: {

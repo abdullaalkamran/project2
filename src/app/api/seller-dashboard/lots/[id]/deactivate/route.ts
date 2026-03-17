@@ -16,7 +16,7 @@ export async function PATCH(
   const lot = await prisma.lot.findFirst({
     where: {
       lotCode: id.toUpperCase(),
-      OR: [{ sellerId: session.userId }, { sellerName: session.name }],
+      sellerId: session.userId,
     },
   });
 

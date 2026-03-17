@@ -43,9 +43,7 @@ export async function GET(
 
   const isOwner =
     order.sellerId === session.userId ||
-    order.buyerId === session.userId ||
-    order.sellerName === session.name ||
-    order.buyerName === session.name;
+    order.buyerId === session.userId;
   const canViewByRole = ["hub_manager", "delivery_hub_manager", "admin"].includes(session.activeRole);
   if (!isOwner && !canViewByRole) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });

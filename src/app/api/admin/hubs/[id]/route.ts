@@ -166,7 +166,7 @@ export async function GET(
     people: {
       sellers: registeredSellers.map(u => ({
         id: u.id, name: u.name, email: u.email, phone: u.phone ?? null, status: u.status,
-        lotsCount: lots.filter(l => l.sellerId === u.id || l.sellerName === u.name).length,
+        lotsCount: lots.filter(l => l.sellerId === u.id).length,
       })),
       qcCheckers: registeredQcCheckers.map(u => ({
         id: u.id, name: u.name, email: u.email, phone: u.phone ?? null, status: u.status,

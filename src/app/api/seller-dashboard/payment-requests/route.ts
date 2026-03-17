@@ -57,10 +57,7 @@ export async function POST(req: NextRequest) {
   // Calculate available balance (only from delivered orders)
   const deliveredEarnings = await prisma.order.aggregate({
     where: {
-      OR: [
-        { sellerId: session.userId },
-        { sellerName: session.name },
-      ],
+      sellerId: session.userId,
       delivered: true,
       sellerStatus: "ACCEPTED",
     },

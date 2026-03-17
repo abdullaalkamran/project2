@@ -9,14 +9,14 @@ export async function GET() {
   const [lots, orders] = await Promise.all([
     prisma.lot.findMany({
       where: session?.userId
-        ? { OR: [{ sellerId: session.userId }, { sellerName: session.name }] }
+        ? { sellerId: session.userId }
         : {},
       orderBy: { createdAt: "desc" },
       include: { bids: true },
     }),
     prisma.order.findMany({
       where: session?.userId
-        ? { OR: [{ sellerId: session.userId }, { sellerName: session.name }] }
+        ? { sellerId: session.userId }
         : {},
       orderBy: { confirmedAt: "desc" },
     }),

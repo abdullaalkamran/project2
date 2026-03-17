@@ -15,10 +15,7 @@ export async function GET() {
   const lots = await prisma.lot.findMany({
     where: {
       status: { in: MARKETPLACE_STATUSES },
-      OR: [
-        { sellerId: session.userId },
-        { sellerName: session.name },
-      ],
+      sellerId: session.userId,
     },
     orderBy: { createdAt: "desc" },
     include: {

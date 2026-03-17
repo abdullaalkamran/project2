@@ -38,6 +38,24 @@ export async function PATCH(
     },
   });
 
+  // Debit seller wallet when withdrawal is paid (Type 2: seller-requested withdrawal)
+  if (status === "PAID" && existing.sellerId) {
+    const wallet = await prisma.wallet.upsert({
+      where:  { userId: existing.sellerId },
+      update: { balance: { decrement: existing.amount } },
+      create: { userId: existing.sellerId, balance: -existing.amount, currency: "BDT" },
+    });
+    await prisma.walletTransaction.create({
+      data: {
+        walletId:    wallet.id,
+        type:        "DEBIT",
+        amount:      existing.amount,
+        description: `Withdrawal paid: ${existing.paymentCode}`,
+        reference:   existing.paymentCode,
+      },
+    });
+  }
+
   // Notify seller of status change
   if (existing.sellerId) {
     if (status === "APPROVED") {

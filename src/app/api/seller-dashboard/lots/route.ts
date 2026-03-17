@@ -18,10 +18,7 @@ export async function GET() {
   const [lots, lotMedia] = await Promise.all([
     prisma.lot.findMany({
       where: {
-        OR: [
-          { sellerId: session.userId },
-          { sellerName: session.name },
-        ],
+        sellerId: session.userId,
       },
       orderBy: { createdAt: "desc" },
     }),

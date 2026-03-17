@@ -66,6 +66,59 @@ function downloadCSV(orders: RecentOrder[]) {
   URL.revokeObjectURL(url);
 }
 
+function generateInvoice(payment: {
+  paymentCode: string; sellerName: string; amount: number; method: string;
+  txnRef?: string; bankDetails?: string; note?: string;
+  orderCode?: string; orderProduct?: string; processedAt: string;
+}) {
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Payment Receipt — ${payment.paymentCode}</title>
+  <style>
+    body{font-family:Arial,sans-serif;max-width:600px;margin:40px auto;padding:20px;color:#1e293b}
+    .brand{font-size:22px;font-weight:800;color:#16a34a}
+    .sub{font-size:12px;color:#64748b;margin-top:2px}
+    .title{font-size:15px;font-weight:700;margin-top:16px}
+    .code{font-family:monospace;font-size:13px;color:#6366f1;font-weight:600}
+    .badge{display:inline-block;background:#dcfce7;color:#16a34a;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin-top:8px}
+    table{width:100%;border-collapse:collapse;margin-top:20px}
+    td{padding:9px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
+    td:first-child{color:#64748b;font-weight:600;width:42%}
+    td:last-child{font-weight:600;color:#1e293b;text-align:right}
+    .amt td{font-size:20px;color:#16a34a;font-weight:800;border-bottom:none;padding-top:20px}
+    .footer{margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center}
+    @media print{.no-print{display:none}}
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom:16px">
+    <button onclick="window.print()" style="background:#16a34a;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Print / Save PDF</button>
+  </div>
+  <div class="brand">Paikari</div>
+  <div class="sub">Agricultural Wholesale Platform</div>
+  <div class="title">Payment Receipt</div>
+  <div class="code">${payment.paymentCode}</div>
+  <div class="badge">PAID</div>
+  <table>
+    <tr><td>Paid To</td><td>${payment.sellerName}</td></tr>
+    <tr><td>Payment Date</td><td>${new Date(payment.processedAt).toLocaleString("en-BD",{dateStyle:"long",timeStyle:"short"})}</td></tr>
+    <tr><td>Method</td><td>${payment.method}</td></tr>
+    ${payment.txnRef ? `<tr><td>Transaction Ref</td><td>${payment.txnRef}</td></tr>` : ""}
+    ${payment.bankDetails ? `<tr><td>Account / Bank</td><td>${payment.bankDetails}</td></tr>` : ""}
+    ${payment.orderCode ? `<tr><td>Order Reference</td><td>${payment.orderCode}</td></tr>` : ""}
+    ${payment.orderProduct ? `<tr><td>Product</td><td>${payment.orderProduct}</td></tr>` : ""}
+    ${payment.note ? `<tr><td>Note</td><td>${payment.note}</td></tr>` : ""}
+    <tr class="amt"><td>Amount Paid</td><td>৳ ${payment.amount.toLocaleString("en-IN")}</td></tr>
+  </table>
+  <div class="footer">Computer-generated receipt · Paikari Platform · Printed ${new Date().toLocaleString("en-BD")}</div>
+</body>
+</html>`;
+  const w = window.open("", "_blank", "width=720,height=920");
+  if (w) { w.document.write(html); w.document.close(); }
+}
+
 function downloadPaymentReqCSV(rows: PaymentReq[]) {
   const header = "Code,Seller,Amount,Method,Bank Details,Status,Requested At,Processed At,Processed By,Transaction Ref";
   const csvRows = rows.map((r) =>
@@ -92,30 +145,7 @@ function downloadPaymentReqCSV(rows: PaymentReq[]) {
   URL.revokeObjectURL(url);
 }
 
-function downloadPayoutCSV(rows: PayoutRow[]) {
-  const header = "Seller,Total Orders,Dispatched Orders,Total Earned,Dispatched Revenue,Pending Revenue,Dispatch Rate";
-  const csvRows = rows.map((r) =>
-    [r.seller, r.totalOrders, r.dispatchedOrders, r.totalRevenue, r.dispatchedRevenue, r.pendingRevenue,
-      r.totalOrders > 0 ? ((r.dispatchedOrders / r.totalOrders) * 100).toFixed(1) + "%" : "0%"].join(",")
-  );
-  const csv = [header, ...csvRows].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `paikari-payouts-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
-type PayoutRow = {
-  seller: string;
-  totalOrders: number;
-  dispatchedOrders: number;
-  totalRevenue: number;
-  dispatchedRevenue: number;
-  pendingRevenue: number;
-};
 
 const ORDER_FILTERS = ["All", "Confirmed", "Dispatched"];
 
@@ -133,7 +163,7 @@ export default function AdminFinancePage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "payouts" | "payments" | "history" | "orders">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "payouts" | "payments" | "history" | "orders" | "buyer-dues">("overview");
 
   // Payment requests
   const [payments, setPayments] = useState<PaymentReq[]>([]);
@@ -159,10 +189,72 @@ export default function AdminFinancePage() {
   const [sellerFilter, setSellerFilter] = useState("All");
   const [orderPage, setOrderPage] = useState(1);
 
-  // Payout sort
-  const [payoutSort, setPayoutSort] = useState<"pendingRevenue" | "dispatchedRevenue" | "totalRevenue" | "seller">("pendingRevenue");
-  const [payoutDir, setPayoutDir] = useState<SortDir>("desc");
   const [payoutSearch, setPayoutSearch] = useState("");
+
+  // Pay modal
+  const [payModal, setPayModal] = useState<{
+    sellerName: string; sellerId?: string; suggestedAmount: number;
+    orderCode?: string; orderProduct?: string;
+  } | null>(null);
+  const [payForm, setPayForm] = useState({ amount: "", method: "bKash", accountDetails: "", txnRef: "", note: "" });
+  const [paying, setPaying] = useState(false);
+
+  const handleDirectPay = async () => {
+    if (!payModal || !payForm.amount) return;
+    setPaying(true);
+    // Capture before async so they remain available after state reset
+    const snap = { modal: payModal, form: { ...payForm } };
+    try {
+      const res = await fetch("/api/admin/finance/payment-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sellerName:     snap.modal.sellerName,
+          sellerId:       snap.modal.sellerId,
+          amount:         parseFloat(snap.form.amount),
+          method:         snap.form.method,
+          bankDetails:    snap.form.accountDetails || undefined,
+          transactionRef: snap.form.txnRef || undefined,
+          note:           snap.form.note || undefined,
+        }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setPayModal(null);
+        setPayForm({ amount: "", method: "bKash", accountDetails: "", txnRef: "", note: "" });
+        // Generate printable invoice
+        generateInvoice({
+          paymentCode:  created.paymentCode,
+          sellerName:   snap.modal.sellerName,
+          amount:       parseFloat(snap.form.amount),
+          method:       snap.form.method,
+          txnRef:       snap.form.txnRef || undefined,
+          bankDetails:  snap.form.accountDetails || undefined,
+          note:         snap.form.note || undefined,
+          orderCode:    snap.modal.orderCode,
+          orderProduct: snap.modal.orderProduct,
+          processedAt:  created.processedAt || new Date().toISOString(),
+        });
+        // Refresh payments list
+        fetch("/api/admin/finance/payment-requests")
+          .then((r) => r.json())
+          .then((d) => { if (Array.isArray(d)) setPayments(d); });
+      }
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  // Buyer dues
+  type BuyerOrder = {
+    id: string; orderCode: string; lotCode: string; product: string; qty: string;
+    buyer: string; seller: string; sellerId: string | null; totalAmount: number; sellerPayable: number; status: string;
+    dispatched: boolean; delivered: boolean; confirmedAt: string; deliveredAt: string | null;
+  };
+  const [buyerOrders, setBuyerOrders] = useState<BuyerOrder[]>([]);
+  const [buyerDuesSearch, setBuyerDuesSearch] = useState("");
+  const [buyerDuesSection, setBuyerDuesSection] = useState<"pending" | "delivered">("pending");
+  const [expandedPayoutSeller, setExpandedPayoutSeller] = useState<string | null>(null);
 
   // Date range filter
   const [dateFrom, setDateFrom] = useState("");
@@ -182,7 +274,14 @@ export default function AdminFinancePage() {
       .finally(() => { setLoading(false); setRefreshing(false); });
   };
 
-  useEffect(() => { fetchData(); fetchPayments(); }, []);
+  useEffect(() => {
+    fetchData();
+    fetchPayments();
+    fetch("/api/admin/orders")
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setBuyerOrders(d); })
+      .catch(() => {});
+  }, []);
 
   const fetchPayments = useCallback(() => {
     setPaymentsLoading(true);
@@ -263,31 +362,6 @@ export default function AdminFinancePage() {
       .sort((a, b) => new Date(b.processedAt || b.requestedAt).getTime() - new Date(a.processedAt || a.requestedAt).getTime());
   }, [payments]);
 
-  // Payout tracker — per seller dispatched vs pending
-  const payoutRows = useMemo((): PayoutRow[] => {
-    if (!data) return [];
-    const map: Record<string, PayoutRow> = {};
-    for (const o of data.recentOrders) {
-      if (!map[o.seller]) {
-        map[o.seller] = { seller: o.seller, totalOrders: 0, dispatchedOrders: 0, totalRevenue: 0, dispatchedRevenue: 0, pendingRevenue: 0 };
-      }
-      map[o.seller].totalOrders++;
-      map[o.seller].totalRevenue += o.amount;
-      if (o.dispatched) {
-        map[o.seller].dispatchedOrders++;
-        map[o.seller].dispatchedRevenue += o.amount;
-      } else {
-        map[o.seller].pendingRevenue += o.amount;
-      }
-    }
-    let rows = Object.values(map);
-    if (payoutSearch) rows = rows.filter((r) => r.seller.toLowerCase().includes(payoutSearch.toLowerCase()));
-    return [...rows].sort((a, b) => {
-      const mul = payoutDir === "asc" ? 1 : -1;
-      if (payoutSort === "seller") return a.seller.localeCompare(b.seller) * mul;
-      return (a[payoutSort] - b[payoutSort]) * mul;
-    });
-  }, [data, payoutSort, payoutDir, payoutSearch]);
 
   const sortedSellers = useMemo(() => {
     if (!data) return [];
@@ -341,16 +415,8 @@ export default function AdminFinancePage() {
     else { setSortKey(key); setSortDir("desc"); }
   };
 
-  const handlePayoutSort = (key: typeof payoutSort) => {
-    if (payoutSort === key) setPayoutDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setPayoutSort(key); setPayoutDir("desc"); }
-  };
-
   const sortArrow = (key: SortKey) =>
     sortKey === key ? (sortDir === "asc" ? " ↑" : " ↓") : " ⇅";
-
-  const payoutArrow = (key: typeof payoutSort) =>
-    payoutSort === key ? (payoutDir === "asc" ? " ↑" : " ↓") : " ⇅";
 
   // Derived metrics
   const dispatchedRevenue = data?.recentOrders.filter((o) => o.dispatched).reduce((s, o) => s + o.amount, 0) ?? 0;
@@ -360,7 +426,6 @@ export default function AdminFinancePage() {
   const dispatchedCount = data?.recentOrders.filter((o) => o.dispatched).length ?? 0;
   const dispatchPct = data && data.recentOrders.length > 0
     ? Math.round((dispatchedCount / data.recentOrders.length) * 100) : 0;
-  const totalPendingPayout = payoutRows.reduce((s, r) => s + r.pendingRevenue, 0);
 
   const TABS = [
     { key: "overview", label: "Overview" },
@@ -368,6 +433,7 @@ export default function AdminFinancePage() {
     { key: "payments", label: `Payment Requests${paymentStats.pendingCount ? ` (${paymentStats.pendingCount})` : ""}` },
     { key: "history", label: "Payment History" },
     { key: "orders", label: "Orders" },
+    { key: "buyer-dues", label: `Buyer Dues${buyerOrders.filter((o) => !o.delivered && o.status !== "PICKED_UP").length > 0 ? ` (${buyerOrders.filter((o) => !o.delivered && o.status !== "PICKED_UP").length})` : ""}` },
   ];
 
   return (
@@ -551,92 +617,332 @@ export default function AdminFinancePage() {
           )}
 
           {/* TAB: Payout Tracker */}
-          {activeTab === "payouts" && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Per-Seller Payout Tracker</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Based on recent orders. Pending = not yet dispatched.</p>
-                </div>
-                <div className="flex gap-2">
+          {activeTab === "payouts" && (() => {
+            // Build per-seller stats from all orders (real data)
+            type SellerStat = {
+              sellerName: string; sellerId?: string;
+              totalOrders: number; deliveredOrders: number;
+              totalSellerPayable: number; deliveredPayable: number;
+              totalPaid: number; pendingRequests: number; pendingRequestAmt: number;
+              outstanding: number;
+            };
+            const sellerMap: Record<string, SellerStat> = {};
+            for (const o of buyerOrders) {
+              if (!sellerMap[o.seller]) {
+                sellerMap[o.seller] = {
+                  sellerName: o.seller, sellerId: o.sellerId ?? undefined,
+                  totalOrders: 0, deliveredOrders: 0,
+                  totalSellerPayable: 0, deliveredPayable: 0,
+                  totalPaid: 0, pendingRequests: 0, pendingRequestAmt: 0,
+                  outstanding: 0,
+                };
+              }
+              const s = sellerMap[o.seller];
+              s.totalOrders++;
+              s.totalSellerPayable += (o as unknown as { sellerPayable: number }).sellerPayable ?? 0;
+              if (o.delivered || o.status === "PICKED_UP") {
+                s.deliveredOrders++;
+                s.deliveredPayable += (o as unknown as { sellerPayable: number }).sellerPayable ?? 0;
+              }
+            }
+            // Cross-ref with payment requests
+            for (const p of payments) {
+              if (!sellerMap[p.sellerName]) {
+                sellerMap[p.sellerName] = {
+                  sellerName: p.sellerName, sellerId: p.sellerId ?? undefined,
+                  totalOrders: 0, deliveredOrders: 0,
+                  totalSellerPayable: 0, deliveredPayable: 0,
+                  totalPaid: 0, pendingRequests: 0, pendingRequestAmt: 0,
+                  outstanding: 0,
+                };
+              }
+              const s = sellerMap[p.sellerName];
+              if (!s.sellerId && p.sellerId) s.sellerId = p.sellerId;
+              if (p.status === "PAID") s.totalPaid += p.amount;
+              if (p.status === "PENDING" || p.status === "APPROVED") {
+                s.pendingRequests++;
+                s.pendingRequestAmt += p.amount;
+              }
+            }
+            // Compute outstanding
+            for (const s of Object.values(sellerMap)) {
+              s.outstanding = Math.max(0, s.deliveredPayable - s.totalPaid);
+            }
+
+            let rows = Object.values(sellerMap);
+            if (payoutSearch) rows = rows.filter((r) => r.sellerName.toLowerCase().includes(payoutSearch.toLowerCase()));
+            rows.sort((a, b) => b.outstanding - a.outstanding);
+
+            const totalEarned      = rows.reduce((s, r) => s + r.deliveredPayable, 0);
+            const totalPaidAll     = rows.reduce((s, r) => s + r.totalPaid, 0);
+            const totalOutstanding = rows.reduce((s, r) => s + r.outstanding, 0);
+            const pendingReqCount  = rows.reduce((s, r) => s + r.pendingRequests, 0);
+
+            return (
+              <div className="space-y-5">
+
+                {/* Pay modal */}
+                {payModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-bold text-slate-900">Record Payment</h3>
+                          <p className="text-xs text-slate-400 mt-0.5">Paying out to <span className="font-semibold text-slate-700">{payModal.sellerName}</span></p>
+                        </div>
+                        <button type="button" onClick={() => setPayModal(null)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+                      </div>
+
+                      <div className="rounded-2xl bg-emerald-50 border border-emerald-100 px-5 py-3 flex items-center justify-between">
+                        <p className="text-xs text-emerald-500 font-semibold uppercase">Suggested Amount</p>
+                        <p className="text-xl font-bold text-emerald-700">{fmtBDT(payModal.suggestedAmount)}</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Amount (৳) *</label>
+                          <input type="number" min="1" value={payForm.amount}
+                            onChange={(e) => setPayForm((f) => ({ ...f, amount: e.target.value }))}
+                            placeholder={String(Math.round(payModal.suggestedAmount))}
+                            className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none focus:ring-2 ring-indigo-100" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Payment Method *</label>
+                          <select value={payForm.method} onChange={(e) => setPayForm((f) => ({ ...f, method: e.target.value }))}
+                            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm outline-none focus:ring-2 ring-indigo-100">
+                            {["bKash", "Nagad", "Bank Transfer", "Cash"].map((m) => <option key={m}>{m}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Account / Bank Details</label>
+                          <input type="text" value={payForm.accountDetails}
+                            onChange={(e) => setPayForm((f) => ({ ...f, accountDetails: e.target.value }))}
+                            placeholder="e.g. 01XXXXXXXXX or account number"
+                            className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none focus:ring-2 ring-indigo-100" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Transaction Reference</label>
+                          <input type="text" value={payForm.txnRef}
+                            onChange={(e) => setPayForm((f) => ({ ...f, txnRef: e.target.value }))}
+                            placeholder="TXN ID / reference number"
+                            className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none focus:ring-2 ring-indigo-100" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Note (optional)</label>
+                          <input type="text" value={payForm.note}
+                            onChange={(e) => setPayForm((f) => ({ ...f, note: e.target.value }))}
+                            placeholder="Any note for this payment"
+                            className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none focus:ring-2 ring-indigo-100" />
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3 pt-1">
+                        <button type="button" onClick={handleDirectPay} disabled={paying || !payForm.amount}
+                          className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition">
+                          {paying ? "Recording…" : "✓ Record as Paid"}
+                        </button>
+                        <button type="button" onClick={() => setPayModal(null)}
+                          className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Header */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Seller Payout Tracker</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Real-time data from all orders · cross-referenced with payment records.</p>
+                  </div>
                   <input type="text" placeholder="Search seller…" value={payoutSearch}
                     onChange={(e) => setPayoutSearch(e.target.value)}
-                    className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm outline-none focus:ring-2 ring-indigo-100 w-40" />
-                  <button type="button" onClick={() => downloadPayoutCSV(payoutRows)}
-                    className="rounded-xl border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">
-                    ↓ Export CSV
-                  </button>
+                    className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm outline-none focus:ring-2 ring-indigo-100 w-44" />
                 </div>
-              </div>
 
-              {/* Payout summary banner */}
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                  <p className="text-[11px] font-semibold uppercase text-emerald-500">Dispatched (Earned)</p>
-                  <p className="mt-1 text-xl font-bold text-emerald-700">{fmtBDT(dispatchedRevenue)}</p>
+                {/* Summary cards */}
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                  {[
+                    { label: "Total Earned",   val: fmtBDT(totalEarned),      bg: "bg-slate-50",   text: "text-slate-900",   border: "border-slate-100" },
+                    { label: "Total Paid Out", val: fmtBDT(totalPaidAll),     bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-100" },
+                    { label: "Outstanding",    val: fmtBDT(totalOutstanding), bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-100" },
+                    { label: "Pending Requests", val: String(pendingReqCount), bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-100" },
+                  ].map(({ label, val, bg, text, border }) => (
+                    <div key={label} className={`rounded-2xl border ${border} ${bg} p-4 shadow-sm`}>
+                      <p className={`text-[11px] font-semibold uppercase tracking-wider ${text} opacity-70`}>{label}</p>
+                      <p className={`mt-1 text-xl font-bold ${text}`}>{val}</p>
+                    </div>
+                  ))}
                 </div>
-                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-                  <p className="text-[11px] font-semibold uppercase text-amber-500">Pending Payout</p>
-                  <p className="mt-1 text-xl font-bold text-amber-700">{fmtBDT(totalPendingPayout)}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="text-[11px] font-semibold uppercase text-slate-400">Sellers with Pending</p>
-                  <p className="mt-1 text-xl font-bold text-slate-700">{payoutRows.filter((r) => r.pendingRevenue > 0).length}</p>
-                </div>
-              </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
-                <table className="w-full min-w-[700px] text-sm">
-                  <thead className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    <tr>
-                      <th className="px-5 py-3 text-left cursor-pointer select-none hover:text-slate-600"
-                        onClick={() => handlePayoutSort("seller")}>Seller{payoutArrow("seller")}</th>
-                      <th className="px-5 py-3 text-left">Orders</th>
-                      <th className="px-5 py-3 text-left cursor-pointer select-none hover:text-slate-600"
-                        onClick={() => handlePayoutSort("totalRevenue")}>Total Earned{payoutArrow("totalRevenue")}</th>
-                      <th className="px-5 py-3 text-left cursor-pointer select-none hover:text-slate-600"
-                        onClick={() => handlePayoutSort("dispatchedRevenue")}>Dispatched{payoutArrow("dispatchedRevenue")}</th>
-                      <th className="px-5 py-3 text-left cursor-pointer select-none hover:text-slate-600"
-                        onClick={() => handlePayoutSort("pendingRevenue")}>Pending Payout{payoutArrow("pendingRevenue")}</th>
-                      <th className="px-5 py-3 text-left">Dispatch Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {payoutRows.length === 0 && (
-                      <tr><td colSpan={6} className="px-5 py-10 text-center text-slate-400">No data.</td></tr>
-                    )}
-                    {payoutRows.map((r) => {
-                      const rate = r.totalOrders > 0 ? Math.round((r.dispatchedOrders / r.totalOrders) * 100) : 0;
+                {/* Per-seller cards */}
+                {rows.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-100 bg-white p-10 text-center text-slate-400 shadow-sm">No seller data yet.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {rows.map((r) => {
+                      const paidPct = r.deliveredPayable > 0 ? Math.round((r.totalPaid / r.deliveredPayable) * 100) : 0;
+                      const hasOutstanding = r.outstanding > 0;
                       return (
-                        <tr key={r.seller} className="hover:bg-amber-50/30">
-                          <td className="px-5 py-4 font-medium text-slate-900">{r.seller}</td>
-                          <td className="px-5 py-4 text-slate-500">
-                            <span className="text-emerald-600 font-semibold">{r.dispatchedOrders}</span>
-                            <span className="text-slate-400"> / {r.totalOrders}</span>
-                          </td>
-                          <td className="px-5 py-4 font-semibold text-slate-900">{fmtBDT(r.totalRevenue)}</td>
-                          <td className="px-5 py-4 text-emerald-700 font-semibold">{fmtBDT(r.dispatchedRevenue)}</td>
-                          <td className="px-5 py-4">
-                            <span className={`font-semibold ${r.pendingRevenue > 0 ? "text-amber-600" : "text-slate-400"}`}>
-                              {fmtBDT(r.pendingRevenue)}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2">
-                              <div className="h-2 w-20 rounded-full bg-slate-100 overflow-hidden">
-                                <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${rate}%` }} />
+                        <div key={r.sellerName} className={`rounded-2xl border bg-white shadow-sm transition ${hasOutstanding ? "border-amber-200" : "border-slate-100"}`}>
+                          <div className="px-5 py-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+
+                              {/* Seller info + expand toggle */}
+                              <button
+                                type="button"
+                                onClick={() => setExpandedPayoutSeller(expandedPayoutSeller === r.sellerName ? null : r.sellerName)}
+                                className="flex-1 min-w-[160px] text-left"
+                              >
+                                <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                                  {r.sellerName}
+                                  <svg className={`w-3.5 h-3.5 text-slate-400 transition-transform ${expandedPayoutSeller === r.sellerName ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                                </p>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                  {r.totalOrders} orders · {r.deliveredOrders} delivered
+                                </p>
+                              </button>
+
+                              {/* Financials */}
+                              <div className="flex flex-wrap gap-4">
+                                <div className="text-right">
+                                  <p className="text-[10px] font-semibold uppercase text-slate-400">Total Earned</p>
+                                  <p className="text-sm font-bold text-slate-900">{fmtBDT(r.deliveredPayable)}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-[10px] font-semibold uppercase text-emerald-500">Paid Out</p>
+                                  <p className="text-sm font-bold text-emerald-700">{fmtBDT(r.totalPaid)}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-[10px] font-semibold uppercase text-amber-500">Outstanding</p>
+                                  <p className={`text-sm font-bold ${hasOutstanding ? "text-amber-600" : "text-slate-400"}`}>
+                                    {fmtBDT(r.outstanding)}
+                                  </p>
+                                </div>
+                                {r.pendingRequests > 0 && (
+                                  <div className="text-right">
+                                    <p className="text-[10px] font-semibold uppercase text-blue-500">Requested</p>
+                                    <p className="text-sm font-bold text-blue-600">{fmtBDT(r.pendingRequestAmt)}</p>
+                                  </div>
+                                )}
                               </div>
-                              <span className="text-xs font-semibold text-slate-600">{rate}%</span>
+
+                              {/* Pay button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPayModal({ sellerName: r.sellerName, sellerId: r.sellerId, suggestedAmount: r.outstanding });
+                                  setPayForm({ amount: r.outstanding > 0 ? String(Math.round(r.outstanding)) : "", method: "bKash", accountDetails: "", txnRef: "", note: "" });
+                                }}
+                                className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold border transition ${
+                                  hasOutstanding
+                                    ? "bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700"
+                                    : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"
+                                }`}
+                              >
+                                {hasOutstanding ? "Pay Now" : "+ Record Payment"}
+                              </button>
                             </div>
-                          </td>
-                        </tr>
+
+                            {/* Progress bar */}
+                            {r.deliveredPayable > 0 && (
+                              <div className="mt-3 flex items-center gap-2">
+                                <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${paidPct >= 100 ? "bg-emerald-500" : "bg-amber-400"}`}
+                                    style={{ width: `${Math.min(100, paidPct)}%` }}
+                                  />
+                                </div>
+                                <span className="text-[11px] font-semibold text-slate-500 w-10 text-right">{paidPct}%</span>
+                                <span className="text-[11px] text-slate-400">paid</span>
+                              </div>
+                            )}
+
+                            {/* Pending request badge */}
+                            {r.pendingRequests > 0 && (
+                              <div className="mt-2">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                                  {r.pendingRequests} pending request{r.pendingRequests > 1 ? "s" : ""} · {fmtBDT(r.pendingRequestAmt)} awaiting approval
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Expandable orders table */}
+                          {expandedPayoutSeller === r.sellerName && (() => {
+                            const sellerOrders = buyerOrders.filter(o => o.seller === r.sellerName);
+                            return (
+                              <div className="border-t border-slate-100 px-5 py-4">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Orders ({sellerOrders.length})</p>
+                                {sellerOrders.length === 0 ? (
+                                  <p className="text-xs text-slate-400">No orders found.</p>
+                                ) : (
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-xs">
+                                      <thead>
+                                        <tr className="text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100">
+                                          <th className="pb-2 text-left">Order</th>
+                                          <th className="pb-2 text-left">Product</th>
+                                          <th className="pb-2 text-left">Buyer</th>
+                                          <th className="pb-2 text-right">Total</th>
+                                          <th className="pb-2 text-right">Seller Payable</th>
+                                          <th className="pb-2 text-left">Status</th>
+                                          <th className="pb-2 text-left">Date</th>
+                                          <th className="pb-2" />
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-50">
+                                        {sellerOrders.map(o => (
+                                          <tr key={o.id} className="text-slate-700">
+                                            <td className="py-2 font-mono text-[10px] text-slate-500">{o.orderCode}</td>
+                                            <td className="py-2 max-w-[140px] truncate">{o.product}</td>
+                                            <td className="py-2 text-slate-500">{o.buyer}</td>
+                                            <td className="py-2 text-right font-semibold">{fmtBDT(o.totalAmount)}</td>
+                                            <td className="py-2 text-right font-semibold text-emerald-700">{fmtBDT(o.sellerPayable)}</td>
+                                            <td className="py-2">
+                                              <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                                o.delivered ? "bg-emerald-50 text-emerald-700" :
+                                                o.dispatched ? "bg-blue-50 text-blue-700" :
+                                                "bg-amber-50 text-amber-700"
+                                              }`}>
+                                                {o.delivered ? "Delivered" : o.dispatched ? "Dispatched" : o.status}
+                                              </span>
+                                            </td>
+                                            <td className="py-2 text-slate-400 text-[10px]">{new Date(o.confirmedAt).toLocaleDateString("en-BD")}</td>
+                                            <td className="py-2 pl-2">
+                                              {o.delivered ? (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    setPayModal({ sellerName: o.seller, sellerId: o.sellerId ?? undefined, suggestedAmount: o.sellerPayable, orderCode: o.orderCode, orderProduct: o.product });
+                                                    setPayForm({ amount: String(Math.round(o.sellerPayable)), method: "bKash", accountDetails: "", txnRef: "", note: `Payment for ${o.orderCode}` });
+                                                  }}
+                                                  className="rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-emerald-700 transition whitespace-nowrap"
+                                                >
+                                                  Pay
+                                                </button>
+                                              ) : (
+                                                <span className="text-[10px] text-slate-300 whitespace-nowrap">Not delivered</span>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB: Payment Requests */}
           {activeTab === "payments" && (
@@ -1071,6 +1377,182 @@ export default function AdminFinancePage() {
               <Pagination page={orderPage} totalPages={orderTotalPages} onPageChange={setOrderPage} className="mt-2" />
             </div>
           )}
+
+          {/* TAB: Buyer Dues */}
+          {activeTab === "buyer-dues" && (() => {
+            const pendingOrders = buyerOrders.filter((o) => !o.delivered && o.status !== "PICKED_UP");
+            const deliveredOrders = buyerOrders.filter((o) => o.delivered || o.status === "PICKED_UP");
+            const q = buyerDuesSearch.toLowerCase();
+            const section = buyerDuesSection;
+
+            const matchSearch = (o: typeof buyerOrders[0]) =>
+              !q ||
+              o.buyer.toLowerCase().includes(q) ||
+              o.seller.toLowerCase().includes(q) ||
+              o.orderCode.toLowerCase().includes(q) ||
+              o.product.toLowerCase().includes(q);
+
+            const pendingFiltered   = pendingOrders.filter(matchSearch);
+            const deliveredFiltered = deliveredOrders.filter(matchSearch);
+
+            const pendingTotal   = pendingFiltered.reduce((s, o) => s + o.totalAmount, 0);
+            const deliveredTotal = deliveredFiltered.reduce((s, o) => s + o.totalAmount, 0);
+
+            const STATUS_BADGE: Record<string, string> = {
+              CONFIRMED:        "bg-blue-50 text-blue-700",
+              DISPATCHED:       "bg-amber-50 text-amber-700",
+              HUB_RECEIVED:     "bg-sky-50 text-sky-700",
+              OUT_FOR_DELIVERY: "bg-violet-50 text-violet-700",
+              ARRIVED:          "bg-teal-50 text-teal-700",
+              PICKED_UP:        "bg-emerald-50 text-emerald-700",
+            };
+            const STATUS_LABEL: Record<string, string> = {
+              CONFIRMED: "Confirmed", DISPATCHED: "Dispatched",
+              HUB_RECEIVED: "Hub Received", OUT_FOR_DELIVERY: "Out for Delivery",
+              ARRIVED: "Arrived", PICKED_UP: "Delivered",
+            };
+
+            const rows = section === "pending" ? pendingFiltered : deliveredFiltered;
+
+            return (
+              <div className="space-y-5">
+                {/* Summary cards */}
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Pending Delivery</p>
+                    <p className="mt-1 text-2xl font-bold text-blue-700">{pendingOrders.length}</p>
+                    <p className="text-xs text-blue-400 mt-0.5">orders not yet delivered</p>
+                  </div>
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Pending Amount</p>
+                    <p className="mt-1 text-xl font-bold text-blue-700">{fmtBDT(pendingOrders.reduce((s, o) => s + o.totalAmount, 0))}</p>
+                    <p className="text-xs text-blue-400 mt-0.5">buyers owe sellers</p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wider">Delivered</p>
+                    <p className="mt-1 text-2xl font-bold text-emerald-700">{deliveredOrders.length}</p>
+                    <p className="text-xs text-emerald-500 mt-0.5">orders reached buyers</p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wider">Delivered Amount</p>
+                    <p className="mt-1 text-xl font-bold text-emerald-700">{fmtBDT(deliveredOrders.reduce((s, o) => s + o.totalAmount, 0))}</p>
+                    <p className="text-xs text-emerald-500 mt-0.5">confirm settlements</p>
+                  </div>
+                </div>
+
+                {/* Search + section toggle */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    type="text"
+                    placeholder="Search buyer, seller, product, order…"
+                    value={buyerDuesSearch}
+                    onChange={(e) => setBuyerDuesSearch(e.target.value)}
+                    className="w-full max-w-xs rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none ring-indigo-100 focus:ring-2"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBuyerDuesSection("pending")}
+                      className={`rounded-full px-4 py-1.5 text-xs font-semibold border transition ${
+                        section === "pending"
+                          ? "bg-blue-600 border-blue-600 text-white"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      Confirmed — Not Delivered
+                      {pendingOrders.length > 0 && (
+                        <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${section === "pending" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
+                          {pendingOrders.length}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBuyerDuesSection("delivered")}
+                      className={`rounded-full px-4 py-1.5 text-xs font-semibold border transition ${
+                        section === "delivered"
+                          ? "bg-emerald-600 border-emerald-600 text-white"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      Delivered — Check Payment
+                      {deliveredOrders.length > 0 && (
+                        <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${section === "delivered" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
+                          {deliveredOrders.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section heading */}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                    {section === "pending"
+                      ? `${pendingFiltered.length} orders confirmed, awaiting delivery · ${fmtBDT(pendingTotal)} outstanding`
+                      : `${deliveredFiltered.length} orders delivered · ${fmtBDT(deliveredTotal)} to confirm`}
+                  </p>
+                </div>
+
+                {/* Table */}
+                <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
+                  <table className="w-full min-w-[700px] text-sm">
+                    <thead className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      <tr>
+                        <th className="px-5 py-3 text-left">Buyer</th>
+                        <th className="px-5 py-3 text-left">Owes Seller</th>
+                        <th className="px-5 py-3 text-left">Product</th>
+                        <th className="px-5 py-3 text-left">Order</th>
+                        <th className="px-5 py-3 text-left">Amount</th>
+                        <th className="px-5 py-3 text-left">Status</th>
+                        <th className="px-5 py-3 text-left">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {rows.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
+                            {section === "pending" ? "No pending delivery orders." : "No delivered orders found."}
+                          </td>
+                        </tr>
+                      ) : rows.map((o) => (
+                        <tr key={o.id} className={`hover:bg-indigo-50/20 ${section === "delivered" ? "bg-emerald-50/20" : ""}`}>
+                          <td className="px-5 py-3.5">
+                            <p className="font-semibold text-slate-900">{o.buyer}</p>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <p className="font-medium text-indigo-700">{o.seller}</p>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <p className="text-slate-700 truncate max-w-[160px]">{o.product}</p>
+                            <p className="text-[11px] text-slate-400">{o.qty}</p>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <p className="font-mono text-xs font-semibold text-slate-500">{o.orderCode}</p>
+                            <p className="text-[11px] text-slate-400">{o.lotCode}</p>
+                          </td>
+                          <td className="px-5 py-3.5 font-bold text-slate-900">{fmtBDT(o.totalAmount)}</td>
+                          <td className="px-5 py-3.5">
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATUS_BADGE[o.status] ?? "bg-slate-100 text-slate-500"}`}>
+                              {STATUS_LABEL[o.status] ?? o.status}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 text-xs text-slate-400">
+                            {new Date(o.confirmedAt).toLocaleDateString("en-BD", { month: "short", day: "numeric", year: "numeric" })}
+                            {section === "delivered" && o.deliveredAt && (
+                              <p className="text-[11px] text-emerald-600 mt-0.5">
+                                Delivered {new Date(o.deliveredAt).toLocaleDateString("en-BD", { month: "short", day: "numeric" })}
+                              </p>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
     </div>

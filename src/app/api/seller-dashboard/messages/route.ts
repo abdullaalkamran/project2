@@ -10,7 +10,7 @@ export async function GET() {
 
   const orders = await prisma.order.findMany({
     where: {
-      OR: [{ sellerId: session.userId }, { sellerName: session.name }],
+      sellerId: session.userId,
     },
     include: {
       lot: { select: { lotCode: true, title: true, quantity: true, unit: true } },
