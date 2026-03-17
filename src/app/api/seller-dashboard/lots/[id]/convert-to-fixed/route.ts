@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
-import { notify, notifyMany, getLotParties, userIdByName } from "@/lib/notifications";
+import { notify, notifyMany, getLotParties } from "@/lib/notifications";
 
 /**
  * POST /api/seller-dashboard/lots/[id]/convert-to-fixed

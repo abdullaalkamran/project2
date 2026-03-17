@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { Search, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
@@ -163,11 +162,6 @@ export default function InventoryClient() {
 
   return (
     <div className="space-y-8">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-slate-900">Hub Inventory</h1>
-        <p className="text-slate-500">Interactive product inventory with real-time statuses and timeline history.</p>
-      </div>
-
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {[
           { label: "Total Lots", value: String(items.length), color: "text-slate-900" },
@@ -278,15 +272,27 @@ export default function InventoryClient() {
                 {expanded[item.id] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                 Timeline
               </button>
-              {item.status === "Awaiting Dispatch" && (
-                <Link href="/hub-manager/dispatch" className="text-xs font-semibold text-amber-600 hover:underline">
-                  Dispatch
-                </Link>
-              )}
             </div>
 
             {expanded[item.id] && (
               <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4">
+                <ol className="space-y-3">
+                  {item.timeline.map((step, idx) => (
+                    <li key={idx} className="flex items-start gap-3">
+                      <span className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${
+                        step.state === "done" ? "bg-emerald-500" :
+                        step.state === "current" ? "bg-sky-500 ring-2 ring-sky-200" :
+                        "bg-slate-200"
+                      }`} />
+                      <div>
+                        <p className={`text-xs font-semibold ${step.state === "pending" ? "text-slate-400" : "text-slate-700"}`}>
+                          {step.label}
+                        </p>
+                        <p className="text-[11px] text-slate-400">{step.at}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
               </div>
             )}
           </div>

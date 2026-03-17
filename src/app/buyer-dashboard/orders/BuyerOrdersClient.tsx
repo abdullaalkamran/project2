@@ -108,23 +108,27 @@ const DELIVERY_STEPS: { label: string; sublabel: string }[] = [
 // Step 8: Ready for Pickup    → status ARRIVED
 // Step 9: Delivered           → status PICKED_UP
 const LOT_STATUSES_AT_OR_PAST_HUB = [
-  "AT_HUB", "IN_QC", "QC_SUBMITTED", "QC_PASSED", "QC_FAILED", "LIVE", "AUCTION_ENDED",
+  "AT_HUB", "IN_QC", "QC_SUBMITTED", "QC_PASSED", "QC_FAILED",
+  "LIVE", "AUCTION_ENDED", "SOLD", "DELIVERED",
 ];
 
 function deliveryActiveStep(o: OrderItem): number {
+  // Order-level delivery statuses — these only exist after full flow starts
   if (o.status === "PICKED_UP")                  return 10;
   if (o.status === "ARRIVED")                    return 9;
   if (o.status === "OUT_FOR_DELIVERY")           return 8;
   if (o.status === "HUB_RECEIVED")               return 7;
-  if (o.dispatched || o.status === "DISPATCHED") return 6;
+  if (o.dispatched || o.status === "DISPATCHED") return 5;
   if (o.assignedTruck || o.loadConfirmed)        return 5;
-  // Step 3 done only when pre-dispatch weight check is physically done by hub/QC
   if (o.qualityChecked && o.actualWeightKg != null && o.actualWeightKg > 0) return 4;
-  // Step 2 done when lot physically arrived at the hub (hub manager received it)
-  if (LOT_STATUSES_AT_OR_PAST_HUB.includes(o.lotStatus)) return 3;
+
+  // Seller must accept BEFORE lot-level progress can advance order steps
   const s = o.sellerStatus;
-  if (s === "ACCEPTED" || s === "CONFIRMED")     return 2;
-  return 1;
+  if (s !== "ACCEPTED" && s !== "CONFIRMED") return 1;
+
+  // Seller accepted — lot goods are physically at hub if lot reached AT_HUB or beyond
+  if (LOT_STATUSES_AT_OR_PAST_HUB.includes(o.lotStatus)) return 3;
+  return 2;
 }
 
 function DeliveryStepBar({ o }: { o: OrderItem }) {

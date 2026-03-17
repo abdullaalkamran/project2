@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { getPreDispatchCheck, upsertPreDispatchCheck } from "@/lib/pre-dispatch-store";
-import { notify, notifyMany, getLotParties, userIdByName } from "@/lib/notifications";
+import { notify, notifyMany, getLotParties } from "@/lib/notifications";
 
 export async function GET(
   _req: NextRequest,
@@ -113,7 +113,7 @@ export async function PATCH(
     buyerDelta = toMoney(nextSplit.buyerShare - prevSplit.buyerShare);         // +ve charge buyer, -ve refund
     const sellerDelta = toMoney(nextSplit.sellerShare - prevSplit.sellerShare); // +ve charge seller, -ve refund
 
-    const sellerUserId = order.sellerId ?? await userIdByName(order.sellerName);
+    const sellerUserId = order.sellerId ?? null;
     buyerWallet = order.buyerId
       ? await prisma.wallet.upsert({
           where: { userId: order.buyerId },

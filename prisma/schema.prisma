@@ -37,17 +37,19 @@ model User {
   mobileBanking  String?
   mobileNumber   String?
 
-  userRoles     UserRole[]
-  sellerLots    Lot[]          @relation("SellerLots")
-  buyerOrders   Order[]        @relation("BuyerOrders")
-  sellerOrders  Order[]        @relation("SellerOrders")
-  bids          Bid[]
-  wallet        Wallet?
-  qcReports     QCReport[]
-  notifications Notification[]
+  userRoles       UserRole[]
+  sellerLots      Lot[]          @relation("SellerLots")
+  qcLeaderLots    Lot[]          @relation("QCLeaderLots")
+  qcCheckerLots   Lot[]          @relation("QCCheckerLots")
+  buyerOrders     Order[]        @relation("BuyerOrders")
+  sellerOrders    Order[]        @relation("SellerOrders")
+  bids            Bid[]
+  wallet          Wallet?
+  qcReports       QCReport[]
+  notifications   Notification[]
   paymentRequests PaymentRequest[]
   depositRequests DepositRequest[]
-  hubAssignments HubManagerAssignment[]
+  hubAssignments  HubManagerAssignment[]
 
   @@index([email])
   @@index([status])
@@ -105,8 +107,10 @@ model Lot {
   freeQtyUnit       String   @default("kg") // "kg" | "piece"
   listOnMarketplace Boolean?  // QC checker decision to list on marketplace
 
-  // QC assignment (names stored for display; nullable for before assignment)
+  // QC assignment — IDs are the source of truth; names kept for display only
+  qcLeaderId     String?
   qcLeaderName   String?
+  qcCheckerId    String?
   qcCheckerName  String?
   qcTaskStatus   String?   // PENDING | IN_PROGRESS | SUBMITTED
   verdict        String?   // PASSED | FAILED | CONDITIONAL
@@ -114,17 +118,20 @@ model Lot {
   qcSubmittedAt  DateTime?
   leaderDecision String?   // Approved | Rejected | Pending
 
-  seller   User?     @relation("SellerLots", fields: [sellerId], references: [id])
-  qcReport QCReport?
-  orders   Order[]
-  bids     Bid[]
+  seller    User?     @relation("SellerLots", fields: [sellerId], references: [id])
+  qcLeader  User?     @relation("QCLeaderLots", fields: [qcLeaderId], references: [id])
+  qcChecker User?     @relation("QCCheckerLots", fields: [qcCheckerId], references: [id])
+  qcReport  QCReport?
+  orders    Order[]
+  bids      Bid[]
 
   @@index([sellerId])
+  @@index([qcLeaderId])
+  @@index([qcCheckerId])
   @@index([status])
   @@index([hubId])
   @@index([saleType])
   @@index([createdAt])
-  @@index([qcCheckerName])
 }
 
 model QCReport {

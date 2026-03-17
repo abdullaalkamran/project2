@@ -69,8 +69,6 @@ const ORDER_STATUS_CHIP: Record<string, string> = {
   CANCELLED:          "bg-red-50 text-red-600",
 };
 
-// Ordered for step-index comparisons
-const STATUS_ORDER = ["Confirmed", "Dispatched", "At Hub", "Out for Delivery", "Arrived", "Delivered"];
 
 type Tab = "pending" | "active" | "all";
 
@@ -466,17 +464,17 @@ const DELIVERY_STEPS: { label: string; sublabel: string }[] = [
 
 // Seller API returns mapped status labels (e.g. "Delivered", "At Hub")
 function sellerActiveStep(o: OrderItem): number {
-  if (o.status === "Delivered" || o.delivered) return 10;
-  if (o.status === "Arrived")                  return 9;
-  if (o.status === "Out for Delivery")         return 8;
-  if (o.status === "At Hub")                   return 7;
-  if (o.dispatched || o.status === "Dispatched") return 6;
-  if (o.assignedTruck)                          return 5;
-  if (o.actualWeightKg != null)                 return 4;
-  if (o.loadConfirmed)                          return 3;
+  if (o.status === "Delivered" || o.delivered)   return 10;
+  if (o.status === "Arrived")                    return 9;
+  if (o.status === "Out for Delivery")           return 8;
+  if (o.status === "At Hub")                     return 7;
+  if (o.dispatched || o.status === "Dispatched") return 5; // In Transit active
+  if (o.assignedTruck || o.loadConfirmed)        return 5; // Truck confirmed, waiting dispatch
+  if (o.actualWeightKg != null)                  return 4; // Weight checked, waiting truck
+  // Seller must have accepted before order progresses
   const s = o.sellerStatus;
-  if (s === "ACCEPTED" || s === "CONFIRMED" || o.status === "Confirmed") return 2;
-  return 1;
+  if (s !== "ACCEPTED" && s !== "CONFIRMED")     return 1; // Awaiting seller decision
+  return 3; // Seller accepted — goods are at hub (lot must be LIVE/QC_PASSED to order)
 }
 
 function DeliveryProgress({ order: o }: { order: OrderItem }) {

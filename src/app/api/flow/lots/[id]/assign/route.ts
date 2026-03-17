@@ -1,44 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { notify, userIdByName } from "@/lib/notifications";
+import { notify } from "@/lib/notifications";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { leader, checker } = (await req.json()) as { leader?: string; checker?: string };
+  const { leaderId, checkerId } = (await req.json()) as { leaderId?: string; checkerId?: string };
 
   const lot = await prisma.lot.findUnique({ where: { lotCode: id } });
   if (!lot) return NextResponse.json({ message: "Lot not found" }, { status: 404 });
 
+  // Resolve names for display from User table
+  const [leaderUser, checkerUser] = await Promise.all([
+    leaderId ? prisma.user.findUnique({ where: { id: leaderId }, select: { id: true, name: true } }) : null,
+    checkerId ? prisma.user.findUnique({ where: { id: checkerId }, select: { id: true, name: true } }) : null,
+  ]);
+
   const updated = await prisma.lot.update({
     where: { id: lot.id },
     data: {
-      qcLeaderName: leader ?? lot.qcLeaderName,
-      qcCheckerName: checker ?? lot.qcCheckerName,
-      status: leader || checker ? "IN_QC" : lot.status,
-      qcTaskStatus: leader || checker ? "PENDING" : lot.qcTaskStatus,
-      leaderDecision: checker || leader ? "Pending" : lot.leaderDecision,
+      qcLeaderId:   leaderUser?.id   ?? lot.qcLeaderId,
+      qcLeaderName: leaderUser?.name ?? lot.qcLeaderName,
+      qcCheckerId:  checkerUser?.id   ?? lot.qcCheckerId,
+      qcCheckerName: checkerUser?.name ?? lot.qcCheckerName,
+      status: leaderUser || checkerUser ? "IN_QC" : lot.status,
+      qcTaskStatus: leaderUser || checkerUser ? "PENDING" : lot.qcTaskStatus,
+      leaderDecision: leaderUser || checkerUser ? "Pending" : lot.leaderDecision,
     },
   });
 
   // Notify QC leader, checker, and seller when QC team is assigned
-  if (leader || checker) {
-    const [leaderId, checkerId, sellerId] = await Promise.all([
-      updated.qcLeaderName ? userIdByName(updated.qcLeaderName) : Promise.resolve(null),
-      updated.qcCheckerName ? userIdByName(updated.qcCheckerName) : Promise.resolve(null),
-      updated.sellerId ? Promise.resolve(updated.sellerId) : userIdByName(updated.sellerName),
-    ]);
+  if (leaderUser || checkerUser) {
     const notifData = {
       type: "QC_ASSIGNED" as const,
       title: "New QC Assignment",
       message: `You have been assigned to inspect lot "${updated.title}" (${updated.lotCode}) at ${updated.hubId}.`,
     };
-    if (leaderId) await notify(leaderId, { ...notifData, link: "/qc-leader" });
-    if (checkerId) await notify(checkerId, { ...notifData, link: "/qc-checker" });
-    if (sellerId) {
-      await notify(sellerId, {
+    if (updated.qcLeaderId) await notify(updated.qcLeaderId, { ...notifData, link: "/qc-leader" });
+    if (updated.qcCheckerId) await notify(updated.qcCheckerId, { ...notifData, link: "/qc-checker" });
+    if (updated.sellerId) {
+      await notify(updated.sellerId, {
         type: "QC_ASSIGNED",
         title: "QC Inspection Started",
         message: `Your lot "${updated.title}" (${updated.lotCode}) is now undergoing QC inspection by ${updated.qcCheckerName ?? "QC Checker"} at ${updated.hubId}.`,

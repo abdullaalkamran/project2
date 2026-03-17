@@ -68,6 +68,10 @@ type LotDetail = {
   soldQty: number;
   pendingQty: number;
   availableQty: number;
+  freeQtyEnabled: boolean;
+  freeQtyPer: number;
+  freeQtyAmount: number;
+  freeQtyUnit: string;
 };
 
 function CopyButton({ text }: { text: string }) {
@@ -107,6 +111,9 @@ export default function ProductDetailsPage() {
   const [lot, setLot] = useState<LotDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [qty, setQty] = useState(1);
+  const [qtyInput, setQtyInput] = useState("1");
+  const [offeredPrice, setOfferedPrice] = useState<number | null>(null);
+  const [priceInput, setPriceInput] = useState("");
   const [placing, setPlacing] = useState(false);
   const [msgText, setMsgText] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
@@ -145,7 +152,11 @@ export default function ProductDetailsPage() {
         if (data) {
           setLot(data);
           setActiveImage((data.images && data.images.length > 0 ? data.images[0] : data.image) || "");
-          setQty(MIN_ORDER_BY_UNIT(data.unit));
+          const initQty = MIN_ORDER_BY_UNIT(data.unit);
+          setQty(initQty);
+          setQtyInput(String(initQty));
+          const initPrice = data.qcReport?.minBidRate ?? data.minBidRate ?? data.basePrice;
+          setPriceInput(String(initPrice));
           if (!data.description && !data.qcReport) setActiveTab("packaging");
         }
       })
@@ -176,6 +187,14 @@ export default function ProductDetailsPage() {
   const minOrder = MIN_ORDER_BY_UNIT(displayUnit);
   const qtyStep = STEP_BY_UNIT(displayUnit);
 
+  const freeQtyEnabled = lot?.freeQtyEnabled ?? false;
+  const freeQtyPer = lot?.freeQtyPer ?? 0;
+  const freeQtyAmount = lot?.freeQtyAmount ?? 0;
+  const freeQtyUnit = lot?.freeQtyUnit ?? displayUnit;
+  const earnedFreeQty = freeQtyEnabled && freeQtyPer > 0
+    ? Math.floor(qty / freeQtyPer) * freeQtyAmount
+    : 0;
+
   const soldQty = lot?.soldQty ?? 0;
   const pendingQty = lot?.pendingQty ?? 0;
   const availableQty = lot?.availableQty ?? totalQty;
@@ -187,7 +206,11 @@ export default function ProductDetailsPage() {
     sellerBasePrice > displayPrice
       ? Math.round(((sellerBasePrice - displayPrice) / sellerBasePrice) * 100)
       : 0;
-  const totalPrice = Math.round(displayPrice * qty);
+  const effectivePrice = offeredPrice !== null && offeredPrice >= displayPrice ? offeredPrice : displayPrice;
+  const totalPrice = Math.round(effectivePrice * qty);
+  const pricePremium = effectivePrice > displayPrice ? Math.round((effectivePrice - displayPrice) * qty) : 0;
+  const platformFeeRate = 5; // default rate %
+  const platformFeeEstimate = Math.round(totalPrice * platformFeeRate / 100);
 
   const isSeller = role === "seller";
   const isOwnProduct =
@@ -195,10 +218,23 @@ export default function ProductDetailsPage() {
     ((!!lot?.sellerId && user.id === lot.sellerId) ||
       (!lot?.sellerId && user.name === displaySeller));
 
-  const handleQtyChange = (val: number) => {
-    const clamped = Math.max(minOrder, Math.min(availableQty, val));
+  const handleQtyStep = (val: number) => {
+    const clamped = Math.min(availableQty, Math.max(1, val));
     setQty(clamped);
+    setQtyInput(String(clamped));
   };
+  const handleQtyInput = (raw: string) => {
+    setQtyInput(raw);
+    const n = parseInt(raw, 10);
+    if (!isNaN(n) && n >= 1) setQty(Math.min(availableQty, n));
+  };
+  const handleQtyBlur = () => {
+    const n = parseInt(qtyInput, 10);
+    const safe = isNaN(n) || n < 1 ? 1 : Math.min(availableQty, n);
+    setQty(safe);
+    setQtyInput(String(safe));
+  };
+  const qtyBelowMin = qty < minOrder;
 
   const handleSendMessage = async () => {
     if (!user) {
@@ -226,6 +262,10 @@ export default function ProductDetailsPage() {
       toast.error("Please select a delivery hub first.");
       return;
     }
+    if (qty < minOrder) {
+      toast.error(`Minimum order is ${minOrder} ${displayUnit}.`);
+      return;
+    }
     setConfirmOpen(true);
   };
 
@@ -239,7 +279,7 @@ export default function ProductDetailsPage() {
         body: JSON.stringify({
           lotCode: lot.lotCode,
           qty,
-          pricePerUnit: displayPrice,
+          pricePerUnit: effectivePrice,
           deliveryPoint: deliveryHub,
         }),
       });
@@ -747,8 +787,8 @@ export default function ProductDetailsPage() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => handleQtyChange(qty - qtyStep)}
-                        disabled={qty <= minOrder}
+                        onClick={() => handleQtyStep(qty - qtyStep)}
+                        disabled={qty <= 1}
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 active:scale-95 disabled:opacity-30"
                       >
                         <Minus className="h-4 w-4" />
@@ -756,14 +796,13 @@ export default function ProductDetailsPage() {
                       <div className="relative flex-1">
                         <input
                           type="number"
-                          min={minOrder}
+                          min={1}
                           max={availableQty}
                           step={qtyStep}
-                          value={qty}
-                          onChange={(e) =>
-                            handleQtyChange(Number(e.target.value))
-                          }
-                          className="w-full rounded-xl border border-slate-200 py-2 pl-3 pr-10 text-center text-sm font-bold outline-none ring-emerald-100 focus:border-emerald-300 focus:ring-2"
+                          value={qtyInput}
+                          onChange={(e) => handleQtyInput(e.target.value)}
+                          onBlur={handleQtyBlur}
+                          className={`w-full rounded-xl border py-2 pl-3 pr-10 text-center text-sm font-bold outline-none focus:ring-2 ${qtyBelowMin ? "border-rose-300 ring-rose-100 focus:border-rose-400" : "border-slate-200 ring-emerald-100 focus:border-emerald-300"}`}
                         />
                         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
                           {displayUnit}
@@ -771,16 +810,95 @@ export default function ProductDetailsPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => handleQtyChange(qty + qtyStep)}
+                        onClick={() => handleQtyStep(qty + qtyStep)}
                         disabled={qty >= availableQty}
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 active:scale-95 disabled:opacity-30"
                       >
                         <Plus className="h-4 w-4" />
                       </button>
                     </div>
-                    <p className="text-[10px] text-slate-400">
-                      Minimum order: {minOrder} {displayUnit}
-                    </p>
+                    {qtyBelowMin ? (
+                      <p className="text-[10px] font-semibold text-rose-500">
+                        Minimum order is {minOrder} {displayUnit}. Please increase quantity.
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400">
+                        Minimum order: {minOrder} {displayUnit}
+                      </p>
+                    )}
+                    {freeQtyEnabled && freeQtyPer > 0 && (
+                      <div className="flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2">
+                        <span className="text-emerald-600">
+                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v13m0-13V6a4 4 0 00-4-4H6m6 6a4 4 0 014-4h2M6 20h12" />
+                          </svg>
+                        </span>
+                        <p className="text-[10px] font-semibold text-emerald-700">
+                          Free: {freeQtyAmount} {freeQtyUnit} per {freeQtyPer} {displayUnit}
+                          {earnedFreeQty > 0 && (
+                            <span className="ml-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-bold text-white">
+                              +{earnedFreeQty} {freeQtyUnit} (Tk {Math.round(earnedFreeQty * effectivePrice).toLocaleString()}) free
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Offer price */}
+                {!isSoldOut && !isOwnProduct && !isSeller && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-semibold text-slate-800">
+                        Your offer price <span className="text-emerald-600">/ {displayUnit}</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400">
+                        {isQcPrice ? (
+                          <span className="font-semibold text-emerald-600">QC min: Tk {displayPrice}/{displayUnit}</span>
+                        ) : (
+                          <>Min: Tk {displayPrice}/{displayUnit}</>
+                        )}
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">Tk</span>
+                      <input
+                        type="number"
+                        min={displayPrice}
+                        step={1}
+                        value={priceInput}
+                        onChange={(e) => {
+                          setPriceInput(e.target.value);
+                          const n = parseFloat(e.target.value);
+                          setOfferedPrice(isNaN(n) ? null : n);
+                        }}
+                        onBlur={() => {
+                          const n = parseFloat(priceInput);
+                          const safe = isNaN(n) || n < displayPrice ? displayPrice : n;
+                          setOfferedPrice(safe);
+                          setPriceInput(String(safe));
+                        }}
+                        className={`w-full rounded-xl border py-2 pl-8 pr-3 text-sm font-bold outline-none focus:ring-2 ${
+                          offeredPrice !== null && offeredPrice < displayPrice
+                            ? "border-rose-300 ring-rose-100 focus:border-rose-400"
+                            : offeredPrice !== null && offeredPrice > displayPrice
+                            ? "border-amber-300 ring-amber-100 focus:border-amber-400"
+                            : "border-slate-200 ring-emerald-100 focus:border-emerald-300"
+                        }`}
+                      />
+                    </div>
+                    {offeredPrice !== null && offeredPrice < displayPrice ? (
+                      <p className="text-[10px] font-semibold text-rose-500">
+                        {isQcPrice
+                          ? `Below QC minimum rate — must be at least Tk ${displayPrice}/${displayUnit}`
+                          : `Offer must be at least Tk ${displayPrice}/${displayUnit}`}
+                      </p>
+                    ) : offeredPrice !== null && offeredPrice > displayPrice ? (
+                      <p className="text-[10px] font-semibold text-amber-600">
+                        +Tk {offeredPrice - displayPrice}/{displayUnit} above market price
+                      </p>
+                    ) : null}
                   </div>
                 )}
 
@@ -822,18 +940,45 @@ export default function ProductDetailsPage() {
                     </div>
                     <div className="flex justify-between px-4 py-2.5 text-slate-500">
                       <span>
-                        Tk {displayPrice} x {qty.toLocaleString()} {displayUnit}
+                        Tk {effectivePrice} × {qty.toLocaleString()} {displayUnit}
                       </span>
                       <span className="font-bold text-slate-900">
                         Tk {totalPrice.toLocaleString()}
                       </span>
                     </div>
-                    <div className="flex justify-between px-4 py-2.5 text-xs text-slate-400">
-                      <span>50% advance due now</span>
-                      <span className="font-semibold text-slate-600">
-                        Tk {Math.round(totalPrice / 2).toLocaleString()}
-                      </span>
+                    {pricePremium > 0 && (
+                      <div className="flex justify-between px-4 py-2 bg-amber-50">
+                        <span className="text-amber-700 font-medium text-xs">Premium above market</span>
+                        <span className="font-bold text-amber-600 text-xs">+Tk {pricePremium.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between px-4 py-2.5 text-slate-500">
+                      <span>Platform fee ({platformFeeRate}%)</span>
+                      <span className="font-semibold text-slate-700">Tk {platformFeeEstimate.toLocaleString()}</span>
                     </div>
+                    <div className="flex justify-between px-4 py-2.5 text-slate-400">
+                      <span className="flex items-center gap-1">
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z" />
+                        </svg>
+                        Transport cost
+                      </span>
+                      <span className="text-[10px] italic">Added after dispatch</span>
+                    </div>
+                    <div className="flex justify-between px-4 py-2.5 font-bold text-slate-900 border-t border-slate-100">
+                      <span>You pay</span>
+                      <span>Tk {(totalPrice + platformFeeEstimate).toLocaleString()} <span className="text-[10px] font-normal text-slate-400">+ transport</span></span>
+                    </div>
+                    {earnedFreeQty > 0 && (
+                      <div className="flex justify-between px-4 py-2.5 bg-emerald-50">
+                        <span className="text-emerald-700 font-medium">
+                          Free bonus (+{earnedFreeQty} {freeQtyUnit})
+                        </span>
+                        <span className="font-bold text-emerald-600">
+                          Tk {Math.round(earnedFreeQty * effectivePrice).toLocaleString()} saved
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -860,7 +1005,7 @@ export default function ProductDetailsPage() {
                     <button
                       type="button"
                       onClick={openConfirm}
-                      disabled={!deliveryHub}
+                      disabled={!deliveryHub || qtyBelowMin || (offeredPrice !== null && offeredPrice < displayPrice)}
                       className="w-full rounded-full bg-emerald-500 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-600 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Review &amp; Place Order — Tk {totalPrice.toLocaleString()}
@@ -984,49 +1129,88 @@ export default function ProductDetailsPage() {
             </div>
 
             {/* Order details */}
-            <div className="divide-y divide-slate-50 px-6 py-2">
-              {[
-                { label: "Quantity", value: `${qty.toLocaleString()} ${displayUnit}` },
-                {
-                  label: "Rate",
-                  value: `Tk ${displayPrice.toLocaleString()} / ${displayUnit}`,
-                  sub: isQcPrice ? "QC Approved Rate" : undefined,
-                  subColor: "text-emerald-600",
-                },
-                {
-                  label: "Total Amount",
-                  value: `Tk ${totalPrice.toLocaleString()}`,
-                  bold: true,
-                },
-                {
-                  label: "50% Advance Due",
-                  value: `Tk ${Math.round(totalPrice / 2).toLocaleString()}`,
-                  sub: "Payable now",
-                  subColor: "text-amber-600",
-                },
-                {
-                  label: "Delivery Hub",
-                  value: deliveryHub,
-                  icon: true,
-                },
-                { label: "Seller", value: displaySeller },
-              ].map(({ label, value, bold, sub, subColor, icon }) => (
-                <div key={label} className="flex items-start justify-between gap-3 py-2.5 text-sm">
-                  <span className="text-slate-500">{label}</span>
+            <div className="px-6 py-3 space-y-3 max-h-[60vh] overflow-y-auto">
+
+              {/* Quantity & price section */}
+              <div className="rounded-2xl bg-slate-50 divide-y divide-slate-100">
+                <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                  <span className="text-slate-500">Quantity</span>
+                  <span className="font-bold text-slate-900">{qty.toLocaleString()} {displayUnit}</span>
+                </div>
+                <div className="flex justify-between items-start px-4 py-2.5 text-sm">
+                  <span className="text-slate-500">Rate</span>
                   <div className="text-right">
-                    <span className={`${bold ? "font-bold text-slate-900" : "font-semibold text-slate-700"} flex items-center gap-1 justify-end`}>
-                      {icon && <MapPin className="h-3 w-3 text-emerald-500" />}
-                      {value}
-                    </span>
-                    {sub && <p className={`text-[11px] ${subColor ?? "text-slate-400"}`}>{sub}</p>}
+                    <span className="font-bold text-slate-900">Tk {effectivePrice.toLocaleString()} / {displayUnit}</span>
+                    {isQcPrice && (
+                      <p className="text-[10px] text-emerald-600 font-semibold">QC Approved Rate</p>
+                    )}
+                    {pricePremium > 0 && (
+                      <p className="text-[10px] text-amber-600 font-semibold">+Tk {(effectivePrice - displayPrice)} above market</p>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
+                <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                  <span className="text-slate-500">Product amount</span>
+                  <span className="font-semibold text-slate-700">Tk {totalPrice.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                  <span className="text-slate-500">Platform fee ({platformFeeRate}%)</span>
+                  <span className="font-semibold text-slate-700">Tk {platformFeeEstimate.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                  <span className="text-slate-500 flex items-center gap-1">
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z" />
+                    </svg>
+                    Transport cost
+                  </span>
+                  <span className="text-xs italic text-slate-400">Added after dispatch</span>
+                </div>
+                <div className="flex justify-between items-center px-4 py-3 text-sm bg-white rounded-b-2xl">
+                  <span className="font-bold text-slate-900">You pay now</span>
+                  <div className="text-right">
+                    <span className="font-bold text-lg text-emerald-600">Tk {(totalPrice + platformFeeEstimate).toLocaleString()}</span>
+                    <p className="text-[10px] text-slate-400">+ transport</p>
+                  </div>
+                </div>
+              </div>
 
-            {/* Notice */}
-            <div className="mx-6 mb-4 rounded-xl bg-amber-50 px-4 py-2.5 text-xs text-amber-700">
-              Your order will be sent to the seller for approval. You will be notified once confirmed.
+              {/* Free qty bonus */}
+              {earnedFreeQty > 0 && (
+                <div className="rounded-2xl bg-emerald-50 border border-emerald-100 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-4 w-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v13m0-13V6a4 4 0 00-4-4H6m6 6a4 4 0 014-4h2M6 20h12" />
+                    </svg>
+                    <div>
+                      <p className="text-xs font-bold text-emerald-700">Free Bonus Included</p>
+                      <p className="text-[10px] text-emerald-600">+{earnedFreeQty} {freeQtyUnit} at no charge</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-emerald-600">Tk {Math.round(earnedFreeQty * effectivePrice).toLocaleString()} saved</span>
+                </div>
+              )}
+
+              {/* Delivery & seller */}
+              <div className="rounded-2xl bg-slate-50 divide-y divide-slate-100">
+                <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                  <span className="text-slate-500 flex items-center gap-1"><MapPin className="h-3 w-3 text-emerald-500" />Delivery Hub</span>
+                  <span className="font-semibold text-slate-700">{deliveryHub}</span>
+                </div>
+                <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                  <span className="text-slate-500">Seller</span>
+                  <span className="font-semibold text-slate-700">{displaySeller}</span>
+                </div>
+                <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                  <span className="text-slate-500">Lot</span>
+                  <span className="font-mono text-xs font-semibold text-slate-500">{lotCode}</span>
+                </div>
+              </div>
+
+              {/* Notice */}
+              <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-2.5 text-xs text-amber-700">
+                Your order will be sent to the seller for approval. You will be notified once confirmed.
+              </div>
             </div>
 
             {/* Actions */}

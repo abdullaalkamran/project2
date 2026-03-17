@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { notify, userIdByName } from "@/lib/notifications";
+import { notify } from "@/lib/notifications";
 
 export async function PATCH(
   _req: Request,
@@ -17,7 +17,7 @@ export async function PATCH(
 
   // Notify seller that lot has arrived at the hub
   // Resolve seller ID: prefer direct FK, fall back to name lookup for seeded/older lots
-  const sellerId = lot.sellerId ?? await userIdByName(lot.sellerName);
+  const sellerId = lot.sellerId;
   if (sellerId) {
     await notify(sellerId, {
       type: "LOT_RECEIVED",

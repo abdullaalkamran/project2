@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { notify, notifyMany, userIdByName, getLotParties } from "@/lib/notifications";
+import { notify, notifyMany, getLotParties } from "@/lib/notifications";
 import { getPreDispatchCheck, readPreDispatchChecks } from "@/lib/pre-dispatch-store";
 
 export async function PATCH(
@@ -94,7 +94,7 @@ export async function PATCH(
 
     // Resolve all parties
     const [buyerId, parties] = await Promise.all([
-      updated.buyerId ? Promise.resolve(updated.buyerId) : userIdByName(updated.buyerName),
+      Promise.resolve(updated.buyerId ?? null),
       getLotParties(updated.lotId),
     ]);
 

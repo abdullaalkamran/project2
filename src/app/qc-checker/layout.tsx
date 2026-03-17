@@ -25,7 +25,7 @@ export default function QCCheckerLayout({ children }: { children: React.ReactNod
     const load = async () => {
       try {
         const me = await api.get<MeResponse>("/api/auth/me");
-        const query = me?.name ? `?checker=${encodeURIComponent(me.name)}` : "";
+        const query = me?.id ? `?checkerId=${encodeURIComponent(me.id)}` : "";
         const rows = await api.get<FlowLot[]>(`/api/flow/tasks${query}`);
         setPendingCount(rows.filter((l) => l.qcTaskStatus !== "SUBMITTED" || l.status === "IN_QC").length);
       } catch {

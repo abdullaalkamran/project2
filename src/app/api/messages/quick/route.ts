@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
-import { notify, userIdByName } from "@/lib/notifications";
+import { notify } from "@/lib/notifications";
 
 export async function POST(req: NextRequest) {
   try {
     const session = await getSessionUser();
     if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-    const { buyerId, buyerName, message, orderCode, productName } = (await req.json()) as {
+    const { buyerId, message, orderCode, productName } = (await req.json()) as {
       buyerId?: string | null;
-      buyerName: string;
       message: string;
       orderCode: string;
       productName: string;
@@ -19,9 +18,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Message cannot be empty" }, { status: 400 });
     }
 
-    const recipientId = buyerId ?? (await userIdByName(buyerName));
+    const recipientId = buyerId ?? null;
     if (!recipientId) {
-      return NextResponse.json({ message: "Buyer not found" }, { status: 404 });
+      return NextResponse.json({ message: "Buyer ID is required" }, { status: 400 });
     }
 
     await notify(recipientId, {

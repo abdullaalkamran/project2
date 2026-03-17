@@ -75,7 +75,7 @@ export default function OverviewClient() {
     const load = async () => {
       try {
         const me = await api.get<MeResponse>("/api/auth/me");
-        const query = me?.name ? `?checker=${encodeURIComponent(me.name)}` : "";
+        const query = me?.id ? `?checkerId=${encodeURIComponent(me.id)}` : "";
         const rows = await api.get<FlowLot[]>(`/api/flow/tasks${query}`);
         setTasks(rows.map(toTask));
       } catch {

@@ -1,5 +1,19 @@
 [
   {
+    "lotId": "LOT-804300",
+    "sellerPhotoUrls": [
+      "/uploads/lots/1773752689395-nb52iux4.jpeg"
+    ],
+    "qcPhotoUrls": [
+      "/uploads/lots/3c3d9056-c67c-4b66-a7d8-d3f299433147.jpeg"
+    ],
+    "marketplacePhotoUrl": "/uploads/lots/3c3d9056-c67c-4b66-a7d8-d3f299433147.jpeg",
+    "marketplacePhotoUrls": [
+      "/uploads/lots/3c3d9056-c67c-4b66-a7d8-d3f299433147.jpeg",
+      "/uploads/lots/1773752689395-nb52iux4.jpeg"
+    ]
+  },
+  {
     "lotId": "LOT-167903",
     "sellerPhotoUrls": [
       "/uploads/lots/1773409070784-b0tumqbf.jpg"

@@ -75,6 +75,12 @@ export async function GET(
     status: lot.status,
     saleType: lot.saleType,
 
+    // Free qty offer
+    freeQtyEnabled: lot.freeQtyEnabled,
+    freeQtyPer: lot.freeQtyPer,
+    freeQtyAmount: lot.freeQtyAmount,
+    freeQtyUnit: lot.freeQtyUnit,
+
     // Sales progress
     soldQty,
     pendingQty,

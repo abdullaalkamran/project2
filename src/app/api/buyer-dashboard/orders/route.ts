@@ -40,10 +40,7 @@ export async function GET() {
 
   const orders = await prisma.order.findMany({
     where: {
-      OR: [
-        { buyerId: session.userId },
-        { buyerName: session.name, buyerId: null },
-      ],
+      buyerId: session.userId,
     },
     orderBy: { confirmedAt: "desc" },
     include: {

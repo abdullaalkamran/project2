@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
-import { notify, userIdByName } from "@/lib/notifications";
+import { notify } from "@/lib/notifications";
 import { upsertLotQCPhotos } from "@/lib/lot-media-store";
 
 export async function POST(req: NextRequest) {
@@ -116,10 +116,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Notify QC Leader and Seller that report is submitted
-    const [leaderId, sellerId] = await Promise.all([
-      updated.qcLeaderName ? userIdByName(updated.qcLeaderName) : Promise.resolve(null),
-      updated.sellerId ? Promise.resolve(updated.sellerId) : userIdByName(updated.sellerName),
-    ]);
+    const leaderId = updated.qcLeaderId ?? null;
+    const sellerId = updated.sellerId ?? null;
 
     if (leaderId) {
       await notify(leaderId, {

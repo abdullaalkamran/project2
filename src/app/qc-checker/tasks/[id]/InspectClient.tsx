@@ -243,7 +243,7 @@ export default function InspectClient() {
     try {
       const me = await api.get<{ name: string }>("/api/auth/me");
       if (me?.name) setCheckerName(me.name);
-      const query = me?.name ? `?checker=${encodeURIComponent(me.name)}` : "";
+      const query = me?.id ? `?checkerId=${encodeURIComponent(me.id)}` : "";
       const rows = await api.get<FlowLot[]>(`/api/flow/tasks${query}`);
       const found = rows.find((l) => l.id === lotId);
       if (!found) {

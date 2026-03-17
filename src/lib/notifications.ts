@@ -99,12 +99,6 @@ export async function notifyMany(
   }
 }
 
-/** Look up a user ID by their display name (first match). */
-export async function userIdByName(name: string): Promise<string | null> {
-  const u = await prisma.user.findFirst({ where: { name }, select: { id: true } });
-  return u?.id ?? null;
-}
-
 /** Get all user IDs with a given role. */
 export async function userIdsByRole(role: string): Promise<string[]> {
   const roles = await prisma.userRole.findMany({
@@ -123,16 +117,16 @@ export async function getLotParties(lotId: string): Promise<{
 }> {
   const lot = await prisma.lot.findUnique({
     where: { id: lotId },
-    select: { sellerId: true, sellerName: true, qcLeaderName: true, qcCheckerName: true },
+    select: { sellerId: true, qcLeaderId: true, qcCheckerId: true },
   });
   if (!lot) return { sellerId: null, qcLeaderId: null, qcCheckerId: null, hubManagerIds: [] };
 
-  const [sellerId, qcLeaderId, qcCheckerId, hubManagerIds] = await Promise.all([
-    lot.sellerId ? Promise.resolve(lot.sellerId) : userIdByName(lot.sellerName),
-    lot.qcLeaderName ? userIdByName(lot.qcLeaderName) : Promise.resolve(null),
-    lot.qcCheckerName ? userIdByName(lot.qcCheckerName) : Promise.resolve(null),
-    userIdsByRole("hub_manager"),
-  ]);
+  const hubManagerIds = await userIdsByRole("hub_manager");
 
-  return { sellerId, qcLeaderId, qcCheckerId, hubManagerIds };
+  return {
+    sellerId:    lot.sellerId    ?? null,
+    qcLeaderId:  lot.qcLeaderId  ?? null,
+    qcCheckerId: lot.qcCheckerId ?? null,
+    hubManagerIds,
+  };
 }

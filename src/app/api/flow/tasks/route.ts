@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSessionUser } from "@/lib/session";
 import { readLotMedia } from "@/lib/lot-media-store";
 
 export async function GET(req: NextRequest) {
-  const checker = req.nextUrl.searchParams.get("checker");
+  const session = await getSessionUser();
+  if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+  // Filter by the authenticated checker's ID; allow admin/leader to pass ?checkerId= for viewing
+  const paramCheckerId = req.nextUrl.searchParams.get("checkerId");
+  const checkerId = paramCheckerId ?? (session.activeRole === "qc_checker" ? session.userId : null);
 
   const [lots, lotMedia] = await Promise.all([
     prisma.lot.findMany({
-      where: checker
-        ? { qcCheckerName: { equals: checker, mode: "insensitive" } }
-        : { qcCheckerName: { not: null } },
+      where: checkerId
+        ? { qcCheckerId: checkerId }
+        : { qcCheckerId: { not: null } },
       orderBy: { createdAt: "desc" },
     }),
     readLotMedia(),
@@ -17,10 +23,8 @@ export async function GET(req: NextRequest) {
 
   const photoMap = new Map(lotMedia.map((m) => [m.lotId, m]));
 
-  const filtered = lots;
-
   return NextResponse.json(
-    filtered.map((l) => {
+    lots.map((l) => {
       const media = photoMap.get(l.lotCode);
       return {
         id: l.lotCode,
@@ -50,6 +54,8 @@ export async function GET(req: NextRequest) {
         status: l.status,
         qcLeader: l.qcLeaderName,
         qcChecker: l.qcCheckerName,
+        qcLeaderId: l.qcLeaderId,
+        qcCheckerId: l.qcCheckerId,
         qcTaskStatus: l.qcTaskStatus,
         verdict: l.verdict,
         receivedAt: l.receivedAt?.toISOString(),

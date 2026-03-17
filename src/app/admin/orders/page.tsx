@@ -27,6 +27,7 @@ type Order = {
   hub: string;
   deliveryPoint: string;
   status: string;
+  sellerStatus: string;
   dispatched: boolean;
   delivered: boolean;
   assignedTruck: string | null;
@@ -35,21 +36,23 @@ type Order = {
 };
 
 const STATUS_MAP: Record<string, { label: string; dot: string; badge: string }> = {
-  CONFIRMED:        { label: "Confirmed",       dot: "bg-blue-500",    badge: "bg-blue-50 text-blue-700 border-blue-200" },
-  DISPATCHED:       { label: "Dispatched",      dot: "bg-amber-400",   badge: "bg-amber-50 text-amber-700 border-amber-200" },
-  HUB_RECEIVED:     { label: "Hub Received",    dot: "bg-sky-400",     badge: "bg-sky-50 text-sky-700 border-sky-200" },
-  OUT_FOR_DELIVERY: { label: "Out for Delivery",dot: "bg-violet-500",  badge: "bg-violet-50 text-violet-700 border-violet-200" },
-  ARRIVED:          { label: "Arrived",         dot: "bg-teal-500",    badge: "bg-teal-50 text-teal-700 border-teal-200" },
-  PICKED_UP:        { label: "Delivered",       dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  DECLINED:         { label: "Declined",        dot: "bg-red-500",     badge: "bg-red-50 text-red-600 border-red-200" },
+  AWAITING_SELLER:  { label: "Awaiting Seller", dot: "bg-amber-400",   badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  CONFIRMED:        { label: "Confirmed",        dot: "bg-blue-500",    badge: "bg-blue-50 text-blue-700 border-blue-200" },
+  DISPATCHED:       { label: "Dispatched",       dot: "bg-violet-400",  badge: "bg-violet-50 text-violet-700 border-violet-200" },
+  HUB_RECEIVED:     { label: "Hub Received",     dot: "bg-sky-400",     badge: "bg-sky-50 text-sky-700 border-sky-200" },
+  OUT_FOR_DELIVERY: { label: "Out for Delivery", dot: "bg-indigo-500",  badge: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  ARRIVED:          { label: "Arrived",          dot: "bg-teal-500",    badge: "bg-teal-50 text-teal-700 border-teal-200" },
+  PICKED_UP:        { label: "Delivered",        dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  CANCELLED:        { label: "Cancelled",        dot: "bg-red-500",     badge: "bg-red-50 text-red-600 border-red-200" },
 };
 
 const FILTERS = [
-  { key: "All",          match: () => true },
-  { key: "Confirmed",    match: (s: string) => s === "CONFIRMED" },
-  { key: "Dispatched",   match: (s: string) => s === "DISPATCHED" },
-  { key: "In Transit",   match: (s: string) => ["HUB_RECEIVED", "OUT_FOR_DELIVERY", "ARRIVED"].includes(s) },
-  { key: "Delivered",    match: (s: string) => s === "PICKED_UP" },
+  { key: "All",             match: () => true },
+  { key: "Awaiting Seller", match: (s: string) => s === "AWAITING_SELLER" },
+  { key: "Confirmed",       match: (s: string) => s === "CONFIRMED" },
+  { key: "Dispatched",      match: (s: string) => s === "DISPATCHED" },
+  { key: "In Transit",      match: (s: string) => ["HUB_RECEIVED", "OUT_FOR_DELIVERY", "ARRIVED"].includes(s) },
+  { key: "Delivered",       match: (s: string) => s === "PICKED_UP" },
 ];
 
 function fmtBDT(n: number) {
