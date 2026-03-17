@@ -310,10 +310,12 @@ export default function AdminOrdersPage() {
                 }`}
               >
                 {/* Card row */}
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setExpanded(isOpen ? null : o.id)}
-                  className="w-full text-left px-5 py-4"
+                  onKeyDown={(e) => e.key === "Enter" && setExpanded(isOpen ? null : o.id)}
+                  className="w-full cursor-pointer px-5 py-4"
                 >
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
 
@@ -384,7 +386,7 @@ export default function AdminOrdersPage() {
                       {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </span>
                   </div>
-                </button>
+                </div>
 
                 {/* Expanded detail */}
                 {isOpen && (
