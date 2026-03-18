@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, ClipboardCheck, Clock, Home, Menu, X } from 
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
 
-type MeResponse = { name: string };
+type MeResponse = { id: string; name: string };
 
 const navItems = [
   { label: "Overview", href: "/qc-checker", icon: Home },

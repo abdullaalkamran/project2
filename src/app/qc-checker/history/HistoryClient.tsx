@@ -93,7 +93,7 @@ export default function HistoryClient() {
   useEffect(() => {
     const load = async () => {
       try {
-        const me = await api.get<{ name: string }>("/api/auth/me");
+        const me = await api.get<{ id: string; name: string }>("/api/auth/me");
         const query = me?.id ? `?checkerId=${encodeURIComponent(me.id)}` : "";
         const rows = await api.get<FlowLot[]>(`/api/flow/tasks${query}`);
         const history = rows

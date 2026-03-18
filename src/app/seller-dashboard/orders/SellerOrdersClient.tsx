@@ -35,6 +35,8 @@ type OrderItem = {
   platformFee: number;
   sellerPayable: number;
   actualWeightKg: number | null;
+  physicallyReceived: boolean;
+  qualityChecked: boolean;
 };
 
 type LotGroup = {
@@ -462,19 +464,20 @@ const DELIVERY_STEPS: { label: string; sublabel: string }[] = [
   { label: "Delivered",              sublabel: "Picked up by buyer"   },
 ];
 
-// Seller API returns mapped status labels (e.g. "Delivered", "At Hub")
+// Seller API returns mapped status labels (e.g. "Delivered", "At Hub").
+// active = index of the LAST COMPLETED step (same semantics as buyer view).
+// Seller API returns mapped status labels (e.g. "Delivered", "At Hub").
 function sellerActiveStep(o: OrderItem): number {
-  if (o.status === "Delivered" || o.delivered)   return 10;
-  if (o.status === "Arrived")                    return 9;
-  if (o.status === "Out for Delivery")           return 8;
-  if (o.status === "At Hub")                     return 7;
-  if (o.dispatched || o.status === "Dispatched") return 5; // In Transit active
-  if (o.assignedTruck || o.loadConfirmed)        return 5; // Truck confirmed, waiting dispatch
-  if (o.actualWeightKg != null)                  return 4; // Weight checked, waiting truck
-  // Seller must have accepted before order progresses
-  const s = o.sellerStatus;
-  if (s !== "ACCEPTED" && s !== "CONFIRMED")     return 1; // Awaiting seller decision
-  return 3; // Seller accepted — goods are at hub (lot must be LIVE/QC_PASSED to order)
+  if (o.status === "Delivered" || o.delivered)                               return 10; // All done ✓
+  if (o.status === "Arrived")                                                return 9;  // Delivered active
+  if (o.status === "Out for Delivery")                                       return 8;  // Ready for Pickup active
+  if (o.status === "At Hub")                                                 return 7;  // QTY & Weight Checked active
+  if (o.dispatched || o.status === "Dispatched")                             return 6;  // Hub Received active
+  if (o.assignedTruck && o.loadConfirmed)                                    return 5;  // In Transit active
+  if (o.qualityChecked && o.actualWeightKg != null && o.actualWeightKg > 0) return 4;  // Truck Confirmed active
+  if (o.physicallyReceived)                                                  return 3;  // Weight & QC Checked active
+  if (o.sellerStatus !== "PENDING_SELLER")                                   return 2;  // Goods at Hub active (Order Confirmed ✓ green)
+  return 1;                                                                             // Order Confirmed active (Order Placed ✓ green)
 }
 
 function DeliveryProgress({ order: o }: { order: OrderItem }) {

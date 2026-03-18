@@ -241,7 +241,7 @@ export default function InspectClient() {
   /* ── fetch lot ── */
   const fetchLot = useCallback(async () => {
     try {
-      const me = await api.get<{ name: string }>("/api/auth/me");
+      const me = await api.get<{ id: string; name: string }>("/api/auth/me");
       if (me?.name) setCheckerName(me.name);
       const query = me?.id ? `?checkerId=${encodeURIComponent(me.id)}` : "";
       const rows = await api.get<FlowLot[]>(`/api/flow/tasks${query}`);

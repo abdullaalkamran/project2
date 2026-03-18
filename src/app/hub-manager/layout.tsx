@@ -10,6 +10,7 @@ const nav = [
   { label: "New Lots Management",  href: "/hub-manager/lots" },
   { label: "QC Management",        href: "/hub-manager/qc" },
   { label: "Inventory Management", href: "/hub-manager/inventory" },
+  { label: "Confirmed Orders",     href: "/hub-manager/confirmed-orders" },
   { label: "Registered Sellers",   href: "/hub-manager/sellers" },
   { label: "Transport Management", href: "/hub-manager/trucks" },
   { label: "Manage Staff",         href: "/hub-manager/staff" },
@@ -21,15 +22,22 @@ export default function HubManagerLayout({ children }: { children: React.ReactNo
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [pendingTrucks, setPendingTrucks] = useState(0);
+  const [pendingOrders, setPendingOrders] = useState(0);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch("/api/flow/trucks/registrations");
-        const data = await res.json() as unknown[];
-        setPendingTrucks(Array.isArray(data) ? data.length : 0);
+        const [trucksRes, ordersRes] = await Promise.all([
+          fetch("/api/flow/trucks/registrations"),
+          fetch("/api/hub-manager/confirmed-orders"),
+        ]);
+        const trucks = await trucksRes.json() as unknown[];
+        const orders = await ordersRes.json() as Array<{ sellerStatus: string }>;
+        setPendingTrucks(Array.isArray(trucks) ? trucks.length : 0);
+        setPendingOrders(Array.isArray(orders) ? orders.filter((o) => o.sellerStatus === "PENDING_SELLER").length : 0);
       } catch {
         setPendingTrucks(0);
+        setPendingOrders(0);
       }
     };
     void load();
@@ -56,6 +64,8 @@ export default function HubManagerLayout({ children }: { children: React.ReactNo
           const badge =
             link.href === "/hub-manager/trucks" && pendingTrucks > 0
               ? String(pendingTrucks)
+              : link.href === "/hub-manager/confirmed-orders" && pendingOrders > 0
+              ? String(pendingOrders)
               : undefined;
           return (
             <Link

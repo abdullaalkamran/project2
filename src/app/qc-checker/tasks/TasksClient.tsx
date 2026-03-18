@@ -27,7 +27,7 @@ type Task = {
   rawLotStatus: string;
 };
 
-type MeResponse = { name: string };
+type MeResponse = { id: string; name: string };
 
 function toTaskStatus(l: FlowLot): TaskStatus {
   if (l.qcTaskStatus === "IN_PROGRESS") return "In Progress";

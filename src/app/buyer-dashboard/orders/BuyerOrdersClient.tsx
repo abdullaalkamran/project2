@@ -96,39 +96,32 @@ const DELIVERY_STEPS: { label: string; sublabel: string }[] = [
   { label: "Delivered",               sublabel: "Picked up by buyer"    },
 ];
 
-// Returns number of COMPLETED steps (0–10). Step i is done if i < result, active if i === result.
-// Step 0: Order Placed        → always done once order exists
-// Step 1: Order Confirmed     → sellerStatus ACCEPTED/CONFIRMED
-// Step 2: Goods at Hub        → lot.status reached AT_HUB or beyond
-// Step 3: Weight & QC Checked → actualWeightKg > 0 (pre-dispatch weight entered) OR lot QC done
-// Step 4: Truck Confirmed     → assignedTruck set or loadConfirmed
-// Step 5: In Transit          → dispatched / status DISPATCHED
-// Step 6: Hub Received        → status HUB_RECEIVED
-// Step 7: QTY & Weight Checked → status OUT_FOR_DELIVERY
-// Step 8: Ready for Pickup    → status ARRIVED
-// Step 9: Delivered           → status PICKED_UP
-const LOT_STATUSES_AT_OR_PAST_HUB = [
-  "AT_HUB", "IN_QC", "QC_SUBMITTED", "QC_PASSED", "QC_FAILED",
-  "LIVE", "AUCTION_ENDED", "SOLD", "DELIVERED",
-];
+// active = index of the LAST COMPLETED step.
+// Steps i < active → past done (green ✓). Step i === active → current state (blue ●). Steps i > active → future (grey).
+// return 10 means all 10 steps done (PICKED_UP); no active dot shown.
+//
+// [0] Order Placed        → PENDING_SELLER (order placed, awaiting seller)
+// [1] Order Confirmed     → seller/hub accepted
+// [2] Goods at Hub        → physicallyReceived by hub manager at pre-dispatch gate
+// [3] Weight & QC Checked → qualityChecked && actualWeightKg > 0
+// [4] Truck Confirmed     → assignedTruck AND loadConfirmed (both required)
+// [5] In Transit          → dispatched
+// [6] Hub Received        → status HUB_RECEIVED
+// [7] QTY & Weight Checked→ (implied between HUB_RECEIVED → OUT_FOR_DELIVERY)
+// [8] Ready for Pickup    → status OUT_FOR_DELIVERY
+// [9] Delivered           → status ARRIVED; return 10 when PICKED_UP (all done)
 
 function deliveryActiveStep(o: OrderItem): number {
-  // Order-level delivery statuses — these only exist after full flow starts
-  if (o.status === "PICKED_UP")                  return 10;
-  if (o.status === "ARRIVED")                    return 9;
-  if (o.status === "OUT_FOR_DELIVERY")           return 8;
-  if (o.status === "HUB_RECEIVED")               return 7;
-  if (o.dispatched || o.status === "DISPATCHED") return 5;
-  if (o.assignedTruck || o.loadConfirmed)        return 5;
-  if (o.qualityChecked && o.actualWeightKg != null && o.actualWeightKg > 0) return 4;
-
-  // Seller must accept BEFORE lot-level progress can advance order steps
-  const s = o.sellerStatus;
-  if (s !== "ACCEPTED" && s !== "CONFIRMED") return 1;
-
-  // Seller accepted — lot goods are physically at hub if lot reached AT_HUB or beyond
-  if (LOT_STATUSES_AT_OR_PAST_HUB.includes(o.lotStatus)) return 3;
-  return 2;
+  if (o.status === "PICKED_UP")                                              return 10; // All done ✓
+  if (o.status === "ARRIVED")                                                return 9;  // Delivered active
+  if (o.status === "OUT_FOR_DELIVERY")                                       return 8;  // Ready for Pickup active
+  if (o.status === "HUB_RECEIVED")                                           return 7;  // QTY & Weight Checked active
+  if (o.dispatched || o.status === "DISPATCHED")                             return 6;  // Hub Received active
+  if (o.assignedTruck && o.loadConfirmed)                                    return 5;  // In Transit active
+  if (o.qualityChecked && o.actualWeightKg != null && o.actualWeightKg > 0) return 4;  // Truck Confirmed active
+  if (o.physicallyReceived)                                                  return 3;  // Weight & QC Checked active
+  if (o.sellerStatus !== "PENDING_SELLER")                                   return 2;  // Goods at Hub active (Order Confirmed ✓ green)
+  return 1;                                                                             // Order Confirmed active (Order Placed ✓ green)
 }
 
 function DeliveryStepBar({ o }: { o: OrderItem }) {

@@ -19,7 +19,8 @@ export async function GET() {
       ...hubFilter,
     },
     include: {
-      lot: { select: { qcLeaderName: true, qcCheckerName: true, hubId: true } },
+      lot: { select: { qcLeaderName: true, qcCheckerName: true, hubId: true, sellerPhone: true } },
+      seller: { select: { phone: true } },
     },
     orderBy: { confirmedAt: "desc" },
   });
@@ -32,6 +33,7 @@ export async function GET() {
       qty: o.qty,
       freeQty: o.freeQty ?? 0,
       seller: o.sellerName,
+      sellerPhone: o.lot?.sellerPhone ?? o.seller?.phone ?? null,
       buyer: o.buyerName,
       deliveryPoint: o.deliveryPoint,
       winningBid: `৳${o.winningBid.toLocaleString()}`,

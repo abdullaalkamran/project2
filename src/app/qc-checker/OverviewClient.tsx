@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
 
-type MeResponse = { name: string };
+type MeResponse = { id: string; name: string };
 
 type TaskStatus = "Pending" | "In Progress" | "Submitted";
 
