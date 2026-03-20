@@ -3,18 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Menu, X } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, Menu, X,
+  LayoutDashboard, Package, ShieldCheck, Layers,
+  Users, Truck, UserCog, BarChart3, SendHorizonal,
+} from "lucide-react";
 
 const nav = [
-  { label: "Overview",             href: "/hub-manager" },
-  { label: "New Lots Management",  href: "/hub-manager/lots" },
-  { label: "QC Management",        href: "/hub-manager/qc" },
-  { label: "Inventory Management", href: "/hub-manager/inventory" },
-  { label: "Confirmed Orders",     href: "/hub-manager/confirmed-orders" },
-  { label: "Registered Sellers",   href: "/hub-manager/sellers" },
-  { label: "Transport Management", href: "/hub-manager/trucks" },
-  { label: "Manage Staff",         href: "/hub-manager/staff" },
-  { label: "Hub Reports",          href: "/hub-manager/reports" },
+  { label: "Overview",           href: "/hub-manager",           icon: LayoutDashboard },
+  { label: "New Lots",           href: "/hub-manager/lots",      icon: Package },
+  { label: "QC Management",      href: "/hub-manager/qc",        icon: ShieldCheck },
+  { label: "Inventory",          href: "/hub-manager/inventory", icon: Layers },
+  { label: "Outbound Dispatch",  href: "/hub-manager/dispatch",  icon: SendHorizonal },
+  { label: "Registered Sellers", href: "/hub-manager/sellers",   icon: Users },
+  { label: "Transport",          href: "/hub-manager/trucks",    icon: Truck },
+  { label: "Manage Staff",       href: "/hub-manager/staff",     icon: UserCog },
+  { label: "Hub Reports",        href: "/hub-manager/reports",   icon: BarChart3 },
 ];
 
 export default function HubManagerLayout({ children }: { children: React.ReactNode }) {
@@ -22,25 +26,19 @@ export default function HubManagerLayout({ children }: { children: React.ReactNo
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [pendingTrucks, setPendingTrucks] = useState(0);
-  const [pendingOrders, setPendingOrders] = useState(0);
+  const [pendingDispatch, setPendingDispatch] = useState(0);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [trucksRes, ordersRes] = await Promise.all([
-          fetch("/api/flow/trucks/registrations"),
-          fetch("/api/hub-manager/confirmed-orders"),
-        ]);
-        const trucks = await trucksRes.json() as unknown[];
-        const orders = await ordersRes.json() as Array<{ sellerStatus: string }>;
+    type DispatchOrder = { dispatched: boolean };
+    Promise.all([
+      fetch("/api/flow/trucks/registrations").then((r) => r.ok ? r.json() as Promise<unknown[]> : Promise.resolve([])),
+      fetch("/api/flow/dispatch/orders").then((r) => r.ok ? r.json() as Promise<DispatchOrder[]> : Promise.resolve([])),
+    ])
+      .then(([trucks, orders]) => {
         setPendingTrucks(Array.isArray(trucks) ? trucks.length : 0);
-        setPendingOrders(Array.isArray(orders) ? orders.filter((o) => o.sellerStatus === "PENDING_SELLER").length : 0);
-      } catch {
-        setPendingTrucks(0);
-        setPendingOrders(0);
-      }
-    };
-    void load();
+        setPendingDispatch(Array.isArray(orders) ? orders.filter((o) => !o.dispatched).length : 0);
+      })
+      .catch(() => { setPendingTrucks(0); setPendingDispatch(0); });
   }, [pathname]);
 
   const sidebarContent = (
@@ -64,18 +62,22 @@ export default function HubManagerLayout({ children }: { children: React.ReactNo
           const badge =
             link.href === "/hub-manager/trucks" && pendingTrucks > 0
               ? String(pendingTrucks)
-              : link.href === "/hub-manager/confirmed-orders" && pendingOrders > 0
-              ? String(pendingOrders)
+              : link.href === "/hub-manager/dispatch" && pendingDispatch > 0
+              ? String(pendingDispatch)
               : undefined;
+          const Icon = link.icon;
           return (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setMobileOpen(false)}
-              className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold transition
-                ${active ? "bg-amber-50 text-amber-700" : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"}`}
+              className={`flex w-full items-center gap-3 justify-between rounded-xl px-3 py-2.5 text-sm font-semibold transition
+                ${active ? "bg-amber-50 text-amber-700" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
             >
-              {link.label}
+              <span className="flex items-center gap-3">
+                <Icon size={17} className={active ? "text-amber-600" : "text-slate-400"} />
+                {link.label}
+              </span>
               {badge && (
                 <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
                   {badge}

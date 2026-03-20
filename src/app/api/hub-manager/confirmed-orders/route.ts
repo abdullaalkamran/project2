@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { getAssignedHubNames } from "@/lib/hub-assignments";
+import { getPreDispatchCheck } from "@/lib/pre-dispatch-store";
 
 export async function GET() {
   const session = await getSessionUser();
@@ -10,8 +11,6 @@ export async function GET() {
   const hubNames = await getAssignedHubNames(session.userId, "hub_manager");
   const hubFilter = hubNames.length > 0 ? { lot: { hubId: { in: hubNames } } } : {};
 
-  // Show all orders that are confirmed/accepted (ready or in-progress for dispatch)
-  // Exclude cancelled/declined
   const orders = await prisma.order.findMany({
     where: {
       sellerStatus: { in: ["ACCEPTED", "CONFIRMED", "PENDING_SELLER"] },
@@ -25,8 +24,9 @@ export async function GET() {
     orderBy: { confirmedAt: "desc" },
   });
 
-  return NextResponse.json(
-    orders.map((o) => ({
+  const result = await Promise.all(orders.map(async (o) => {
+    const pd = await getPreDispatchCheck(o.orderCode);
+    return {
       id: o.orderCode,
       lotId: o.lot?.hubId ? `(${o.lot.hubId})` : "",
       product: o.product,
@@ -45,6 +45,12 @@ export async function GET() {
       status: o.status,
       dispatched: o.dispatched,
       assignedTruck: o.assignedTruck ?? null,
-    }))
-  );
+      loadConfirmed: o.loadConfirmed,
+      physicallyReceived: pd?.physicallyReceived ?? false,
+      qualityChecked: pd?.qualityChecked ?? false,
+      actualWeightKg: (pd?.grossWeightKg ?? 0) > 0 ? pd!.grossWeightKg : null,
+    };
+  }));
+
+  return NextResponse.json(result);
 }

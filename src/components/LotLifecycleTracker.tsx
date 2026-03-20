@@ -8,6 +8,7 @@ type Props = {
   pickedUpAt?: Date | string | null;
   compact?: boolean;
   orderOnly?: boolean;
+  lotOnly?: boolean;
   hideHeader?: boolean;
 };
 
@@ -228,9 +229,9 @@ function ProgressHeader({ states, allSteps }: { states: StepState[]; allSteps: s
 
 export default function LotLifecycleTracker(props: Props) {
   const states    = computeStates(props);
-  const { compact, orderOnly, hideHeader } = props;
-  const visibleStates = orderOnly ? states.slice(6, 12) : states;
-  const allSteps  = orderOnly ? ORDER_STEPS : [...LOT_STEPS, ...ORDER_STEPS];
+  const { compact, orderOnly, lotOnly, hideHeader } = props;
+  const visibleStates = orderOnly ? states.slice(6, 12) : lotOnly ? states.slice(0, 6) : states;
+  const allSteps  = orderOnly ? ORDER_STEPS : lotOnly ? LOT_STEPS : [...LOT_STEPS, ...ORDER_STEPS];
 
   return (
     <div className={compact ? "space-y-1.5" : "space-y-1"}>
@@ -243,10 +244,12 @@ export default function LotLifecycleTracker(props: Props) {
             compact={compact} label="Lot Phase" icon={PHASE_ICON_LOT} color="text-slate-400"
           />
         )}
-        <PhaseRow
-          steps={ORDER_STEPS} states={states.slice(6, 12)} offset={orderOnly ? 1 : 7}
-          compact={compact} label="Order & Delivery" icon={PHASE_ICON_ORDER} color="text-slate-400"
-        />
+        {!lotOnly && (
+          <PhaseRow
+            steps={ORDER_STEPS} states={states.slice(6, 12)} offset={orderOnly ? 1 : 7}
+            compact={compact} label="Order & Delivery" icon={PHASE_ICON_ORDER} color="text-slate-400"
+          />
+        )}
       </div>
     </div>
   );

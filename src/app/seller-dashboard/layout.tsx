@@ -3,18 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Menu, X } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, Menu, X,
+  LayoutDashboard, Package, PlusCircle, ShoppingBag,
+  ClipboardList, DollarSign, MessageCircle, BarChart2, Settings,
+} from "lucide-react";
 
 const nav = [
-  { label: "Overview", href: "/seller-dashboard" },
-  { label: "My Lots", href: "/seller-dashboard/lots" },
-  { label: "Create New Lot", href: "/seller-dashboard/create-lot" },
-  { label: "My Marketplace Products", href: "/seller-dashboard/marketplace" },
-  { label: "Orders", href: "/seller-dashboard/orders" },
-  { label: "Earnings & Payouts", href: "/seller-dashboard/finance" },
-  { label: "Messages", href: "/seller-dashboard/messages", badge: "3" },
-  { label: "Performance", href: "/seller-dashboard/analytics" },
-  { label: "Settings & Profile", href: "/seller-dashboard/settings" },
+  { label: "Overview",                 href: "/seller-dashboard",             icon: LayoutDashboard },
+  { label: "My Lots",                  href: "/seller-dashboard/lots",        icon: Package },
+  { label: "Create New Lot",           href: "/seller-dashboard/create-lot",  icon: PlusCircle },
+  { label: "Marketplace Products",     href: "/seller-dashboard/marketplace", icon: ShoppingBag },
+  { label: "Orders",                   href: "/seller-dashboard/orders",      icon: ClipboardList },
+  { label: "Earnings & Payouts",       href: "/seller-dashboard/finance",     icon: DollarSign },
+  { label: "Messages",                 href: "/seller-dashboard/messages",    icon: MessageCircle, badge: "3" },
+  { label: "Performance",              href: "/seller-dashboard/analytics",   icon: BarChart2 },
+  { label: "Settings & Profile",       href: "/seller-dashboard/settings",    icon: Settings },
 ];
 
 export default function SellerDashboardLayout({ children }: { children: React.ReactNode }) {
@@ -24,8 +28,8 @@ export default function SellerDashboardLayout({ children }: { children: React.Re
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
-      <div className="mb-6 flex items-center justify-between px-1">
-        <span className="text-lg font-bold text-slate-900">Seller Dashboard</span>
+      <div className="mb-6 flex items-center justify-between px-3">
+        <p className="text-xs font-semibold uppercase tracking-widest text-emerald-500">Seller</p>
         <button
           type="button"
           onClick={() => setSidebarHidden(true)}
@@ -40,15 +44,19 @@ export default function SellerDashboardLayout({ children }: { children: React.Re
           const active =
             pathname === link.href ||
             (link.href !== "/seller-dashboard" && pathname.startsWith(link.href));
+          const Icon = link.icon;
           return (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setMobileOpen(false)}
-              className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold transition
-                ${active ? "bg-emerald-50 text-emerald-700" : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"}`}
+              className={`flex w-full items-center gap-3 justify-between rounded-xl px-3 py-2.5 text-sm font-semibold transition
+                ${active ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
             >
-              {link.label}
+              <span className="flex items-center gap-3">
+                <Icon size={17} className={active ? "text-emerald-600" : "text-slate-400"} />
+                {link.label}
+              </span>
               {link.badge && (
                 <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
                   {link.badge}
@@ -62,18 +70,16 @@ export default function SellerDashboardLayout({ children }: { children: React.Re
   );
 
   return (
-    <div className="flex min-h-screen">
-      {/* Mobile header */}
-      <div className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
-        <span className="text-lg font-bold text-slate-900">Seller Dashboard</span>
-        <button type="button" onClick={() => setMobileOpen((v) => !v)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100">
-          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </div>
+    <div className="flex min-h-[calc(100vh-80px)]">
+      {/* Mobile toggle button */}
+      <button type="button" onClick={() => setMobileOpen((v) => !v)}
+        className="fixed bottom-5 right-5 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg lg:hidden" aria-label="Toggle menu">
+        {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
 
       {/* Desktop sidebar */}
       {!sidebarHidden && (
-        <aside className="hidden lg:flex flex-col w-64 shrink-0 border-r border-slate-200 bg-white px-4 py-6 sticky top-0 h-screen overflow-y-auto">
+        <aside className="hidden lg:flex flex-col w-64 shrink-0 border-r border-slate-100 bg-white px-3 py-6 shadow-sm sticky top-0 h-screen overflow-y-auto">
           {sidebarContent}
         </aside>
       )}
@@ -92,7 +98,7 @@ export default function SellerDashboardLayout({ children }: { children: React.Re
 
       {/* Mobile sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 overflow-y-auto border-r border-slate-200 bg-white px-4 py-6 transition-transform duration-300 lg:hidden
+        className={`fixed inset-y-0 left-0 z-40 w-64 overflow-y-auto border-r border-slate-100 bg-white px-3 py-6 shadow-sm transition-transform lg:hidden
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         {sidebarContent}
@@ -102,7 +108,7 @@ export default function SellerDashboardLayout({ children }: { children: React.Re
       {mobileOpen && <div className="fixed inset-0 z-30 bg-black/20 lg:hidden" onClick={() => setMobileOpen(false)} />}
 
       {/* Main */}
-      <main className="min-w-0 flex-1 px-6 py-8 pt-20 lg:pt-8">{children}</main>
+      <main className="min-w-0 flex-1 px-6 py-8 lg:px-8">{children}</main>
     </div>
   );
 }

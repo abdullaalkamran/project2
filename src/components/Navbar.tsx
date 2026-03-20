@@ -94,7 +94,7 @@ export function Navbar() {
       className={
         isLandingPage
           ? "sticky top-0 z-50 border-b border-white/40 bg-white/35 backdrop-blur-md"
-          : "border-b border-slate-200 bg-white/90 backdrop-blur"
+          : "sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur"
       }
     >
       <div className={navShellClass}>
@@ -150,7 +150,7 @@ export function Navbar() {
                 <span className="text-slate-900">{user?.name ?? "User"}</span>
               </button>
               {open && (
-                <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-slate-100 bg-white p-2 shadow-lg">
+                <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-slate-100 bg-white p-2 shadow-lg z-50">
                   <div className="px-3 py-2 text-xs font-semibold uppercase text-slate-500">Account</div>
                   <Link
                     href={dashboardHref}

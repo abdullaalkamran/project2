@@ -44,6 +44,7 @@ export async function GET() {
       title: `${l.title} — ${l.quantity} ${l.unit}`,
       status: toSellerStatusLabel(l.status),
       rawStatus: l.status,
+      saleType: l.saleType,
       hub: l.hubId,
       image: resolveImage(l.lotCode),
       askingPricePerKg: l.askingPricePerKg,

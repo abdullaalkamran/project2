@@ -5,7 +5,6 @@ import { Loader2, Truck, Phone } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
 import Pagination from "@/components/Pagination";
-import LotLifecycleTracker from "@/components/LotLifecycleTracker";
 
 const PAGE_SIZE = 15;
 
@@ -28,7 +27,92 @@ type Order = {
   status: string;
   dispatched: boolean;
   assignedTruck: string | null;
+  loadConfirmed: boolean;
+  physicallyReceived: boolean;
+  qualityChecked: boolean;
+  actualWeightKg: number | null;
 };
+
+// ── 10-step delivery progress bar (same as buyer) ─────────────────────────────
+const DELIVERY_STEPS: { label: string; sublabel: string }[] = [
+  { label: "Order Placed",        sublabel: "Waiting for seller"    },
+  { label: "Order Confirmed",     sublabel: "Seller accepted"       },
+  { label: "Goods at Hub",        sublabel: "Arrived at hub"        },
+  { label: "Weight & QC Checked", sublabel: "Hub verified"          },
+  { label: "Truck Confirmed",     sublabel: "Vehicle assigned"      },
+  { label: "In Transit",          sublabel: "On the way"            },
+  { label: "Hub Received",        sublabel: "At delivery hub"       },
+  { label: "QTY & Weight Checked",sublabel: "Delivery man verified" },
+  { label: "Ready for Pickup",    sublabel: "Set for collection"    },
+  { label: "Delivered",           sublabel: "Picked up by buyer"    },
+];
+
+function deliveryActiveStep(o: Order): number {
+  if (o.status === "PICKED_UP")                                              return 10;
+  if (o.status === "ARRIVED")                                                return 9;
+  if (o.status === "OUT_FOR_DELIVERY")                                       return 8;
+  if (o.status === "HUB_RECEIVED")                                           return 7;
+  if (o.dispatched || o.status === "DISPATCHED")                             return 6;
+  if (o.assignedTruck && o.loadConfirmed)                                    return 5;
+  if (o.qualityChecked && o.actualWeightKg != null && o.actualWeightKg > 0) return 4;
+  if (o.physicallyReceived)                                                  return 3;
+  if (o.sellerStatus !== "PENDING_SELLER")                                   return 2;
+  return 1;
+}
+
+function DeliveryStepBar({ o }: { o: Order }) {
+  const active = deliveryActiveStep(o);
+  const total  = DELIVERY_STEPS.length;
+  return (
+    <div className="overflow-x-auto pb-1 -mx-1 px-1">
+      <div className="flex items-start" style={{ minWidth: `${total * 72}px` }}>
+        {DELIVERY_STEPS.map((step, i) => {
+          const isDone   = i < active;
+          const isActive = i === active;
+          const isLast   = i === total - 1;
+          return (
+            <div key={i} className="flex flex-1 flex-col items-center">
+              <div className="flex w-full items-center">
+                <div className={`h-0.5 flex-1 transition-colors duration-300 ${
+                  i === 0 ? "invisible"
+                  : isDone ? "bg-emerald-400"
+                  : isActive ? "bg-gradient-to-r from-emerald-400 to-slate-200"
+                  : "bg-slate-200"
+                }`} />
+                <div className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[9px] font-bold transition-all duration-300 ${
+                  isDone   ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                  : isActive ? "border-blue-500 bg-white text-blue-600 shadow-[0_0_0_3px_rgba(59,130,246,0.14)]"
+                  : "border-slate-200 bg-white text-slate-400"
+                }`}>
+                  {isDone ? (
+                    <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : isActive ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  ) : (
+                    <span>{i + 1}</span>
+                  )}
+                </div>
+                <div className={`h-0.5 flex-1 transition-colors duration-300 ${
+                  isLast ? "invisible" : isDone ? "bg-emerald-400" : "bg-slate-200"
+                }`} />
+              </div>
+              <div className="mt-1.5 px-0.5 text-center">
+                <p className={`text-[9px] font-semibold leading-tight ${
+                  isDone ? "text-emerald-700" : isActive ? "text-blue-700" : "text-slate-400"
+                }`}>{step.label}</p>
+                <p className={`mt-0.5 text-[8px] leading-tight ${
+                  isDone ? "text-emerald-500" : isActive ? "text-blue-400" : "text-slate-300"
+                }`}>{step.sublabel}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 type Tab = "All" | "Awaiting Seller" | "Accepted";
 
@@ -206,7 +290,11 @@ export default function ConfirmedOrdersClient() {
                   </div>
                 </div>
 
-                <LotLifecycleTracker lotStatus="LIVE" orderStatus={o.status} dispatched={o.dispatched} compact orderOnly />
+                {!o.dispatched && (
+                  <div className="px-1 py-3">
+                    <DeliveryStepBar o={o} />
+                  </div>
+                )}
 
                 {isPending && (
                   <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 space-y-2">

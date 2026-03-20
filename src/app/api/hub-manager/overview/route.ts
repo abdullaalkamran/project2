@@ -65,6 +65,9 @@ export async function GET() {
   // 3. Orders awaiting QC leader (QC_SUBMITTED) — hub manager may need to follow up
   const pendingLeaderApproval = lots.filter((l) => l.status === "QC_SUBMITTED");
 
+  // 4a. New orders awaiting seller accept/reject
+  const pendingSellerResponse = orders.filter((o) => o.sellerStatus === "PENDING_SELLER");
+
   // 4. Accepted orders with no truck assigned yet
   const needsTruck = orders.filter(
     (o) => ["ACCEPTED", "CONFIRMED"].includes(o.sellerStatus) && !o.assignedTruck && !o.dispatched,
@@ -86,6 +89,20 @@ export async function GET() {
   const MAX_ITEMS = 5;
 
   const requiredActions = [
+    ...(pendingSellerResponse.length > 0 ? [{
+      type: "pending_orders",
+      title: "Orders Awaiting Seller Response",
+      desc: "Buyers have placed orders — sellers need to accept or reject them.",
+      count: pendingSellerResponse.length,
+      urgency: "high" as const,
+      href: "/hub-manager/pending-orders",
+      items: pendingSellerResponse.slice(0, MAX_ITEMS).map((o) => ({
+        id: o.orderCode,
+        label: o.product,
+        sub: `${o.buyerName} · ${o.qty} · ৳${o.totalAmount.toLocaleString()}`,
+        href: "/hub-manager/pending-orders",
+      })),
+    }] : []),
     ...(pendingInbound.length > 0 ? [{
       type: "inbound",
       title: "Lots Awaiting Inbound Receipt",

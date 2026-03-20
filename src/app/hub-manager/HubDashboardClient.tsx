@@ -66,13 +66,14 @@ const URGENCY_STYLES: Record<string, { card: string; badge: string; btn: string;
 };
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
-  inbound:      <ArrowRight    className="h-4 w-4" />,
-  qc_assign:    <CheckCircle2  className="h-4 w-4" />,
-  leader_review:<Clock         className="h-4 w-4" />,
-  truck:        <Truck         className="h-4 w-4" />,
-  load_confirm: <PackageCheck  className="h-4 w-4" />,
-  dispatch:     <SendHorizonal className="h-4 w-4" />,
-  unsold:       <AlertTriangle className="h-4 w-4" />,
+  pending_orders: <Clock         className="h-4 w-4" />,
+  inbound:        <ArrowRight    className="h-4 w-4" />,
+  qc_assign:      <CheckCircle2  className="h-4 w-4" />,
+  leader_review:  <Clock         className="h-4 w-4" />,
+  truck:          <Truck         className="h-4 w-4" />,
+  load_confirm:   <PackageCheck  className="h-4 w-4" />,
+  dispatch:       <SendHorizonal className="h-4 w-4" />,
+  unsold:         <AlertTriangle className="h-4 w-4" />,
 };
 
 const VERDICT_COLORS: Record<string, string> = {
@@ -181,24 +182,6 @@ export default function HubManagerOverviewPage() {
         </div>
       )}
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {stats.map((s) => (
-          <Link
-            key={s.label}
-            href={s.href}
-            className={`rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${s.bg} ${s.border}`}
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-500">{s.label}</p>
-              <span className={`${s.color} opacity-60`}>{STAT_ICONS[s.label]}</span>
-            </div>
-            <p className={`mt-1 text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="mt-1 text-xs text-slate-400">{s.sub}</p>
-          </Link>
-        ))}
-      </div>
-
       {/* Required Actions */}
       {requiredActions.length > 0 ? (
         <section className="space-y-3">
@@ -258,6 +241,24 @@ export default function HubManagerOverviewPage() {
           <p className="text-sm font-medium text-emerald-700">All clear — no pending actions right now.</p>
         </div>
       )}
+
+      {/* Stats Grid */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {stats.map((s) => (
+          <Link
+            key={s.label}
+            href={s.href}
+            className={`rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${s.bg} ${s.border}`}
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate-500">{s.label}</p>
+              <span className={`${s.color} opacity-60`}>{STAT_ICONS[s.label]}</span>
+            </div>
+            <p className={`mt-1 text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="mt-1 text-xs text-slate-400">{s.sub}</p>
+          </Link>
+        ))}
+      </div>
 
       {/* Lot Pipeline */}
       {pipeline.length > 0 && (

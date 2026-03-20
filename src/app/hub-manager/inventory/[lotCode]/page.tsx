@@ -1,28 +1,20 @@
 import Link from "next/link";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { toSellerStatusLabel } from "@/lib/lot-status";
-import { readLotMedia } from "@/lib/lot-media-store";
-import QuickMessageModal from "./QuickMessageModal";
-import DeactivateButton from "./DeactivateButton";
 import type { Order } from "@prisma/client";
 
-type PageProps = {
-  params: Promise<{ id: string }>;
-};
+type PageProps = { params: Promise<{ lotCode: string }> };
 
-
-// ── Lot phase progress bar (Create Lot → Live in Market) ─────────────────────
-
+// ── Lot phase step bar ────────────────────────────────────────────────────────
 const LOT_PHASES = [
-  { label: "Lot Created",       sublabel: "Seller submitted"       },
-  { label: "Received at Hub",   sublabel: "Hub manager accepted"   },
-  { label: "QC Inspection",     sublabel: "Quality check"          },
-  { label: "QC Approved",       sublabel: "Grade & price set"      },
-  { label: "Listed in Market",  sublabel: "Buyers can order"       },
-  { label: "Orders Active",     sublabel: "Qty being fulfilled"    },
+  { label: "Lot Created",      sublabel: "Seller submitted"     },
+  { label: "Received at Hub",  sublabel: "Hub manager accepted" },
+  { label: "QC Inspection",    sublabel: "Quality check"        },
+  { label: "QC Approved",      sublabel: "Grade & price set"    },
+  { label: "Listed in Market", sublabel: "Buyers can order"     },
+  { label: "Orders Active",    sublabel: "Qty being fulfilled"  },
 ];
 
 function lotPhaseActive(status: string, saleType: string, soldQty: number): number {
@@ -50,11 +42,9 @@ function LotPhaseBar({ status, saleType, soldQty }: { status: string; saleType: 
           return (
             <div key={i} className="flex flex-1 flex-col items-center">
               <div className="flex w-full items-center">
-                <div className={`h-0.5 flex-1 ${
-                  i === 0 ? "invisible" : isDone ? "bg-emerald-400" : isActive ? "bg-gradient-to-r from-emerald-400 to-slate-200" : "bg-slate-200"
-                }`} />
+                <div className={`h-0.5 flex-1 ${i === 0 ? "invisible" : isDone ? "bg-emerald-400" : isActive ? "bg-gradient-to-r from-emerald-400 to-slate-200" : "bg-slate-200"}`} />
                 <div className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[9px] font-bold transition-all ${
-                  isDone ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                  isDone   ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
                   : isActive ? "border-emerald-500 bg-white text-emerald-600 shadow-[0_0_0_3px_rgba(16,185,129,0.15)]"
                   : "border-slate-200 bg-white text-slate-400"
                 }`}>
@@ -68,11 +58,11 @@ function LotPhaseBar({ status, saleType, soldQty }: { status: string; saleType: 
                     <span>{i + 1}</span>
                   )}
                 </div>
-                <div className={`h-0.5 flex-1 ${ isLast ? "invisible" : isDone ? "bg-emerald-400" : "bg-slate-200" }`} />
+                <div className={`h-0.5 flex-1 ${isLast ? "invisible" : isDone ? "bg-emerald-400" : "bg-slate-200"}`} />
               </div>
               <div className="mt-1.5 px-0.5 text-center">
-                <p className={`text-[9px] font-semibold leading-tight ${ isDone ? "text-emerald-700" : isActive ? "text-emerald-700" : "text-slate-400" }`}>{step.label}</p>
-                <p className={`mt-0.5 text-[8px] leading-tight ${ isDone ? "text-emerald-500" : isActive ? "text-emerald-500" : "text-slate-300" }`}>{step.sublabel}</p>
+                <p className={`text-[9px] font-semibold leading-tight ${isDone ? "text-emerald-700" : isActive ? "text-emerald-700" : "text-slate-400"}`}>{step.label}</p>
+                <p className={`mt-0.5 text-[8px] leading-tight ${isDone ? "text-emerald-500" : isActive ? "text-emerald-500" : "text-slate-300"}`}>{step.sublabel}</p>
               </div>
             </div>
           );
@@ -82,9 +72,7 @@ function LotPhaseBar({ status, saleType, soldQty }: { status: string; saleType: 
   );
 }
 
-
-// ── 10-step individual order progress bar ─────────────────────────────────────
-
+// ── 10-step order progress bar ────────────────────────────────────────────────
 const ORDER_STEPS = [
   { label: "Order Placed",         sublabel: "Waiting for seller"    },
   { label: "Order Confirmed",      sublabel: "Seller accepted"       },
@@ -100,13 +88,13 @@ const ORDER_STEPS = [
 
 function orderStepActive(order: Order): number {
   if (order.status === "PICKED_UP" || order.pickedUpAt) return 10;
-  if (order.status === "ARRIVED")                       return 9;
-  if (order.status === "OUT_FOR_DELIVERY")              return 8;
-  if (order.status === "HUB_RECEIVED")                  return 7;
+  if (order.status === "ARRIVED")                        return 9;
+  if (order.status === "OUT_FOR_DELIVERY")               return 8;
+  if (order.status === "HUB_RECEIVED")                   return 7;
   if (order.dispatched || order.status === "DISPATCHED") return 6;
-  if (order.assignedTruck)                              return 5;
-  if (order.deliveryWeightKg != null)                   return 4;
-  if (order.loadConfirmed)                              return 3;
+  if (order.assignedTruck)                               return 5;
+  if (order.deliveryWeightKg != null)                    return 4;
+  if (order.loadConfirmed)                               return 3;
   const s = order.sellerStatus;
   if (s === "ACCEPTED" || s === "CONFIRMED" || order.status === "CONFIRMED") return 2;
   return 1;
@@ -125,11 +113,9 @@ function OrderStepBar({ order }: { order: Order }) {
           return (
             <div key={i} className="flex flex-1 flex-col items-center">
               <div className="flex w-full items-center">
-                <div className={`h-0.5 flex-1 ${
-                  i === 0 ? "invisible" : isDone ? "bg-emerald-400" : isActive ? "bg-gradient-to-r from-emerald-400 to-slate-200" : "bg-slate-200"
-                }`} />
+                <div className={`h-0.5 flex-1 ${i === 0 ? "invisible" : isDone ? "bg-emerald-400" : isActive ? "bg-gradient-to-r from-emerald-400 to-slate-200" : "bg-slate-200"}`} />
                 <div className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[9px] font-bold transition-all ${
-                  isDone ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                  isDone   ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
                   : isActive ? "border-blue-500 bg-white text-blue-600 shadow-[0_0_0_3px_rgba(59,130,246,0.14)]"
                   : "border-slate-200 bg-white text-slate-400"
                 }`}>
@@ -138,16 +124,16 @@ function OrderStepBar({ order }: { order: Order }) {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   ) : isActive ? (
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
                   ) : (
                     <span>{i + 1}</span>
                   )}
                 </div>
-                <div className={`h-0.5 flex-1 ${ isLast ? "invisible" : isDone ? "bg-emerald-400" : "bg-slate-200" }`} />
+                <div className={`h-0.5 flex-1 ${isLast ? "invisible" : isDone ? "bg-emerald-400" : "bg-slate-200"}`} />
               </div>
               <div className="mt-1.5 px-0.5 text-center">
-                <p className={`text-[9px] font-semibold leading-tight ${ isDone ? "text-emerald-700" : isActive ? "text-blue-700" : "text-slate-400" }`}>{step.label}</p>
-                <p className={`mt-0.5 text-[8px] leading-tight ${ isDone ? "text-emerald-500" : isActive ? "text-blue-400" : "text-slate-300" }`}>{step.sublabel}</p>
+                <p className={`text-[9px] font-semibold leading-tight ${isDone ? "text-emerald-700" : isActive ? "text-blue-700" : "text-slate-400"}`}>{step.label}</p>
+                <p className={`mt-0.5 text-[8px] leading-tight ${isDone ? "text-emerald-500" : isActive ? "text-blue-400" : "text-slate-300"}`}>{step.sublabel}</p>
               </div>
             </div>
           );
@@ -157,71 +143,29 @@ function OrderStepBar({ order }: { order: Order }) {
   );
 }
 
-
-function SellerStatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    PENDING_SELLER: "bg-amber-50 text-amber-700 border-amber-200",
-    ACCEPTED:       "bg-emerald-50 text-emerald-700 border-emerald-200",
-    DECLINED:       "bg-rose-50 text-rose-600 border-rose-200",
-  };
-  const label: Record<string, string> = {
-    PENDING_SELLER: "Awaiting Your Decision",
-    ACCEPTED:       "Accepted",
-    DECLINED:       "Declined",
-  };
-  return (
-    <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${map[status] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}>
-      {label[status] ?? status}
-    </span>
-  );
-}
-
-export default async function SellerLotDetailsPage({ params }: PageProps) {
+// ── Page ─────────────────────────────────────────────────────────────────────
+export default async function HubLotDetailsPage({ params }: PageProps) {
   const session = await getSessionUser();
   if (!session) notFound();
 
-  const { id } = await params;
+  const { lotCode } = await params;
 
-  const lot = await prisma.lot.findFirst({
-    where: {
-      lotCode: id,
-      OR: [{ sellerId: session.userId }, { sellerName: session.name }],
-    },
-  });
-
+  const lot = await prisma.lot.findUnique({ where: { lotCode } });
   if (!lot) notFound();
 
-  // Fetch lot photo
-  const allMedia = await readLotMedia();
-  const media = allMedia.find((m) => m.lotId === lot.lotCode);
-  const photo =
-    media?.marketplacePhotoUrls?.[0] ??
-    media?.marketplacePhotoUrl ??
-    media?.sellerPhotoUrls?.[0] ??
-    media?.qcPhotoUrls?.[0] ??
-    null;
-
-  // Fetch all orders for this lot
   const orders = await prisma.order.findMany({
     where: { lotId: lot.id, status: { not: "CANCELLED" } },
     orderBy: { id: "asc" },
   });
 
-  // Quantity breakdown
   const parseQty = (s: string) => { const n = parseFloat(s.replace(/[^0-9.]/g, "")); return isNaN(n) ? 0 : n; };
-  const totalQty = lot.quantity;
-  const acceptedQty = orders
-    .filter((o) => o.sellerStatus === "ACCEPTED")
-    .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
-  const pendingQty = orders
-    .filter((o) => o.sellerStatus === "PENDING_SELLER")
-    .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
-  const dispatchedQty = orders
-    .filter((o) => o.sellerStatus === "ACCEPTED" && o.dispatched)
-    .reduce((sum, o) => sum + parseQty(o.qty) + (o.freeQty ?? 0), 0);
-  const availableQty = Math.max(0, totalQty - acceptedQty - pendingQty);
+  const totalQty    = lot.quantity;
+  const acceptedQty = orders.filter((o) => o.sellerStatus === "ACCEPTED").reduce((s, o) => s + parseQty(o.qty) + (o.freeQty ?? 0), 0);
+  const pendingQty  = orders.filter((o) => o.sellerStatus === "PENDING_SELLER").reduce((s, o) => s + parseQty(o.qty) + (o.freeQty ?? 0), 0);
+  const dispatchedQty = orders.filter((o) => o.sellerStatus === "ACCEPTED" && o.dispatched).reduce((s, o) => s + parseQty(o.qty) + (o.freeQty ?? 0), 0);
+  const availableQty  = Math.max(0, totalQty - acceptedQty - pendingQty);
 
-  const rows = [
+  const infoRows = [
     { label: "Lot ID",        value: lot.lotCode },
     { label: "Product",       value: lot.title },
     { label: "Category",      value: lot.category },
@@ -235,12 +179,12 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
     { label: "Base Price",    value: `৳ ${lot.basePrice.toLocaleString()}` },
     { label: "Asking Price",  value: `৳ ${lot.askingPricePerKg.toLocaleString()}/kg` },
     { label: "Min Bid Rate",  value: lot.minBidRate ? `৳ ${lot.minBidRate.toLocaleString()}` : "Not set" },
-    {
-      label: "Added On",
-      value: lot.createdAt.toLocaleDateString("en-BD", { month: "short", day: "numeric", year: "numeric" }),
-    },
+    { label: "Seller",        value: lot.sellerName },
+    { label: "Added On",      value: lot.createdAt.toLocaleDateString("en-BD", { month: "short", day: "numeric", year: "numeric" }) },
     { label: "QC Verdict",         value: lot.verdict ?? "Pending" },
     { label: "QC Leader Decision",  value: lot.leaderDecision ?? "Pending" },
+    { label: "QC Checker",          value: lot.qcCheckerName ?? "—" },
+    { label: "QC Leader",           value: lot.qcLeaderName ?? "—" },
   ];
 
   return (
@@ -249,42 +193,21 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Lot Details</h1>
-          <p className="text-slate-500">Full details, order breakdown and dispatch progress for this lot.</p>
+          <p className="text-slate-500 text-sm">Full details, quantity breakdown and order progress for this lot.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <DeactivateButton
-            lotCode={lot.lotCode}
-            lotStatus={lot.status}
-            hasPendingOrders={orders.some((o) => o.sellerStatus === "PENDING_SELLER")}
-          />
-          <Link
-            href="/seller-dashboard/lots"
-            className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            ← Back to My Lots
-          </Link>
-        </div>
+        <Link
+          href="/hub-manager/inventory"
+          className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          ← Back to Inventory
+        </Link>
       </div>
 
-      {/* Lot info — compact inline table */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center gap-3">
-          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
-            {photo ? (
-              photo.startsWith("data:") ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photo} alt={lot.title} className="h-full w-full object-cover" />
-              ) : (
-                <Image src={photo} alt={lot.title} fill sizes="56px" className="object-cover" />
-              )
-            ) : (
-              <span className="flex h-full w-full items-center justify-center text-2xl">🌾</span>
-            )}
-          </div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Lot Information</h2>
-        </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-0 divide-y divide-slate-100 sm:grid-cols-3 lg:grid-cols-4">
-          {rows.map((row) => (
+      {/* Lot info */}
+      <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">Lot Information</h2>
+        <div className="grid grid-cols-2 gap-x-6 divide-y divide-slate-100 sm:grid-cols-3 lg:grid-cols-4">
+          {infoRows.map((row) => (
             <div key={row.label} className="flex items-center justify-between py-1.5">
               <span className="text-[11px] text-slate-400">{row.label}</span>
               <span className="text-[11px] font-semibold text-slate-800">{row.value}</span>
@@ -293,7 +216,7 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
         </div>
         {lot.description && (
           <p className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500">
-            <span className="font-semibold text-slate-400 uppercase tracking-wide mr-2">Note:</span>
+            <span className="font-semibold uppercase tracking-wide text-slate-400 mr-2">Note:</span>
             {lot.description}
           </p>
         )}
@@ -303,64 +226,42 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
       <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-400">Quantity Breakdown</h2>
         <div className="grid gap-3 sm:grid-cols-4">
-          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-center">
-            <p className="text-2xl font-bold text-slate-900">{totalQty.toLocaleString()}</p>
-            <p className="mt-0.5 text-xs text-slate-500">{lot.unit} Total</p>
-          </div>
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-700">{acceptedQty.toLocaleString()}</p>
-            <p className="mt-0.5 text-xs text-slate-500">{lot.unit} Accepted / Sold</p>
-          </div>
-          <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 text-center">
-            <p className="text-2xl font-bold text-amber-600">{pendingQty.toLocaleString()}</p>
-            <p className="mt-0.5 text-xs text-slate-500">{lot.unit} Pending Decision</p>
-          </div>
-          <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-center">
-            <p className="text-2xl font-bold text-blue-700">{availableQty.toLocaleString()}</p>
-            <p className="mt-0.5 text-xs text-slate-500">{lot.unit} Still Available</p>
-          </div>
+          {[
+            { label: `${lot.unit} Total`,             value: totalQty,     color: "text-slate-900",   bg: "bg-slate-50   border-slate-100"   },
+            { label: `${lot.unit} Accepted / Sold`,   value: acceptedQty,  color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-100" },
+            { label: `${lot.unit} Pending Decision`,  value: pendingQty,   color: "text-amber-600",   bg: "bg-amber-50   border-amber-100"   },
+            { label: `${lot.unit} Still Available`,   value: availableQty, color: "text-blue-700",    bg: "bg-blue-50    border-blue-100"     },
+          ].map((s) => (
+            <div key={s.label} className={`rounded-xl border p-4 text-center ${s.bg}`}>
+              <p className={`text-2xl font-bold ${s.color}`}>{s.value.toLocaleString()}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{s.label}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Visual stock bar */}
         {totalQty > 0 && (
           <div className="mt-4 space-y-1">
             <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full bg-emerald-500 transition-all"
-                style={{ width: `${Math.min(100, (acceptedQty / totalQty) * 100)}%` }}
-              />
-              <div
-                className="h-full bg-amber-400 transition-all"
-                style={{ width: `${Math.min(100 - (acceptedQty / totalQty) * 100, (pendingQty / totalQty) * 100)}%` }}
-              />
+              <div className="h-full bg-emerald-500 transition-all" style={{ width: `${Math.min(100, (acceptedQty / totalQty) * 100)}%` }} />
+              <div className="h-full bg-amber-400 transition-all" style={{ width: `${Math.min(100 - (acceptedQty / totalQty) * 100, (pendingQty / totalQty) * 100)}%` }} />
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
-              <span className="flex items-center gap-1 text-emerald-700 font-medium">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> Accepted
-              </span>
-              <span className="flex items-center gap-1 text-amber-600 font-medium">
-                <span className="inline-block h-2 w-2 rounded-full bg-amber-400" /> Pending
-              </span>
-              <span className="flex items-center gap-1 text-slate-500">
-                <span className="inline-block h-2 w-2 rounded-full bg-slate-200" /> Available
-              </span>
-              {dispatchedQty > 0 && (
-                <span className="ml-auto text-slate-500">
-                  {dispatchedQty.toLocaleString()} {lot.unit} dispatched
-                </span>
-              )}
+              <span className="flex items-center gap-1 text-emerald-700 font-medium"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" /> Accepted</span>
+              <span className="flex items-center gap-1 text-amber-600 font-medium"><span className="inline-block h-2 w-2 rounded-full bg-amber-400" /> Pending</span>
+              <span className="flex items-center gap-1 text-slate-500"><span className="inline-block h-2 w-2 rounded-full bg-slate-200" /> Available</span>
+              {dispatchedQty > 0 && <span className="ml-auto text-slate-500">{dispatchedQty.toLocaleString()} {lot.unit} dispatched</span>}
             </div>
           </div>
         )}
 
-        {/* Lot phase step bar */}
+        {/* Lot phase bar */}
         <div className="mt-5 border-t border-slate-100 pt-4">
           <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Lot Phase</p>
           <LotPhaseBar status={lot.status} saleType={lot.saleType} soldQty={acceptedQty} />
         </div>
       </div>
 
-      {/* Per-buyer order cards */}
+      {/* Orders */}
       <div className="space-y-3">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400">
           Orders for This Lot ({orders.length})
@@ -369,20 +270,14 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
         {orders.length === 0 ? (
           <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center shadow-sm">
             <p className="text-sm font-medium text-slate-500">No orders yet for this lot.</p>
-            <p className="mt-1 text-xs text-slate-400">Orders placed by buyers will appear here.</p>
           </div>
         ) : (
           orders.map((order, idx) => {
-            const isAccepted = order.sellerStatus === "ACCEPTED";
+            const isAccepted = order.sellerStatus === "ACCEPTED" || order.sellerStatus === "CONFIRMED";
             const isDeclined = order.sellerStatus === "DECLINED";
+            const isPending  = order.sellerStatus === "PENDING_SELLER";
             return (
-              <div
-                key={order.id}
-                className={`rounded-2xl border bg-white shadow-sm ${
-                  isDeclined ? "border-rose-100 opacity-60" : "border-slate-100"
-                }`}
-              >
-                {/* Order header */}
+              <div key={order.id} className={`rounded-2xl border bg-white shadow-sm ${isDeclined ? "border-rose-100 opacity-60" : isPending ? "border-amber-200" : "border-slate-100"}`}>
                 <div className="grid gap-3 p-4 md:grid-cols-12">
                   <div className="md:col-span-1">
                     <p className="text-[10px] uppercase tracking-wide text-slate-400">Order #</p>
@@ -399,15 +294,11 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
                   <div className="md:col-span-2">
                     <p className="text-[10px] uppercase tracking-wide text-slate-400">Ordered Qty</p>
                     <p className="text-sm font-bold text-emerald-700">{order.qty}</p>
-                    {order.freeQty > 0 && (
-                      <p className="text-[11px] font-semibold text-violet-700">+ {order.freeQty} {lot.unit} free</p>
-                    )}
+                    {order.freeQty > 0 && <p className="text-[11px] font-semibold text-violet-700">+ {order.freeQty} {lot.unit} free</p>}
                   </div>
                   <div className="md:col-span-2">
                     <p className="text-[10px] uppercase tracking-wide text-slate-400">Price / Total</p>
-                    <p className="text-xs text-slate-700">
-                      ৳{order.winningBid.toLocaleString()}/{lot.unit}
-                    </p>
+                    <p className="text-xs text-slate-700">৳{order.winningBid.toLocaleString()}/{lot.unit}</p>
                     <p className="text-xs font-semibold text-slate-900">৳{order.totalAmount.toLocaleString()}</p>
                   </div>
                   <div className="md:col-span-2">
@@ -415,21 +306,17 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
                     <p className="text-xs text-slate-700">{order.deliveryPoint || "—"}</p>
                   </div>
                   <div className="md:col-span-1">
-                    <p className="text-[10px] uppercase tracking-wide text-slate-400">Status</p>
-                    <SellerStatusBadge status={order.sellerStatus} />
-                  </div>
-                  <div className="flex items-center md:col-span-12 md:justify-end">
-                    <QuickMessageModal
-                      buyerId={order.buyerId}
-                      buyerName={order.buyerName}
-                      orderCode={order.orderCode}
-                      productName={lot.title}
-                    />
+                    <p className="text-[10px] uppercase tracking-wide text-slate-400">Seller Status</p>
+                    <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                      isPending  ? "bg-amber-50 text-amber-700 border-amber-200"
+                      : isAccepted ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-rose-50 text-rose-600 border-rose-200"
+                    }`}>
+                      {isPending ? "Awaiting" : isAccepted ? "Accepted" : "Declined"}
+                    </span>
                   </div>
                 </div>
 
-
-                {/* 10-step order progress — only for accepted orders */}
                 {isAccepted && (
                   <div className="border-t border-slate-100 px-5 pb-5 pt-3">
                     <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
@@ -443,21 +330,15 @@ export default async function SellerLotDetailsPage({ params }: PageProps) {
                     <OrderStepBar order={order} />
                     {order.pickedUpAt && (
                       <p className="mt-3 text-xs font-semibold text-emerald-600">
-                        ✓ Delivered on{" "}
-                        {order.pickedUpAt.toLocaleDateString("en-BD", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
+                        ✓ Delivered on {order.pickedUpAt.toLocaleDateString("en-BD", { month: "short", day: "numeric", year: "numeric" })}
                       </p>
                     )}
                   </div>
                 )}
 
-                {/* Declined note */}
                 {isDeclined && (
                   <div className="border-t border-rose-100 px-5 py-3">
-                    <p className="text-xs text-rose-500">You declined this order.</p>
+                    <p className="text-xs text-rose-500">This order was declined.</p>
                   </div>
                 )}
               </div>

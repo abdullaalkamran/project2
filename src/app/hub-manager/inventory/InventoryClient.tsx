@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, SlidersHorizontal, ChevronDown, ChevronUp } from "lucide-react";
+import Link from "next/link";
+import { Search, SlidersHorizontal, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
 import Pagination from "@/components/Pagination";
@@ -263,7 +264,7 @@ export default function InventoryClient() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 border-t border-slate-100 px-4 py-2.5">
+            <div className="flex items-center gap-4 border-t border-slate-100 px-4 py-2.5">
               <button
                 type="button"
                 onClick={() => setExpanded((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
@@ -272,6 +273,13 @@ export default function InventoryClient() {
                 {expanded[item.id] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                 Timeline
               </button>
+              <Link
+                href={`/hub-manager/inventory/${item.id}`}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline"
+              >
+                <ExternalLink size={13} />
+                View Details
+              </Link>
             </div>
 
             {expanded[item.id] && (

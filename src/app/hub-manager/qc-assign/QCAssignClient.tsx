@@ -3,7 +3,68 @@ import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
 import Pagination from "@/components/Pagination";
-import LotLifecycleTracker from "@/components/LotLifecycleTracker";
+
+const LOT_PHASES = [
+  { label: "Lot Created",      sublabel: "Seller submitted"     },
+  { label: "Received at Hub",  sublabel: "Hub manager accepted" },
+  { label: "QC Inspection",    sublabel: "Quality check"        },
+  { label: "QC Approved",      sublabel: "Grade & price set"    },
+  { label: "Listed in Market", sublabel: "Buyers can order"     },
+  { label: "Orders Active",    sublabel: "Qty being fulfilled"  },
+];
+
+function lotPhaseActive(status: string, saleType: string): number {
+  if (status === "SOLD" || status === "DELIVERED") return 6;
+  if (status === "LIVE" || status === "AUCTION_ENDED" || status === "AUCTION_UNSOLD") return 5;
+  if (status === "QC_PASSED" && saleType === "FIXED_PRICE") return 5;
+  if (status === "FIXED_PRICE_REVIEW") return 4;
+  if (status === "QC_PASSED") return 4;
+  if (status === "QC_SUBMITTED") return 3;
+  if (status === "IN_QC") return 2;
+  if (status === "AT_HUB") return 1;
+  return 0;
+}
+
+function LotPhaseBar({ rawStatus, saleType }: { rawStatus: string; saleType: string }) {
+  const active = lotPhaseActive(rawStatus, saleType);
+  const total  = LOT_PHASES.length;
+  return (
+    <div className="overflow-x-auto pb-1">
+      <div className="flex items-start" style={{ minWidth: `${total * 88}px` }}>
+        {LOT_PHASES.map((step, i) => {
+          const isDone   = i < active;
+          const isActive = i === active;
+          const isLast   = i === total - 1;
+          return (
+            <div key={i} className="flex flex-1 flex-col items-center">
+              <div className="flex w-full items-center">
+                <div className={`h-0.5 flex-1 ${i === 0 ? "invisible" : isDone ? "bg-emerald-400" : isActive ? "bg-gradient-to-r from-emerald-400 to-slate-200" : "bg-slate-200"}`} />
+                <div className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[9px] font-bold transition-all ${
+                  isDone   ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                  : isActive ? "border-emerald-500 bg-white text-emerald-600 shadow-[0_0_0_3px_rgba(16,185,129,0.15)]"
+                  : "border-slate-200 bg-white text-slate-400"
+                }`}>
+                  {isDone ? (
+                    <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  ) : isActive ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  ) : (
+                    <span>{i + 1}</span>
+                  )}
+                </div>
+                <div className={`h-0.5 flex-1 ${isLast ? "invisible" : isDone ? "bg-emerald-400" : "bg-slate-200"}`} />
+              </div>
+              <div className="mt-1.5 px-0.5 text-center">
+                <p className={`text-[9px] font-semibold leading-tight ${isDone ? "text-emerald-700" : isActive ? "text-emerald-700" : "text-slate-400"}`}>{step.label}</p>
+                <p className={`mt-0.5 text-[8px] leading-tight ${isDone ? "text-emerald-500" : isActive ? "text-emerald-500" : "text-slate-300"}`}>{step.sublabel}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const PAGE_SIZE = 15;
 
@@ -15,7 +76,7 @@ type LotRow = {
   askingPricePerKg: string; weight: string; received: string;
   leaderId: string; checkerId: string; saved: boolean;
   qcStatus: QcStatus; verdict: string | null; minBidRate: string | null; leaderDecision: string | null;
-  rawLotStatus: string;
+  rawLotStatus: string; saleType: string;
 };
 
 function mapQcStatus(l: FlowLot): QcStatus {
@@ -48,6 +109,7 @@ function toRow(l: FlowLot, leaders: StaffMember[], checkers: StaffMember[]): Lot
     minBidRate: l.minBidRate ? `BDT ${l.minBidRate}` : null,
     leaderDecision: l.leaderDecision ?? null,
     rawLotStatus: l.status,
+    saleType: l.saleType ?? "",
   };
 }
 
@@ -146,7 +208,7 @@ export default function HubQCAssignPage() {
               </div>
             </div>
 
-            <LotLifecycleTracker lotStatus={l.rawLotStatus} compact />
+            <LotPhaseBar rawStatus={l.rawLotStatus} saleType={l.saleType} />
 
             {(l.verdict || l.minBidRate) && (
               <div className="flex flex-wrap gap-3">
