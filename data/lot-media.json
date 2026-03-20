@@ -1,5 +1,26 @@
 [
   {
+    "lotId": "LOT-311203",
+    "sellerPhotoUrls": [
+      "/uploads/lots/1774033208437-i5py3ynm.jpeg"
+    ]
+  },
+  {
+    "lotId": "LOT-007342",
+    "sellerPhotoUrls": [
+      "/uploads/lots/1774002914916-x3zobnaw.jpg"
+    ],
+    "qcPhotoUrls": [
+      "/uploads/lots/1774002914916-x3zobnaw.jpg",
+      "/uploads/lots/0ce1ef84-e981-4e26-af3a-f798886a1e87.jpg"
+    ],
+    "marketplacePhotoUrl": "/uploads/lots/0ce1ef84-e981-4e26-af3a-f798886a1e87.jpg",
+    "marketplacePhotoUrls": [
+      "/uploads/lots/0ce1ef84-e981-4e26-af3a-f798886a1e87.jpg",
+      "/uploads/lots/1774002914916-x3zobnaw.jpg"
+    ]
+  },
+  {
     "lotId": "LOT-804300",
     "sellerPhotoUrls": [
       "/uploads/lots/1773752689395-nb52iux4.jpeg"

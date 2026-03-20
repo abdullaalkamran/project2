@@ -81,6 +81,7 @@ interface OverviewData {
   pendingTotal: number;
   requiredActions: RequiredAction[];
   pipeline: PipelineLot[];
+  hubNames: string[];
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -180,32 +181,20 @@ export default function QCLeaderOverviewClient() {
     );
   }
 
-  const { stats, pendingList, pendingTotal, requiredActions, pipeline } = data;
+  const { stats, pendingList, pendingTotal, requiredActions, pipeline, hubNames } = data;
 
   return (
     <div className="space-y-10">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="space-y-1">
         <h1 className="text-2xl font-bold text-slate-900">QC Team Leader Overview</h1>
-        <p className="text-slate-500">Your inspection pipeline and pending actions.</p>
-      </div>
-
-      {/* ── Stats Grid ─────────────────────────────────────────────────────── */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {stats.map((s) => (
-          <Link
-            key={s.label}
-            href={s.href}
-            className={`rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${s.bg} ${s.border}`}
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-500">{s.label}</p>
-              <span className={`${s.color} opacity-60`}>{STAT_ICONS[s.label]}</span>
-            </div>
-            <p className={`mt-1 text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="mt-1 text-xs text-slate-400">{s.sub}</p>
-          </Link>
-        ))}
+        <p className="text-slate-500">
+          {hubNames.length > 0 ? (
+            <>Hub: <span className="font-semibold text-slate-700">{hubNames.join(" · ")}</span> · Your inspection pipeline and pending actions.</>
+          ) : (
+            "Your inspection pipeline and pending actions."
+          )}
+        </p>
       </div>
 
       {/* ── Required Actions ───────────────────────────────────────────────── */}
@@ -267,6 +256,24 @@ export default function QCLeaderOverviewClient() {
           <p className="text-sm font-medium text-emerald-700">All clear — no pending actions right now.</p>
         </div>
       )}
+
+      {/* ── Stats Grid ─────────────────────────────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {stats.map((s) => (
+          <Link
+            key={s.label}
+            href={s.href}
+            className={`rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${s.bg} ${s.border}`}
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate-500">{s.label}</p>
+              <span className={`${s.color} opacity-60`}>{STAT_ICONS[s.label]}</span>
+            </div>
+            <p className={`mt-1 text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="mt-1 text-xs text-slate-400">{s.sub}</p>
+          </Link>
+        ))}
+      </div>
 
       {/* ── Reports Awaiting Approval ──────────────────────────────────────── */}
       {pendingList.length > 0 && (

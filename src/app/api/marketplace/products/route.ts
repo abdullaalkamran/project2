@@ -81,7 +81,7 @@ export async function GET() {
       name: l.title,
       category,
       hub,
-      price: l.minBidRate ?? l.basePrice,
+      price: l.minBidRate ?? l.askingPricePerKg ?? l.basePrice,
       originalPrice: l.askingPricePerKg,
       status: statusMap[l.status] ?? "fixed",
       qty: l.quantity,
@@ -92,7 +92,7 @@ export async function GET() {
       auctionEndsAt: l.auctionEndsAt?.toISOString() ?? null,
       trend: (() => {
         const topBid = l.bids[0]?.amount ?? 0;
-        const base   = l.minBidRate ?? l.basePrice;
+        const base   = l.minBidRate ?? l.askingPricePerKg ?? l.basePrice;
         if (topBid > 0 && topBid > base)  return "up"   as const;
         if (topBid > 0 && topBid < base)  return "down" as const;
         return "stable" as const;

@@ -68,7 +68,7 @@ const GRADE_COLORS: Record<Grade, string> = {
 const SELLER_FIELDS = [
   "productName", "category", "quantity", "unit", "description",
   "storageType", "baggageType", "baggageQty",
-  "askingPricePerKg", "basePrice", "transportCost",
+  "askingPricePerKg", "transportCost",
   "transportShare", "bonusOffer",
 ] as const;
 type SellerField = (typeof SELLER_FIELDS)[number];
@@ -183,7 +183,6 @@ export default function InspectClient() {
   const [storageType, setStorageType]           = useState("");
   const [baggageType, setBaggageType]           = useState("");
   const [baggageQty, setBaggageQty]             = useState("");
-  const [basePrice, setBasePrice]               = useState("");
   const [askingPricePerKg, setAskingPricePerKg] = useState("");
   const [transportCost, setTransportCost]       = useState("");
   const [transportShare, setTransportShare]     = useState<"YES" | "NO" | "HALF">("YES");
@@ -260,7 +259,6 @@ export default function InspectClient() {
       setStorageType(found.storageType || "");
       setBaggageType(found.baggageType || "");
       setBaggageQty(String(found.baggageQty ?? ""));
-      setBasePrice(String(found.basePrice ?? ""));
       setAskingPricePerKg(String(found.askingPricePerKg ?? ""));
       setMinBidRate(String(found.minBidRate ?? ""));
       setTransportCost(String(found.sellerTransportCost ?? ""));
@@ -289,7 +287,10 @@ export default function InspectClient() {
 
   /* ── GPS ── */
   const handleGetGPS = () => {
-    if (!navigator.geolocation) { toast.error("GPS not supported on this device"); return; }
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      toast.error("GPS not available on this device or browser.");
+      return;
+    }
     setGpsLoading(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -297,8 +298,17 @@ export default function InspectClient() {
         setGpsLoading(false);
         toast.success("GPS location captured");
       },
-      () => { setGpsLoading(false); toast.error("Could not get GPS. Enter location manually."); },
-      { timeout: 10000 }
+      (err) => {
+        setGpsLoading(false);
+        if (err.code === 1) {
+          toast.error("Location permission denied. Please allow location access in your browser settings.");
+        } else if (err.code === 2) {
+          toast.error("Location unavailable. Check device GPS or enter address manually.");
+        } else {
+          toast.error("GPS timed out. Try again or enter address manually.");
+        }
+      },
+      { timeout: 15000, enableHighAccuracy: false, maximumAge: 60000 }
     );
   };
 
@@ -345,7 +355,7 @@ export default function InspectClient() {
         storageType: storageType || undefined,
         baggageType: baggageType || undefined,
         baggageQty: baggageQty ? parseInt(baggageQty) : undefined,
-        basePrice: basePrice ? parseFloat(basePrice) : undefined,
+
         transportCost: transportCost ? parseFloat(transportCost) : undefined,
         photos: photos.length > 0 ? photos : undefined,
         fieldConfirmations: fieldStatuses,
@@ -371,7 +381,6 @@ export default function InspectClient() {
           "No. of bags":     String(lot.baggageQty            ?? ""),
           "Description":     lot.description                  ?? "",
           "Asking price/kg": String(lot.askingPricePerKg      ?? ""),
-          "Base price":      String(lot.basePrice             ?? ""),
           "Transport cost":  String(lot.sellerTransportCost   ?? ""),
           "Transport share": lot.sellerTransportShare === "NO" ? "Buyer pays" : lot.sellerTransportShare === "HALF" ? "50% split" : "Seller pays",
           "Bonus offer":     lot.freeQtyEnabled && (lot.freeQtyPer ?? 0) > 0 ? `${lot.freeQtyAmount} ${lot.freeQtyUnit} per ${lot.freeQtyPer} ${lot.freeQtyUnit}` : "None",
@@ -391,7 +400,6 @@ export default function InspectClient() {
           "No. of bags":     baggageQty    || String(lot.baggageQty ?? ""),
           "Description":     description   || lot.description  || "",
           "Asking price/kg": askingPricePerKg || String(lot.askingPricePerKg ?? ""),
-          "Base price":      basePrice     || String(lot.basePrice ?? ""),
           "Transport cost":  transportCost || String(lot.sellerTransportCost ?? ""),
           "Transport share": transportShare === "NO" ? "Buyer pays" : transportShare === "HALF" ? "50% split" : "Seller pays",
           "Bonus offer":     freeQtyEnabled && freeQtyPer ? `${freeQtyAmount} ${unit || lot.unit} per ${freeQtyPer} ${unit || lot.unit}` : "None",
@@ -427,7 +435,7 @@ export default function InspectClient() {
           notes: notes || "",
           qcNote: notes || "",
           askingPricePerKg: askingPricePerKg ? parseFloat(askingPricePerKg) : lot.askingPricePerKg,
-          basePrice: basePrice ? parseFloat(basePrice) : lot.basePrice,
+          basePrice: lot.basePrice,
           weight: quantity ? parseFloat(quantity) : lot.quantity,
           photosCount: photos.length,
           videosCount: 0,
@@ -826,8 +834,9 @@ export default function InspectClient() {
         <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Pricing</h2>
         <div className="grid gap-4 sm:grid-cols-2">
 
+          {/* Seller's asking price — confirm or modify like other fields */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Asking Price / Unit (৳) *</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Seller&apos;s Asking Price (৳/unit)</label>
             <input
               type="number"
               step="0.01"
@@ -837,35 +846,26 @@ export default function InspectClient() {
               placeholder="65.00"
               className={inputCls(canEdit("askingPricePerKg"))}
             />
+            <p className="mt-1 text-xs text-slate-400">Seller&apos;s declared price. Confirm if correct or mark wrong to update.</p>
             {isEditable && <FieldConfirm field="askingPricePerKg" status={fieldStatuses.askingPricePerKg} onChange={setFieldStatus} />}
           </div>
 
+          {/* QC checker sets the actual marketplace price */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Base / Reserve Price (৳) *</label>
-            <input
-              type="number"
-              step="0.01"
-              value={basePrice}
-              onChange={(e) => makeEditHandler("basePrice", setBasePrice)(e.target.value)}
-              disabled={!canEdit("basePrice")}
-              placeholder="12.00"
-              className={inputCls(canEdit("basePrice"))}
-            />
-            {isEditable && <FieldConfirm field="basePrice" status={fieldStatuses.basePrice} onChange={setFieldStatus} />}
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Min Bid Rate (৳) — QC Set</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Set Market Price (৳/unit) *
+              <span className="ml-1.5 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold text-teal-700">QC Verified</span>
+            </label>
             <input
               type="number"
               step="0.01"
               value={minBidRate}
               onChange={(e) => setMinBidRate(e.target.value)}
               disabled={!isEditable}
-              placeholder="QC minimum bid"
+              placeholder="Enter verified market price"
               className={inputCls(isEditable)}
             />
-            <p className="mt-1 text-xs text-slate-400">Minimum price buyers can bid. Set by QC checker after inspection.</p>
+            <p className="mt-1 text-xs text-slate-400">This is the price shown to buyers on the marketplace.</p>
           </div>
         </div>
       </section>
@@ -1029,35 +1029,39 @@ export default function InspectClient() {
       {/* ════════ SECTION 4 — Product Location ════════ */}
       <section className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Product Location</h2>
-        <p className="text-xs text-slate-400 -mt-2">Confirm where the product is physically stored at the hub — GPS and/or manual.</p>
+        <p className="text-xs text-slate-400 -mt-2">Record where the product is physically stored at the hub.</p>
 
+        {/* GPS button — always enabled while task is not submitted */}
         <div className="flex flex-wrap gap-3 items-center">
           <button
             type="button"
             onClick={handleGetGPS}
-            disabled={gpsLoading || !isEditable}
+            disabled={gpsLoading}
             className="flex items-center gap-2 rounded-lg border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {gpsLoading ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
-            {gpsLoading ? "Getting GPS…" : "Get GPS Location"}
+            {gpsLoading ? "Getting GPS…" : "Capture GPS Coordinates"}
           </button>
           {gpsCoords && (
             <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
               <CheckCircle2 size={14} />
               <span className="font-mono text-xs">{gpsCoords.lat.toFixed(6)}, {gpsCoords.lng.toFixed(6)}</span>
+              <button type="button" onClick={() => setGpsCoords(null)} className="ml-1 text-emerald-400 hover:text-red-500 transition">
+                <X size={12} />
+              </button>
             </div>
           )}
         </div>
 
+        {/* Manual location — always editable */}
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Manual Location / Address</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Location / Address <span className="text-slate-400 font-normal">(optional)</span></label>
           <input
             type="text"
             value={manualLocation}
             onChange={(e) => setManualLocation(e.target.value)}
-            disabled={!isEditable}
             placeholder="e.g. Dhaka Hub, Bay 3, Row B"
-            className={inputCls(isEditable)}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
           />
           <p className="mt-1 text-xs text-slate-400">Hub bay, section, or any description of where the product is stored.</p>
         </div>

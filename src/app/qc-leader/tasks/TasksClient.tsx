@@ -12,8 +12,8 @@ import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
 import type { QCPendingApprovalRecord } from "@/lib/qc-approvals";
 
-// ── Constants ──────────────────────────────────────────────────────────────────
-const CHECKERS = ["Mamun Hossain", "Sadia Islam", "Farhan Ahmed", "Reza Islam", "Fatima Begum"];
+// ── Types ──────────────────────────────────────────────────────────────────────
+type StaffMember = { id: string; name: string };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Tab = "tasks" | "assign" | "approvals" | "transport";
@@ -69,6 +69,7 @@ type AssignLot = {
   seller: string;
   receivedAt: string;
   leader: string;
+  leaderId: string;
 };
 
 type UiDecision = "Pending" | "Approved" | "Rejected" | "Re-inspect";
@@ -130,7 +131,8 @@ function toRow(l: FlowLot): TaskRow {
   };
 }
 
-function toAssignLot(l: FlowLot): AssignLot {
+function toAssignLot(l: FlowLot, leaders: StaffMember[]): AssignLot {
+  const leaderMatch = leaders.find((s) => s.name === l.qcLeader);
   return {
     id:         l.id,
     product:    l.title,
@@ -139,6 +141,7 @@ function toAssignLot(l: FlowLot): AssignLot {
     seller:     l.sellerName,
     receivedAt: l.receivedAt ? new Date(l.receivedAt).toLocaleString() : "-",
     leader:     l.qcLeader ?? "",
+    leaderId:   leaderMatch?.id ?? "",
   };
 }
 
@@ -158,7 +161,6 @@ const ALL_STATUSES: TaskStatus[] = ["Assigned", "In Progress", "Submitted", "App
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function TasksClient() {
   const [tab, setTab]           = useState<Tab>("tasks");
-  const [myName, setMyName]     = useState("");
 
   // ── All Tasks state ───────────────────────────────────────────────────────
   const [rows, setRows]         = useState<TaskRow[]>([]);
@@ -171,6 +173,8 @@ export default function TasksClient() {
 
   // ── Assign Checker state ──────────────────────────────────────────────────
   const [assignLots, setAssignLots] = useState<AssignLot[]>([]);
+  const [checkers, setCheckers]     = useState<StaffMember[]>([]);
+  const [leaders, setLeaders]       = useState<StaffMember[]>([]);
   const [checkerSel, setCheckerSel] = useState<Record<string, string>>({});
   const [assigning, setAssigning]   = useState<string | null>(null);
 
@@ -186,7 +190,7 @@ export default function TasksClient() {
   const [deciding2, setDeciding2]           = useState<string | null>(null);
 
   // ── Load: lots ────────────────────────────────────────────────────────────
-  const loadLots = useCallback(async () => {
+  const loadLots = useCallback(async (staffLeaders?: StaffMember[], staffCheckers?: StaffMember[]) => {
     try {
       const [lots, me] = await Promise.all([
         api.get<FlowLot[]>("/api/flow/lots"),
@@ -194,7 +198,8 @@ export default function TasksClient() {
       ]);
       const name  = me?.name ?? "";
       const lower = name.trim().toLowerCase();
-      setMyName(name);
+
+      const resolvedLeaders = staffLeaders ?? leaders;
 
       setRows(
         lots
@@ -209,14 +214,16 @@ export default function TasksClient() {
           .filter((l) => !!l.qcLeader)
           .filter((l) => !l.qcChecker)
           .filter((l) => lower ? (l.qcLeader ?? "").trim().toLowerCase() === lower : true)
-          .map(toAssignLot)
+          .map((l) => toAssignLot(l, resolvedLeaders))
       );
+      if (staffCheckers) setCheckers(staffCheckers);
+      if (staffLeaders)  setLeaders(staffLeaders);
     } catch {
       toast.error("Could not load tasks.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [leaders]);
 
   // ── Load: transport orders ────────────────────────────────────────────────
   const loadTransport = useCallback(async () => {
@@ -253,7 +260,11 @@ export default function TasksClient() {
   }, []);
 
   useEffect(() => {
-    void loadLots();
+    const init = async () => {
+      const staff = await api.get<{ leaders: StaffMember[]; checkers: StaffMember[] }>("/api/qc-leader/qc-staff");
+      await loadLots(staff.leaders, staff.checkers);
+    };
+    void init();
     void loadApprovals();
     void loadTransport();
   }, [loadLots, loadApprovals, loadTransport]);
@@ -323,16 +334,17 @@ export default function TasksClient() {
   };
 
   const assignChecker = async (lotId: string) => {
-    const checker = checkerSel[lotId];
-    if (!checker) { toast.error("Please select a checker first"); return; }
+    const checkerId = checkerSel[lotId];
+    if (!checkerId) { toast.error("Please select a checker first"); return; }
     const lot = assignLots.find((l) => l.id === lotId);
+    const checkerName = checkers.find((c) => c.id === checkerId)?.name ?? "Checker";
     setAssigning(lotId);
     try {
       await api.patch(`/api/flow/lots/${lotId}/assign`, {
-        leader:  lot?.leader || myName || undefined,
-        checker,
+        leaderId:  lot?.leaderId || undefined,
+        checkerId,
       });
-      toast.success(`${checker} assigned`, { description: "Moved to All Inspection Tasks." });
+      toast.success(`${checkerName} assigned`, { description: "Moved to All Inspection Tasks." });
       await loadLots();
     } catch {
       toast.error("Assignment failed.");
@@ -730,7 +742,7 @@ export default function TasksClient() {
                     className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs focus:border-teal-400 focus:outline-none"
                   >
                     <option value="">— Select checker —</option>
-                    {CHECKERS.map((c) => <option key={c}>{c}</option>)}
+                    {checkers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                   <button
                     type="button"

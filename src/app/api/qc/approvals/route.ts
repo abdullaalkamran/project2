@@ -39,7 +39,7 @@ function fallbackFromLots(lots: Array<{
     submitted: l.qcSubmittedAt?.toISOString() ?? new Date().toISOString(),
     grade: (l.grade as "A" | "B" | "C") ?? "A",
     verdict: (l.verdict as "PASSED" | "CONDITIONAL" | "FAILED") ?? "CONDITIONAL",
-    minBidRate: l.minBidRate ?? l.basePrice,
+    minBidRate: l.minBidRate ?? l.askingPricePerKg ?? l.basePrice,
     transportCost: qcReports.get(l.lotCode)?.transportCost ?? undefined,
     sellerTransportCost: l.sellerTransportCost ?? undefined,
     sellerTransportShare: l.sellerTransportShare ?? "YES",

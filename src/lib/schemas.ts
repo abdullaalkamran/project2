@@ -148,7 +148,7 @@ export const createLotSchema = z
     storageType: z.string().min(1, "Storage type is required"),
     baggageType: z.string().min(1, "Baggage type is required"),
     baggageQty: z.coerce.number().positive("Baggage quantity must be greater than 0"),
-    basePrice: z.coerce.number().positive("Base price must be greater than 0"),
+    basePrice: z.coerce.number().optional(),
     askingPricePerKg: z.coerce.number().positive("Asking price must be greater than 0"),
     transportShare: z.enum(["YES", "NO", "HALF"] as const).default("YES"),
     hubId: z.string().min(1, "Please select a hub"),

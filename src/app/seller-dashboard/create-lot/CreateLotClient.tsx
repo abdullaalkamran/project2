@@ -135,7 +135,6 @@ export default function CreateLotPage() {
         storageType: data.storageType,
         baggageType: data.baggageType,
         baggageQty: data.baggageQty,
-        basePrice: data.basePrice,
         askingPricePerKg: data.askingPricePerKg,
         transportShare: data.transportShare ?? "YES",
         saleType: data.saleType,
@@ -439,16 +438,6 @@ export default function CreateLotPage() {
                   : "Your expected selling price. Visible to buyers as a reference."}
               </p>
               {errors.askingPricePerKg && <p className="mt-1 text-xs text-red-500">{errors.askingPricePerKg.message}</p>}
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Base / Reserve price (৳) *</label>
-              <input type="number" step="0.01" {...register("basePrice")} placeholder="12.00" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500" />
-              <p className="mt-1 text-xs text-slate-400">
-                {saleType === "FIXED_PRICE"
-                  ? "Minimum acceptable price. Sale won't proceed below this."
-                  : "Minimum auction start price. QC checker sets the minimum bid rate after inspection."}
-              </p>
-              {errors.basePrice && <p className="mt-1 text-xs text-red-500">{errors.basePrice.message}</p>}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">Transport cost responsibility *</label>

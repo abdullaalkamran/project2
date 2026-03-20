@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
         storageType: body.storageType ?? "",
         baggageType: body.baggageType ?? "",
         baggageQty: Number(body.baggageQty ?? 0),
-        basePrice: Number(body.basePrice ?? 0),
+        basePrice: Number(body.basePrice ?? body.askingPricePerKg ?? 0),
         askingPricePerKg: Number(body.askingPricePerKg ?? body.basePrice ?? 0),
         sellerTransportCost: null,
         sellerTransportShare: body.transportShare ?? "YES",

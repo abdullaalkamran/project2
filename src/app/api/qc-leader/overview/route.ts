@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import { readPreDispatchChecks } from "@/lib/pre-dispatch-store";
+import { getAssignedHubNames } from "@/lib/hub-assignments";
 
 export async function GET() {
   const session = await getSessionUser();
   const leaderName = session?.name ?? null;
+  const hubNames = session?.userId ? await getAssignedHubNames(session.userId, "qc_leader") : [];
 
   // Filter to only this leader's assigned lots (if name available)
   const leaderFilter = leaderName ? { qcLeaderName: leaderName } : {};
@@ -323,5 +325,5 @@ export async function GET() {
       : "—",
   }));
 
-  return NextResponse.json({ stats, pendingList, pendingTotal: submittedNotDecided.length, requiredActions, pipeline });
+  return NextResponse.json({ stats, pendingList, pendingTotal: submittedNotDecided.length, requiredActions, pipeline, hubNames });
 }

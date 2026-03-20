@@ -6,7 +6,58 @@ import { toast } from "sonner";
 import { ClipboardCheck, Filter, Loader2, RotateCcw, Search } from "lucide-react";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
-import LotLifecycleTracker from "@/components/LotLifecycleTracker";
+
+// ── 6-step Lot Phase Bar (mirrors lot details page) ───────────────────────────
+const LOT_PHASES = [
+  { label: "Lot Created",      key: "created"  },
+  { label: "Received at Hub",  key: "hub"      },
+  { label: "QC Inspection",    key: "qc"       },
+  { label: "QC Approved",      key: "approved" },
+  { label: "Listed in Market", key: "listed"   },
+  { label: "Orders Active",    key: "orders"   },
+];
+
+function lotPhaseActive(status: string): number {
+  if (status === "LIVE" || status === "AUCTION_ENDED" || status === "AUCTION_UNSOLD") return 5;
+  if (status === "QC_PASSED" || status === "FIXED_PRICE_REVIEW") return 4;
+  if (status === "QC_SUBMITTED") return 3;
+  if (status === "IN_QC") return 2;
+  if (status === "AT_HUB") return 1;
+  return 0;
+}
+
+function LotPhaseBar({ status }: { status: string }) {
+  const active = lotPhaseActive(status);
+  return (
+    <div className="flex items-start gap-0">
+      {LOT_PHASES.map((phase, idx) => {
+        const step = idx + 1;
+        const done = step < active;
+        const current = step === active;
+        return (
+          <div key={phase.key} className="flex flex-1 flex-col items-center gap-1.5">
+            <div className="flex w-full items-center">
+              {idx > 0 && <div className={`h-0.5 flex-1 ${done || current ? "bg-teal-500" : "bg-slate-200"}`} />}
+              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold transition-all
+                ${current ? "scale-110 bg-teal-600 text-white ring-2 ring-teal-200"
+                  : done   ? "bg-teal-500 text-white"
+                           : "bg-slate-200 text-slate-400"}`}
+              >
+                {done ? "✓" : step}
+              </div>
+              {idx < LOT_PHASES.length - 1 && <div className={`h-0.5 flex-1 ${done ? "bg-teal-500" : "bg-slate-200"}`} />}
+            </div>
+            <span className={`text-center text-[10px] leading-tight font-medium
+              ${current ? "text-teal-700" : done ? "text-teal-600" : "text-slate-400"}`}
+            >
+              {phase.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 type TaskStatus = "Pending" | "In Progress" | "Submitted";
 
@@ -259,9 +310,9 @@ export default function TasksClient() {
                 </div>
               </div>
 
-              {/* Lifecycle tracker */}
+              {/* Lot Phase Bar */}
               <div className="border-t border-slate-100 pt-3">
-                <LotLifecycleTracker lotStatus={t.rawLotStatus} compact />
+                <LotPhaseBar status={t.rawLotStatus} />
               </div>
 
               {/* Actions */}

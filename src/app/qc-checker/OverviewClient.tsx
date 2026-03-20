@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle, ClipboardCheck, Clock, FileText, Loader2, RotateCcw } from "lucide-react";
+import { ArrowRight, CheckCircle, ClipboardCheck, Clock, FileText, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import type { FlowLot } from "@/lib/product-flow";
@@ -98,6 +98,67 @@ export default function OverviewClient() {
 
   const recentActive = activeTasks.slice(0, 5);
 
+  const requiredActions = useMemo(() => {
+    const actions = [];
+    if (reinspectionCount > 0) {
+      actions.push({
+        type: "reinspect",
+        title: "Re-inspection Requested",
+        desc: "QC Team Leader has sent these lots back — re-inspect and resubmit your report.",
+        count: reinspectionCount,
+        urgency: "high" as const,
+        href: "/qc-checker/tasks",
+        items: activeTasks.filter((t) => t.isReinspection).slice(0, 5).map((t) => ({
+          id: t.lotId,
+          label: t.product,
+          sub: `${t.qty} · ${t.hub} · Assigned by ${t.assignedBy}`,
+        })),
+      });
+    }
+    if (pendingCount > 0) {
+      actions.push({
+        type: "pending",
+        title: "Lots Waiting for Inspection",
+        desc: "You have been assigned these lots — start inspecting to proceed.",
+        count: pendingCount,
+        urgency: "high" as const,
+        href: "/qc-checker/tasks",
+        items: activeTasks.filter((t) => t.status === "Pending" && !t.isReinspection).slice(0, 5).map((t) => ({
+          id: t.lotId,
+          label: t.product,
+          sub: `${t.qty} · ${t.hub} · ${t.seller}`,
+        })),
+      });
+    }
+    if (inProgressCount > 0) {
+      actions.push({
+        type: "inprogress",
+        title: "Inspections In Progress",
+        desc: "Continue your active inspections and submit the report when done.",
+        count: inProgressCount,
+        urgency: "medium" as const,
+        href: "/qc-checker/tasks",
+        items: activeTasks.filter((t) => t.status === "In Progress").slice(0, 5).map((t) => ({
+          id: t.lotId,
+          label: t.product,
+          sub: `${t.qty} · ${t.hub}`,
+        })),
+      });
+    }
+    return actions;
+  }, [activeTasks, reinspectionCount, pendingCount, inProgressCount]);
+
+  const URGENCY_STYLES: Record<string, { card: string; badge: string; btn: string }> = {
+    high:   { card: "border-rose-200 bg-rose-50",   badge: "bg-rose-100 text-rose-700",   btn: "text-rose-700 hover:text-rose-900"   },
+    medium: { card: "border-amber-200 bg-amber-50",  badge: "bg-amber-100 text-amber-700",  btn: "text-amber-700 hover:text-amber-900"  },
+  };
+
+  const ACTION_ICONS: Record<string, React.ReactNode> = {
+    reinspect:  <RotateCcw  className="h-4 w-4" />,
+    pending:    <Clock      className="h-4 w-4" />,
+    inprogress: <ClipboardCheck className="h-4 w-4" />,
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -115,6 +176,68 @@ export default function OverviewClient() {
           Your assigned inspection tasks, including re-inspection requests from the team leader.
         </p>
       </div>
+
+      {/* Required Actions */}
+      {requiredActions.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-slate-400">Required Actions</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {requiredActions.map((action) => {
+              const styles = URGENCY_STYLES[action.urgency];
+              return (
+                <div key={action.type} className={`rounded-2xl border p-5 ${styles.card}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="shrink-0">{ACTION_ICONS[action.type]}</span>
+                      <p className="font-semibold text-slate-900 leading-tight">{action.title}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${styles.badge}`}>
+                        {action.count}
+                      </span>
+                      {action.urgency === "high" && (
+                        <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                          Urgent
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{action.desc}</p>
+                  {action.items.length > 0 && (
+                    <ul className="mt-3 space-y-1.5">
+                      {action.items.map((item) => (
+                        <li key={item.id} className="rounded-lg bg-white/70 px-3 py-2 text-xs">
+                          <span className="font-medium text-slate-800">{item.label}</span>
+                          <span className="ml-1 font-mono text-[10px] text-slate-400">({item.id})</span>
+                          <p className="text-slate-500">{item.sub}</p>
+                        </li>
+                      ))}
+                      {action.count > action.items.length && (
+                        <li className="px-1 text-[11px] text-slate-400">
+                          +{action.count - action.items.length} more
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                  <Link
+                    href={action.href}
+                    className={`mt-3 flex items-center gap-1 text-xs font-semibold ${styles.btn}`}
+                  >
+                    Go <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : (
+        !loading && (
+          <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4">
+            <CheckCircle className="h-5 w-5 shrink-0 text-emerald-600" />
+            <p className="text-sm font-medium text-emerald-700">All clear — no pending actions right now.</p>
+          </div>
+        )
+      )}
 
       {/* Stat Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -167,26 +290,6 @@ export default function OverviewClient() {
         </Link>
       </div>
 
-      {/* Quick Actions */}
-      {reinspectionCount > 0 && (
-        <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
-          <AlertTriangle size={20} className="mt-0.5 shrink-0 text-red-500" />
-          <div>
-            <p className="text-sm font-semibold text-red-700">
-              {reinspectionCount} lot{reinspectionCount > 1 ? "s" : ""} sent back for re-inspection
-            </p>
-            <p className="mt-0.5 text-xs text-red-600">
-              The QC Team Leader has requested you re-inspect these lots. Please prioritise them.
-            </p>
-            <Link
-              href="/qc-checker/tasks"
-              className="mt-2 inline-flex rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 transition"
-            >
-              View re-inspection tasks →
-            </Link>
-          </div>
-        </div>
-      )}
 
       {/* Active Tasks Table */}
       <div className="space-y-3">
