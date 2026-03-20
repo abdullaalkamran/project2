@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
 import bcrypt from "bcryptjs";
+import {
+  buildPhoneAuthEmail,
+  getPublicEmail,
+  isValidBangladeshMobileNumber,
+  isValidEmailAddress,
+  normalizeBangladeshPhone,
+  normalizeEmail,
+} from "@/lib/auth-identifiers";
 
 // GET — load seller profile, bank details
 export async function GET() {
@@ -40,7 +48,7 @@ export async function GET() {
     profile: {
       businessName: user.businessName || user.name || "",
       ownerName: user.ownerName || user.name || "",
-      email: user.email,
+      email: getPublicEmail(user.email) || "",
       phone: user.phone || "",
       address: user.address || "",
       nid: user.nid || "",
@@ -74,13 +82,60 @@ export async function PATCH(req: NextRequest) {
   const { section } = body; // "profile" | "bank" | "password"
 
   if (section === "profile") {
-    const { businessName, ownerName, email, phone, address, nid, tradeLicense } = body;
+    const businessName = typeof body?.businessName === "string" ? body.businessName.trim() : "";
+    const ownerName = typeof body?.ownerName === "string" ? body.ownerName.trim() : "";
+    const email = normalizeEmail(body?.email);
+    const phone = normalizeBangladeshPhone(body?.phone);
+    const address = typeof body?.address === "string" ? body.address.trim() : "";
+    const nid = typeof body?.nid === "string" ? body.nid.trim() : "";
+    const tradeLicense = typeof body?.tradeLicense === "string" ? body.tradeLicense.trim() : "";
+
+    if (!email && !phone) {
+      return NextResponse.json({ message: "Use email or mobile number" }, { status: 400 });
+    }
+
+    if (email && !isValidEmailAddress(email)) {
+      return NextResponse.json({ message: "Invalid email" }, { status: 400 });
+    }
+
+    if (phone && !isValidBangladeshMobileNumber(phone)) {
+      return NextResponse.json({ message: "Enter a valid Bangladeshi mobile number" }, { status: 400 });
+    }
+
+    if (email) {
+      const existingByEmail = await prisma.user.findFirst({
+        where: {
+          email,
+          NOT: { id: session.userId },
+        },
+        select: { id: true },
+      });
+
+      if (existingByEmail) {
+        return NextResponse.json({ message: "Email already in use" }, { status: 409 });
+      }
+    }
+
+    if (phone) {
+      const existingByPhone = await prisma.user.findFirst({
+        where: {
+          phone,
+          NOT: { id: session.userId },
+        },
+        select: { id: true },
+      });
+
+      if (existingByPhone) {
+        return NextResponse.json({ message: "Mobile number already in use" }, { status: 409 });
+      }
+    }
+
     await prisma.user.update({
       where: { id: session.userId },
       data: {
         businessName: businessName || null,
         ownerName: ownerName || null,
-        email: email || undefined,
+        email: email || buildPhoneAuthEmail(phone),
         phone: phone || null,
         address: address || null,
         nid: nid || null,

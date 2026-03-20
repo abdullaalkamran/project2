@@ -11,7 +11,7 @@ export default function SignUpPage() {
       <div className="space-y-2 text-center">
         <p className="text-sm font-semibold uppercase tracking-[0.1em] text-emerald-700">Create account</p>
         <h1 className="text-2xl font-bold text-slate-900">Start trading on Paikari</h1>
-        <p className="text-sm text-slate-600">Verify your business and join auctions in minutes.</p>
+        <p className="text-sm text-slate-600">Choose a buyer or seller account, then register with email, mobile number, or both.</p>
       </div>
       <SignUpForm />
       <p className="text-center text-sm text-slate-600">

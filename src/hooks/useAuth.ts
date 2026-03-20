@@ -8,7 +8,11 @@ const AUTH_CHANGED_EVENT = "paikari-auth-changed";
 export interface AuthUser {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
+  districtId: string | null;
+  districtName: string | null;
+  hubId: string | null;
   roles: Role[];
   activeRole: Role;
 }
@@ -52,11 +56,11 @@ export function useAuth() {
   }, [fetchMe]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (identifier: string, password: string) => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ identifier, password }),
       });
       if (!res.ok) {
         const err = await res.json();

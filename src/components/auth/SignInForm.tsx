@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { Role } from "@/types";
 import { signInSchema, SignInFormData as FormData } from "@/lib/schemas";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 
 const roleRedirects: Record<Role, string> = {
   buyer:                "/buyer-dashboard",
@@ -43,7 +44,7 @@ export function SignInForm() {
 
   const onSubmit = async (data: FormData) => {
     try {
-      await login(data.email, data.password);
+      await login(data.identifier, data.password);
       toast.success("Welcome back!");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sign in failed.");
@@ -52,19 +53,28 @@ export function SignInForm() {
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+      <GoogleAuthButton mode="login" />
+
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-slate-200" />
+        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">or sign in with email or mobile</span>
+        <div className="h-px flex-1 bg-slate-200" />
+      </div>
+
       <div className="space-y-1">
-        <label className="text-sm font-semibold text-slate-800" htmlFor="email">
-          Work email
+        <label className="text-sm font-semibold text-slate-800" htmlFor="identifier">
+          Email or mobile number
         </label>
         <input
-          id="email"
-          type="email"
-          placeholder="you@company.com"
-          {...register("email")}
+          id="identifier"
+          type="text"
+          autoComplete="username"
+          placeholder="you@company.com or 017XXXXXXXX"
+          {...register("identifier")}
           className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none ring-emerald-100 focus:ring-2"
         />
-        {errors.email && (
-          <p className="text-xs text-rose-500">{errors.email.message}</p>
+        {errors.identifier && (
+          <p className="text-xs text-rose-500">{errors.identifier.message}</p>
         )}
       </div>
 

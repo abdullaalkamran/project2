@@ -2,48 +2,76 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { setSessionCookie } from "@/lib/session";
+import { getPublicEmail, parseAuthIdentifier } from "@/lib/auth-identifiers";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+    const rawIdentifier =
+      typeof body?.identifier === "string"
+        ? body.identifier
+        : typeof body?.email === "string"
+          ? body.email
+          : "";
     const password = typeof body?.password === "string" ? body.password : "";
+    const identifier = parseAuthIdentifier(rawIdentifier);
 
-    if (!email || !password) {
+    if (!identifier || !password) {
       return NextResponse.json(
-        { message: "Email and password are required" },
+        { message: "Email or mobile number and password are required" },
         { status: 400 }
       );
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { userRoles: true },
-    });
+    const user =
+      identifier.type === "email"
+        ? await prisma.user.findUnique({
+            where: { email: identifier.email },
+            include: { userRoles: true },
+          })
+        : null;
 
-    if (!user) {
+    const phoneMatches =
+      identifier.type === "phone"
+        ? await prisma.user.findMany({
+            where: { phone: identifier.phone },
+            include: { userRoles: true },
+            take: 2,
+          })
+        : [];
+
+    if (phoneMatches.length > 1) {
       return NextResponse.json(
-        { message: "Invalid email or password" },
+        { message: "This mobile number is linked to multiple accounts. Please contact support." },
+        { status: 409 }
+      );
+    }
+
+    const resolvedUser = user ?? phoneMatches[0];
+
+    if (!resolvedUser) {
+      return NextResponse.json(
+        { message: "Invalid email/mobile number or password" },
         { status: 401 }
       );
     }
 
-    if (user.status === "SUSPENDED") {
+    if (resolvedUser.status === "SUSPENDED") {
       return NextResponse.json(
         { message: "Your account has been suspended. Contact support." },
         { status: 403 }
       );
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+    const passwordMatch = await bcrypt.compare(password, resolvedUser.passwordHash);
     if (!passwordMatch) {
       return NextResponse.json(
-        { message: "Invalid email or password" },
+        { message: "Invalid email/mobile number or password" },
         { status: 401 }
       );
     }
 
-    const roles = user.userRoles.map((r) => r.role.toLowerCase());
+    const roles = resolvedUser.userRoles.map((r) => r.role.toLowerCase());
 
     if (roles.length === 0) {
       return NextResponse.json(
@@ -57,18 +85,19 @@ export async function POST(request: Request) {
     const res = NextResponse.json({
       message: "Login successful",
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
+        id: resolvedUser.id,
+        name: resolvedUser.name,
+        email: getPublicEmail(resolvedUser.email),
+        phone: resolvedUser.phone ?? null,
         roles,
         activeRole,
       },
     });
 
     await setSessionCookie(res, {
-      userId: user.id,
-      email: user.email,
-      name: user.name,
+      userId: resolvedUser.id,
+      email: resolvedUser.email,
+      name: resolvedUser.name,
       roles,
       activeRole,
     });

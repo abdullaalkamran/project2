@@ -32,7 +32,7 @@ export default function BuyerSettingsPage() {
     handleSubmit: hsP,
     formState: { errors: eP, isSubmitting: subP },
   } = useForm<BuyerProfileFormData>({
-    resolver: zodResolver(buyerProfileSchema),
+    resolver: zodResolver(buyerProfileSchema) as any,
     defaultValues: {
       name: "Md. Abdullah",
       businessName: "Abdullah Traders",
@@ -194,4 +194,3 @@ export default function BuyerSettingsPage() {
     </div>
   );
 }
-

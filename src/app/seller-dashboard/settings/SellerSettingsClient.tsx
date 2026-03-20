@@ -40,7 +40,7 @@ export default function SellerSettingsPage() {
     reset: resetProfile,
     formState: { errors: eP, isSubmitting: subP },
   } = useForm<SellerProfileFormData>({
-    resolver: zodResolver(sellerProfileSchema),
+    resolver: zodResolver(sellerProfileSchema) as any,
   });
 
   const {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import { getPublicEmail } from "@/lib/auth-identifiers";
 
 export async function GET() {
   try {
@@ -11,7 +12,10 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      include: { userRoles: true },
+      include: {
+        userRoles: true,
+        district: { select: { id: true, name: true } },
+      },
     });
 
     if (!user || user.status === "SUSPENDED") {
@@ -25,8 +29,11 @@ export async function GET() {
     return NextResponse.json({
       id: user.id,
       name: user.name,
-      email: user.email,
+      email: getPublicEmail(user.email),
       phone: user.phone,
+      districtId: user.district?.id ?? null,
+      districtName: user.district?.name ?? null,
+      hubId: user.hubId ?? null,
       status: user.status,
       roles,
       activeRole: normalizedActiveRole,

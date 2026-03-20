@@ -15,6 +15,7 @@ model User {
   email        String     @unique
   passwordHash String
   phone        String?
+  districtId   String?
   photo        String?
   hubId        String?    // assigned hub for hub_manager, qc_leader, qc_checker, delivery roles
   isVerified   Boolean    @default(false)
@@ -37,6 +38,7 @@ model User {
   mobileBanking  String?
   mobileNumber   String?
 
+  district        District?    @relation(fields: [districtId], references: [id])
   userRoles       UserRole[]
   sellerLots      Lot[]          @relation("SellerLots")
   qcLeaderLots    Lot[]          @relation("QCLeaderLots")
@@ -52,7 +54,19 @@ model User {
   hubAssignments  HubManagerAssignment[]
 
   @@index([email])
+  @@index([districtId])
   @@index([status])
+}
+
+model District {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+
+  @@index([name])
 }
 
 model UserRole {

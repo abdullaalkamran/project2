@@ -1,22 +1,108 @@
 import { z } from "zod";
+import {
+  isValidBangladeshMobileNumber,
+  isValidEmailAddress,
+  parseAuthIdentifier,
+} from "@/lib/auth-identifiers";
+
+const optionalEmailField = z
+  .string()
+  .trim()
+  .default("")
+  .refine((value) => !value || isValidEmailAddress(value), "Invalid email");
+
+const optionalPhoneField = z
+  .string()
+  .trim()
+  .default("")
+  .refine(
+    (value) => !value || isValidBangladeshMobileNumber(value),
+    "Enter a valid Bangladeshi mobile number"
+  );
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const signInSchema = z.object({
-  email: z.string().min(1, "Email is required").email("Invalid email"),
+  identifier: z
+    .string()
+    .trim()
+    .min(1, "Email or mobile number is required")
+    .refine(
+      (value) => parseAuthIdentifier(value) !== null,
+      "Enter a valid email or Bangladeshi mobile number"
+    ),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 export const signUpSchema = z
   .object({
+    accountType: z.enum(["buyer", "seller"] as const),
     company: z.string().min(2, "Business name must be at least 2 characters"),
-    email: z.string().min(1, "Email is required").email("Invalid email"),
+    email: optionalEmailField,
+    phone: optionalPhoneField,
+    address: z.string().trim().default(""),
+    districtId: z.string().trim().min(1, "District is required"),
+    hubId: z.string().trim().default(""),
+    ownerName: z.string().trim().default(""),
+    tradeLicense: z.string().trim().default(""),
     password: z.string().min(8, "Password must be at least 8 characters"),
     confirm: z.string(),
   })
-  .refine((d) => d.password === d.confirm, {
-    message: "Passwords do not match",
-    path: ["confirm"],
+  .superRefine((data, ctx) => {
+    if (!data.email && !data.phone) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Use email or mobile number to register",
+        path: ["email"],
+      });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Use email or mobile number to register",
+        path: ["phone"],
+      });
+    }
+
+    if (data.password !== data.confirm) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Passwords do not match",
+        path: ["confirm"],
+      });
+    }
+
+    if (data.address && data.address.length < 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Address must be at least 3 characters",
+        path: ["address"],
+      });
+    }
+
+    if (data.accountType === "seller") {
+      if (!data.hubId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Hub is required for sellers",
+          path: ["hubId"],
+        });
+      }
+
+      if (!data.ownerName || data.ownerName.length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Owner or contact name is required",
+          path: ["ownerName"],
+        });
+      }
+
+      if (!data.tradeLicense || data.tradeLicense.length < 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Trade license is required",
+          path: ["tradeLicense"],
+        });
+      }
+    }
   });
 
 export const assignRoleSchema = z.object({
@@ -204,13 +290,24 @@ export const disputeSchema = z.object({
 export const sellerProfileSchema = z.object({
   businessName: z.string().min(2, "Business name is required"),
   ownerName: z.string().min(2, "Owner name is required"),
-  email: z.string().min(1, "Email is required").email("Invalid email"),
-  phone: z
-    .string()
-    .regex(/^(\+?880|0)1[3-9]\d{8}$/, "Enter a valid Bangladeshi mobile number"),
+  email: optionalEmailField,
+  phone: optionalPhoneField,
   address: z.string().min(3, "Address is required"),
   nid: z.string().min(10, "NID must be at least 10 characters"),
   tradeLicense: z.string().min(3, "Trade license is required"),
+}).superRefine((data, ctx) => {
+  if (!data.email && !data.phone) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Use email or mobile number",
+      path: ["email"],
+    });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Use email or mobile number",
+      path: ["phone"],
+    });
+  }
 });
 
 export const sellerBankSchema = z.object({
@@ -229,12 +326,23 @@ export const sellerBankSchema = z.object({
 export const buyerProfileSchema = z.object({
   name: z.string().min(2, "Full name is required"),
   businessName: z.string().min(2, "Business name is required"),
-  phone: z
-    .string()
-    .regex(/^(\+?880|0)1[3-9]\d{8}$/, "Enter a valid Bangladeshi mobile number"),
-  email: z.string().min(1, "Email is required").email("Invalid email"),
+  phone: optionalPhoneField,
+  email: optionalEmailField,
   tradeLicense: z.string().min(3, "Trade license is required"),
   nid: z.string().min(10, "NID must be at least 10 characters"),
+}).superRefine((data, ctx) => {
+  if (!data.email && !data.phone) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Use email or mobile number",
+      path: ["email"],
+    });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Use email or mobile number",
+      path: ["phone"],
+    });
+  }
 });
 
 // ─── Review ───────────────────────────────────────────────────────────────────

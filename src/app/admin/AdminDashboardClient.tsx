@@ -76,6 +76,7 @@ const NAV = [
   { label: "QC Reports",   href: "/admin/qc-reports",       Icon: BarChart3    },
   { label: "Disputes",     href: "/admin/disputes",         Icon: ShieldAlert  },
   { label: "Hubs",         href: "/admin/hubs",             Icon: Warehouse    },
+  { label: "Districts",    href: "/admin/districts",        Icon: MapPin       },
   { label: "Delivery Pts", href: "/admin/delivery-points",  Icon: MapPin       },
   { label: "Fleet",        href: "/admin/hubs",             Icon: Truck        },
   { label: "CMS",          href: "/admin/cms",              Icon: Globe        },

@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/session";
+import {
+  isValidBangladeshMobileNumber,
+  normalizeBangladeshPhone,
+  normalizeEmail,
+} from "@/lib/auth-identifiers";
 
 async function requireAdmin() {
   const session = await getSessionUser();
@@ -50,17 +55,30 @@ export async function POST(req: Request) {
       name?: string; email?: string; password?: string;
       phone?: string; roles?: string[];
     };
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedPhone = normalizeBangladeshPhone(phone);
 
-    if (!name?.trim() || !email?.trim() || !password) {
+    if (!name?.trim() || !normalizedEmail || !password) {
       return NextResponse.json({ message: "Name, email and password are required" }, { status: 400 });
     }
     if (password.length < 6) {
       return NextResponse.json({ message: "Password must be at least 6 characters" }, { status: 400 });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (normalizedPhone && !isValidBangladeshMobileNumber(normalizedPhone)) {
+      return NextResponse.json({ message: "Enter a valid Bangladeshi mobile number" }, { status: 400 });
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return NextResponse.json({ message: "Email already in use" }, { status: 409 });
+    }
+
+    if (normalizedPhone) {
+      const existingByPhone = await prisma.user.findFirst({ where: { phone: normalizedPhone } });
+      if (existingByPhone) {
+        return NextResponse.json({ message: "Mobile number already in use" }, { status: 409 });
+      }
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -68,9 +86,9 @@ export async function POST(req: Request) {
     const user = await prisma.user.create({
       data: {
         name: name.trim(),
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         passwordHash,
-        phone: phone?.trim() || null,
+        phone: normalizedPhone || null,
         status: "ACTIVE",
         userRoles: roles?.length
           ? { create: roles.map((role) => ({ role })) }

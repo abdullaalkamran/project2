@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import fs from "fs";
 import path from "path";
+import { BANGLADESH_DISTRICTS } from "../src/lib/bangladesh";
 
 const prisma = new PrismaClient();
 
@@ -31,6 +32,18 @@ async function seedUser(
 
 async function main() {
   console.log("🌱 Seeding database...\n");
+
+  console.log("🗺️ Seeding districts...");
+  for (const districtName of BANGLADESH_DISTRICTS) {
+    await prisma.district.upsert({
+      where: { name: districtName },
+      update: {},
+      create: { name: districtName },
+    });
+  }
+  console.log(`✅ ${BANGLADESH_DISTRICTS.length} districts seeded`);
+
+  const dhakaDistrict = await prisma.district.findUnique({ where: { name: "Dhaka" } });
 
   // ── Users ──────────────────────────────────────────────────────────────────
   await seedUser("admin@paikari.com", "Platform Admin", "admin123", ["admin"]);
@@ -90,7 +103,7 @@ async function main() {
   if (createdHubs["Mirpur Hub — Dhaka"]) {
     await prisma.user.update({
       where: { email: "seller@paikari.com" },
-      data: { hubId: "Mirpur Hub — Dhaka" },
+      data: { hubId: "Mirpur Hub — Dhaka", districtId: dhakaDistrict?.id },
     });
     console.log("✅ seller@paikari.com → Mirpur Hub — Dhaka (seller)");
   }

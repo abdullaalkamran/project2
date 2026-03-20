@@ -34,6 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: "Deposit Requests",  href: "/admin/deposit-requests", badge: badges.pendingDeposits > 0 ? String(badges.pendingDeposits) : undefined, badgeColor: "bg-emerald-500" },
     { label: "QC Reports",        href: "/admin/qc-reports",     badge: badges.pendingQC > 0 ? String(badges.pendingQC) : undefined, badgeColor: "bg-teal-500" },
     { label: "Hubs",              href: "/admin/hubs" },
+    { label: "Districts",         href: "/admin/districts" },
     { label: "Delivery Points",   href: "/admin/delivery-points" },
     { label: "Dispute Centre",    href: "/admin/disputes",       badge: badges.disputes > 0 ? String(badges.disputes) : undefined, badgeColor: "bg-red-500" },
     { label: "Settings",          href: "/admin/settings" },
