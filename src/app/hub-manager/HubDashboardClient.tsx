@@ -12,6 +12,8 @@ import {
   SendHorizonal,
   Layers,
   BarChart3,
+  RefreshCw,
+  Tag,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -73,7 +75,9 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
   truck:          <Truck         className="h-4 w-4" />,
   load_confirm:   <PackageCheck  className="h-4 w-4" />,
   dispatch:       <SendHorizonal className="h-4 w-4" />,
-  unsold:         <AlertTriangle className="h-4 w-4" />,
+  unsold:             <AlertTriangle className="h-4 w-4" />,
+  rescheduled_qc:     <RefreshCw    className="h-4 w-4" />,
+  fixed_price_review: <Tag          className="h-4 w-4" />,
 };
 
 const VERDICT_COLORS: Record<string, string> = {

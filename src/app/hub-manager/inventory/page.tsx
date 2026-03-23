@@ -1,24 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import InventoryClient from "./InventoryClient";
 import DispatchClient from "../dispatch/DispatchClient";
 import ConfirmedOrdersClient from "../confirmed-orders/ConfirmedOrdersClient";
 import BidWinnersClient from "../bid-winners/BidWinnersClient";
 import PendingOrdersClient from "../pending-orders/PendingOrdersClient";
+import AuctionEndActionClient from "../auction-end-action/AuctionEndActionClient";
 
 const TABS = [
-  { key: "inventory",       label: "Hub Inventory" },
-  { key: "dispatch",        label: "Outbound Dispatch" },
-  { key: "orders",          label: "Confirmed Orders" },
-  { key: "pending-orders",  label: "Pending Orders" },
-  { key: "bid",             label: "Bid Winners" },
+  { key: "inventory",           label: "Hub Inventory" },
+  { key: "auction-end-action",  label: "Auction End Action" },
+  { key: "dispatch",            label: "Outbound Dispatch" },
+  { key: "orders",              label: "Confirmed Orders" },
+  { key: "pending-orders",      label: "Pending Orders" },
+  { key: "bid",                 label: "Bid Winners" },
 ] as const;
 
 type Tab = (typeof TABS)[number]["key"];
 
 export default function InventoryManagementPage() {
-  const [tab, setTab] = useState<Tab>("inventory");
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get("tab");
+    return (TABS.some((x) => x.key === t) ? t : "inventory") as Tab;
+  });
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -39,22 +46,22 @@ export default function InventoryManagementPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex flex-wrap gap-1 rounded-xl border border-slate-100 bg-slate-50 p-1 w-fit">
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-0">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 rounded-lg px-5 py-2 text-sm font-semibold transition ${
+            className={`flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-semibold transition -mb-px ${
               tab === t.key
-                ? "bg-emerald-600 text-white shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
+                ? "border-emerald-600 text-emerald-700"
+                : "border-transparent text-slate-500 hover:text-slate-700"
             }`}
           >
             {t.label}
             {t.key === "pending-orders" && pendingCount > 0 && (
               <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
-                tab === "pending-orders" ? "bg-white text-emerald-700" : "bg-amber-500 text-white"
+                tab === "pending-orders" ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"
               }`}>
                 {pendingCount}
               </span>
@@ -68,7 +75,8 @@ export default function InventoryManagementPage() {
       {tab === "dispatch"       && <DispatchClient />}
       {tab === "orders"         && <ConfirmedOrdersClient />}
       {tab === "pending-orders" && <PendingOrdersClient onCountChange={setPendingCount} />}
-      {tab === "bid"            && <BidWinnersClient />}
+      {tab === "bid"                 && <BidWinnersClient />}
+      {tab === "auction-end-action" && <AuctionEndActionClient />}
     </div>
   );
 }

@@ -74,7 +74,10 @@ export async function GET(req: NextRequest) {
   if (rows.length === 0) {
     const lots = await prisma.lot.findMany({
       where: {
-        status: "QC_SUBMITTED",
+        OR: [
+          { status: "QC_SUBMITTED" },
+          { status: "QC_PASSED", leaderDecision: "Pending" }, // rescheduled lots awaiting re-approval
+        ],
         ...(status ? { leaderDecision: status } : {}),
       },
       orderBy: { qcSubmittedAt: "desc" },

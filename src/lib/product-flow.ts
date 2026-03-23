@@ -8,7 +8,11 @@ export type FlowLotStatus =
   | "QC_PASSED"
   | "QC_FAILED"
   | "LIVE"
-  | "AUCTION_ENDED";
+  | "AUCTION_ENDED"
+  | "AUCTION_UNSOLD"
+  | "SOLD"
+  | "DELIVERED"
+  | "FIXED_PRICE_REVIEW";
 
 export type QCTaskStatus = "PENDING" | "IN_PROGRESS" | "SUBMITTED";
 

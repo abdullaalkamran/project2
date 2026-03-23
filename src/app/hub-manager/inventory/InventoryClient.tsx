@@ -9,7 +9,7 @@ import Pagination from "@/components/Pagination";
 
 const PAGE_SIZE = 15;
 
-type InventoryStatus = "In QC" | "Leader Review" | "Approved" | "Awaiting Dispatch" | "Rejected";
+type InventoryStatus = "In QC" | "Leader Review" | "Approved" | "Awaiting Dispatch" | "Rejected" | "Unsold" | "Bid Won" | "Auction End Action";
 
 type InventoryRow = {
   id: string;
@@ -32,6 +32,9 @@ const statusColors: Record<InventoryStatus, string> = {
   Approved: "bg-emerald-50 text-emerald-700 border-emerald-100",
   "Awaiting Dispatch": "bg-amber-50 text-amber-700 border-amber-100",
   Rejected: "bg-red-50 text-red-600 border-red-100",
+  Unsold: "bg-orange-50 text-orange-700 border-orange-100",
+  "Bid Won": "bg-teal-50 text-teal-700 border-teal-100",
+  "Auction End Action": "bg-rose-50 text-rose-700 border-rose-100",
 };
 
 const verdictColors: Record<string, string> = {
@@ -46,6 +49,9 @@ function mapStatus(l: FlowLot): InventoryStatus {
   if (l.status === "QC_SUBMITTED") return "Leader Review";
   if (l.status === "QC_PASSED") return "Approved";
   if (l.status === "LIVE") return "Awaiting Dispatch";
+  if (l.status === "AUCTION_UNSOLD" || l.status === "AUCTION_ENDED") return "Auction End Action";
+  if (l.status === "FIXED_PRICE_REVIEW") return "Auction End Action";
+  if (l.status === "SOLD" || l.status === "DELIVERED") return "Bid Won";
   return "Rejected";
 }
 
@@ -124,7 +130,7 @@ export default function InventoryClient() {
         const rows = await api.get<FlowLot[]>("/api/flow/lots");
         setItems(
           rows
-            .filter((l) => ["IN_QC", "QC_SUBMITTED", "QC_PASSED", "LIVE", "QC_FAILED"].includes(l.status))
+            .filter((l) => ["IN_QC", "QC_SUBMITTED", "QC_PASSED", "LIVE", "QC_FAILED", "AUCTION_UNSOLD", "AUCTION_ENDED", "SOLD", "DELIVERED", "FIXED_PRICE_REVIEW"].includes(l.status))
             .map(toRow),
         );
       } catch {
@@ -154,6 +160,9 @@ export default function InventoryClient() {
 
   const statusTabs: Array<"All" | InventoryStatus> = [
     "All",
+    "Auction End Action",
+    "Bid Won",
+    "Unsold",
     "In QC",
     "Leader Review",
     "Approved",

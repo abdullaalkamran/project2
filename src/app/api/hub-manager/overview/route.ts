@@ -86,6 +86,12 @@ export async function GET() {
   // 7. Auction-unsold lots
   const auctionUnsold = lots.filter((l) => l.status === "AUCTION_UNSOLD");
 
+  // 8. Rescheduled lots needing QC re-assignment
+  const rescheduledNeedQc = lots.filter((l) => l.status === "QC_PASSED" && l.leaderDecision === "Pending");
+
+  // 9. Fixed-price review lots needing approval
+  const fixedPriceReview = lots.filter((l) => l.status === "FIXED_PRICE_REVIEW");
+
   const MAX_ITEMS = 5;
 
   const requiredActions = [
@@ -199,6 +205,34 @@ export async function GET() {
         label: l.title,
         sub: `${l.sellerName} · ${l.quantity} ${l.unit}`,
         href: "/hub-manager/inventory",
+      })),
+    }] : []),
+    ...(rescheduledNeedQc.length > 0 ? [{
+      type: "rescheduled_qc",
+      title: "Rescheduled Lots — Assign QC Team",
+      desc: "Seller rescheduled these auctions. Assign QC leader & checker for re-inspection.",
+      count: rescheduledNeedQc.length,
+      urgency: "high",
+      href: "/hub-manager/inventory?tab=auction-end-action",
+      items: rescheduledNeedQc.slice(0, MAX_ITEMS).map((l) => ({
+        id: l.lotCode,
+        label: l.title,
+        sub: `${l.sellerName} · ends ${l.auctionEndsAt ? new Date(l.auctionEndsAt).toLocaleDateString() : "—"}`,
+        href: "/hub-manager/inventory?tab=auction-end-action",
+      })),
+    }] : []),
+    ...(fixedPriceReview.length > 0 ? [{
+      type: "fixed_price_review",
+      title: "Fixed Price Review — Approval Needed",
+      desc: "Sellers converted unsold lots to fixed price. Review and approve or reject.",
+      count: fixedPriceReview.length,
+      urgency: "medium",
+      href: "/hub-manager/inventory?tab=auction-end-action",
+      items: fixedPriceReview.slice(0, MAX_ITEMS).map((l) => ({
+        id: l.lotCode,
+        label: l.title,
+        sub: `${l.sellerName} · ৳${l.askingPricePerKg}/kg`,
+        href: "/hub-manager/inventory?tab=auction-end-action",
       })),
     }] : []),
   ];

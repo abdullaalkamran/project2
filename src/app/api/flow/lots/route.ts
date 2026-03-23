@@ -61,12 +61,19 @@ export { serializeLot };
 
 export async function GET() {
   const [lots, media] = await Promise.all([
-    prisma.lot.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.lot.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { seller: { select: { phone: true } } },
+    }),
     readLotMedia(),
   ]);
   const mediaMap = new Map(media.map((m) => [m.lotId, m.sellerPhotoUrls ?? []]));
   return NextResponse.json(
-    lots.map((l) => ({ ...serializeLot(l), sellerPhotoUrls: mediaMap.get(l.lotCode) ?? [] }))
+    lots.map((l) => ({
+      ...serializeLot(l),
+      sellerPhone: l.sellerPhone ?? l.seller?.phone ?? null,
+      sellerPhotoUrls: mediaMap.get(l.lotCode) ?? [],
+    }))
   );
 }
 

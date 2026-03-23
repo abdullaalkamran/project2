@@ -58,7 +58,7 @@ export async function POST(
       type: "LOT_RECEIVED",
       title: "Auction Rescheduled — Approval Required",
       message: `Seller rescheduled lot "${lot.title}" (${lot.lotCode}) with new auction end time ${newEndDate.toLocaleString("en-BD")}. Please review and forward for QC leader approval.`,
-      link: "/hub-manager/lots",
+      link: "/hub-manager/inventory",
     });
 
     if (parties.qcLeaderId) {
