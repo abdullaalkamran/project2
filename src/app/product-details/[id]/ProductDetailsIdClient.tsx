@@ -489,7 +489,7 @@ export default function ProductDetailsPage() {
 
             {/* Tab content */}
             {lot && (
-              <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+              <div className="rounded-3xl border border-slate-100 bg-white p-4 sm:p-6 shadow-sm">
 
                 {/* OVERVIEW */}
                 {activeTab === "overview" && (
@@ -743,7 +743,7 @@ export default function ProductDetailsPage() {
                 </div>
               </div>
 
-              <div className="p-5 space-y-5">
+              <div className="p-4 sm:p-5 space-y-4 sm:space-y-5">
 
                 {/* Price */}
                 <div>
@@ -930,7 +930,7 @@ export default function ProductDetailsPage() {
 
                 {/* Order summary */}
                 {!isSoldOut && !isOwnProduct && !isSeller && (
-                  <div className="overflow-hidden rounded-2xl bg-slate-50 divide-y divide-slate-100 text-sm">
+                  <div className="overflow-hidden rounded-2xl bg-slate-50 divide-y divide-slate-100 text-xs sm:text-sm">
                     <div className="px-4 py-2.5 text-slate-500">
                       <span>
                         {qty.toLocaleString()} {displayUnit} of{" "}
