@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
         ? { qcCheckerId: checkerId }
         : { qcCheckerId: { not: null } },
       orderBy: { createdAt: "desc" },
+      include: { seller: { select: { name: true, phone: true } } },
     }),
     readLotMedia(),
   ]);
@@ -41,8 +42,8 @@ export async function GET(req: NextRequest) {
         basePrice: l.basePrice,
         askingPricePerKg: l.askingPricePerKg,
         minBidRate: l.minBidRate,
-        sellerName: l.sellerName,
-        sellerPhone: l.sellerPhone,
+        sellerName: l.sellerName !== "Seller" ? l.sellerName : (l.seller?.name ?? l.sellerName),
+        sellerPhone: l.sellerPhone ?? l.seller?.phone ?? null,
         sellerTransportCost: l.sellerTransportCost ?? undefined,
         sellerTransportShare: l.sellerTransportShare ?? "YES",
         freeQtyEnabled: l.freeQtyEnabled,

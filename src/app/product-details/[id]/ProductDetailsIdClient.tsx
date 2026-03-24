@@ -21,7 +21,7 @@ import {
   X,
   ZoomIn,
 } from "lucide-react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -101,6 +101,7 @@ function CopyButton({ text }: { text: string }) {
 export default function ProductDetailsPage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { user, role } = useAuth();
 
   const lotCode = useMemo(() => {
@@ -255,7 +256,7 @@ export default function ProductDetailsPage() {
 
   const openConfirm = () => {
     if (!user) {
-      toast.error("Please sign in to place an order.");
+      router.push("/auth/signin");
       return;
     }
     if (!deliveryHub) {
@@ -952,10 +953,12 @@ export default function ProductDetailsPage() {
                         <span className="font-bold text-amber-600 text-xs">+Tk {pricePremium.toLocaleString()}</span>
                       </div>
                     )}
-                    <div className="flex justify-between px-4 py-2.5 text-slate-500">
-                      <span>Platform fee ({platformFeeRate}%)</span>
-                      <span className="font-semibold text-slate-700">Tk {platformFeeEstimate.toLocaleString()}</span>
-                    </div>
+                    {user && (
+                      <div className="flex justify-between px-4 py-2.5 text-slate-500">
+                        <span>Platform fee ({platformFeeRate}%)</span>
+                        <span className="font-semibold text-slate-700">Tk {platformFeeEstimate.toLocaleString()}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between px-4 py-2.5 text-slate-400">
                       <span className="flex items-center gap-1">
                         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -967,7 +970,7 @@ export default function ProductDetailsPage() {
                     </div>
                     <div className="flex justify-between px-4 py-2.5 font-bold text-slate-900 border-t border-slate-100">
                       <span>You pay</span>
-                      <span>Tk {(totalPrice + platformFeeEstimate).toLocaleString()} <span className="text-[10px] font-normal text-slate-400">+ transport</span></span>
+                      <span>Tk {(user ? totalPrice + platformFeeEstimate : totalPrice).toLocaleString()} <span className="text-[10px] font-normal text-slate-400">+ transport</span></span>
                     </div>
                     {earnedFreeQty > 0 && (
                       <div className="flex justify-between px-4 py-2.5 bg-emerald-50">
@@ -983,7 +986,24 @@ export default function ProductDetailsPage() {
                 )}
 
                 {/* CTA */}
-                {isOwnProduct ? (
+                {!user ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-center space-y-2">
+                    <p className="text-sm font-semibold text-slate-700">Sign in to place an order</p>
+                    <p className="text-xs text-slate-500">You need an account to buy products on Paikari.</p>
+                    <Link
+                      href="/auth/signin"
+                      className="mt-1 inline-block w-full rounded-full bg-emerald-500 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-600"
+                    >
+                      Sign In
+                    </Link>
+                    <p className="text-xs text-slate-400">
+                      No account?{" "}
+                      <Link href="/auth/signup" className="font-semibold text-emerald-600 hover:underline">
+                        Register free
+                      </Link>
+                    </p>
+                  </div>
+                ) : isOwnProduct ? (
                   <p className="rounded-xl bg-rose-50 px-4 py-3 text-center text-sm font-semibold text-rose-600">
                     You cannot order your own product.
                   </p>
@@ -1153,10 +1173,12 @@ export default function ProductDetailsPage() {
                   <span className="text-slate-500">Product amount</span>
                   <span className="font-semibold text-slate-700">Tk {totalPrice.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between items-center px-4 py-2.5 text-sm">
-                  <span className="text-slate-500">Platform fee ({platformFeeRate}%)</span>
-                  <span className="font-semibold text-slate-700">Tk {platformFeeEstimate.toLocaleString()}</span>
-                </div>
+                {user && (
+                  <div className="flex justify-between items-center px-4 py-2.5 text-sm">
+                    <span className="text-slate-500">Platform fee ({platformFeeRate}%)</span>
+                    <span className="font-semibold text-slate-700">Tk {platformFeeEstimate.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center px-4 py-2.5 text-sm">
                   <span className="text-slate-500 flex items-center gap-1">
                     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1169,7 +1191,7 @@ export default function ProductDetailsPage() {
                 <div className="flex justify-between items-center px-4 py-3 text-sm bg-white rounded-b-2xl">
                   <span className="font-bold text-slate-900">You pay now</span>
                   <div className="text-right">
-                    <span className="font-bold text-lg text-emerald-600">Tk {(totalPrice + platformFeeEstimate).toLocaleString()}</span>
+                    <span className="font-bold text-lg text-emerald-600">Tk {(user ? totalPrice + platformFeeEstimate : totalPrice).toLocaleString()}</span>
                     <p className="text-[10px] text-slate-400">+ transport</p>
                   </div>
                 </div>

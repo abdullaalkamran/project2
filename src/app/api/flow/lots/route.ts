@@ -83,6 +83,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const lotCode = `LOT-${String(Date.now()).slice(-6)}`;
 
+    // Fetch seller's phone from User record if not provided in body
+    let sellerPhone = body.sellerPhone ?? null;
+    if (!sellerPhone && session?.userId) {
+      const sellerUser = await prisma.user.findUnique({ where: { id: session.userId }, select: { phone: true } });
+      sellerPhone = sellerUser?.phone ?? null;
+    }
+
     const lot = await prisma.lot.create({
       data: {
         lotCode,
@@ -101,8 +108,8 @@ export async function POST(req: NextRequest) {
         sellerTransportCost: null,
         sellerTransportShare: body.transportShare ?? "YES",
         sellerId: session?.userId ?? null,
-        sellerName: body.sellerName ?? session?.name ?? "Seller",
-        sellerPhone: body.sellerPhone ?? null,
+        sellerName: session?.name ?? body.sellerName ?? "Seller",
+        sellerPhone,
         saleType: body.saleType ?? "AUCTION",
         auctionStartsAt: body.auctionStartsAt ? new Date(body.auctionStartsAt) : null,
         auctionEndsAt: body.auctionEndsAt ? new Date(body.auctionEndsAt) : null,

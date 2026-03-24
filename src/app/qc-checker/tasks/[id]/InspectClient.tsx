@@ -147,7 +147,15 @@ export default function InspectClient() {
   const params = useParams();
   const router = useRouter();
   const lotId = params.id as string;
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
+  const cameraRef      = useRef<HTMLInputElement>(null);
+  const videoRef       = useRef<HTMLInputElement>(null);
+
+  // Set capture attribute directly on DOM — React strips it otherwise
+  useEffect(() => {
+    if (cameraRef.current) cameraRef.current.setAttribute("capture", "environment");
+    if (videoRef.current)  videoRef.current.setAttribute("capture", "environment");
+  }, []);
 
   const [lot, setLot]           = useState<FlowLot | null>(null);
   const [loading, setLoading]   = useState(true);
@@ -228,8 +236,9 @@ export default function InspectClient() {
   const [notes, setNotes]         = useState("");
   const [minBidRate, setMinBidRate] = useState("");
 
-  /* ── photos ── */
+  /* ── photos & videos ── */
   const [photos, setPhotos]       = useState<string[]>([]);
+  const [videos, setVideos]       = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
   /* ── GPS & location ── */
@@ -312,11 +321,11 @@ export default function InspectClient() {
     );
   };
 
-  /* ── photo upload ── */
-  const handlePhotoUpload = async (files: FileList | null) => {
+  /* ── media upload (photos & videos) ── */
+  const handleMediaUpload = async (files: FileList | null, type: "photo" | "video") => {
     if (!files || files.length === 0) return;
     setUploading(true);
-    const newPhotos: string[] = [];
+    const uploaded: string[] = [];
     for (const file of Array.from(files)) {
       try {
         const fd = new FormData();
@@ -324,13 +333,14 @@ export default function InspectClient() {
         fd.append("category", "lots");
         const res = await fetch("/api/upload", { method: "POST", body: fd });
         const data = (await res.json()) as { url?: string; error?: string };
-        if (data.url) newPhotos.push(data.url);
+        if (data.url) uploaded.push(data.url);
         else toast.error(`Upload failed: ${data.error ?? "Unknown error"}`);
       } catch { toast.error(`Failed to upload ${file.name}`); }
     }
-    setPhotos((prev) => [...prev, ...newPhotos]);
+    if (type === "photo") setPhotos((prev) => [...prev, ...uploaded]);
+    else setVideos((prev) => [...prev, ...uploaded]);
     setUploading(false);
-    if (newPhotos.length > 0) toast.success(`${newPhotos.length} photo(s) uploaded`);
+    if (uploaded.length > 0) toast.success(`${uploaded.length} ${type}(s) captured`);
   };
 
   /* ── submit ── */
@@ -1163,49 +1173,122 @@ export default function InspectClient() {
         </div>
       </section>
 
-      {/* ════════ SECTION 6 — QC Photos ════════ */}
+      {/* ════════ SECTION 6 — QC Photos & Videos ════════ */}
       <section className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400 flex items-center gap-2">
-          <Camera size={14} /> QC Photos
+          <Camera size={14} /> QC Photos &amp; Videos
         </h2>
-        <p className="text-xs text-slate-400 -mt-2">Upload inspection photos to support your QC report. Your photos are uploaded and attached to this lot submission.</p>
+        <p className="text-xs text-slate-400 -mt-2">Capture or upload photos and videos to support your inspection report.</p>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {photos.map((url, i) => (
-            <div key={i} className="group relative aspect-square rounded-lg overflow-hidden border border-slate-200">
-              <img src={url} alt={`QC photo ${i + 1}`} className="h-full w-full object-cover" />
-              {isEditable && (
-                <button
-                  type="button"
-                  onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
-                  className="absolute top-1.5 right-1.5 rounded-full bg-red-500/80 p-1 text-white opacity-0 group-hover:opacity-100 transition"
-                >
-                  <Trash2 size={12} />
-                </button>
-              )}
-            </div>
-          ))}
-          {isEditable && (
+        {/* Action buttons */}
+        {isEditable && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+            >
+              <Camera size={16} /> Take Photo
+            </button>
+            <button
+              type="button"
+              onClick={() => videoRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.677V15.32a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+              </svg>
+              Record Video
+            </button>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex flex-col items-center justify-center aspect-square rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400 hover:border-emerald-300 hover:text-emerald-600 transition disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
             >
-              {uploading
-                ? <Loader2 size={20} className="animate-spin" />
-                : <><Upload size={20} /><span className="mt-1.5 text-[10px] font-semibold">Add Photo</span></>
-              }
+              <Upload size={16} /> Upload Files
             </button>
-          )}
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => void handlePhotoUpload(e.target.files)}
+            {uploading && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-slate-400">
+                <Loader2 size={14} className="animate-spin" /> Uploading…
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Photos grid */}
+        {photos.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Photos ({photos.length})</p>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {photos.map((url, i) => (
+                <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-slate-200">
+                  <img src={url} alt={`QC photo ${i + 1}`} className="h-full w-full object-cover" />
+                  {isEditable && (
+                    <button
+                      type="button"
+                      onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
+                      className="absolute top-1 right-1 rounded-full bg-red-500/80 p-1 text-white opacity-0 group-hover:opacity-100 transition"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Videos grid */}
+        {videos.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Videos ({videos.length})</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {videos.map((url, i) => (
+                <div key={i} className="group relative rounded-xl overflow-hidden border border-slate-200 bg-black">
+                  <video src={url} controls className="w-full rounded-xl" style={{ maxHeight: 160 }} />
+                  {isEditable && (
+                    <button
+                      type="button"
+                      onClick={() => setVideos((prev) => prev.filter((_, j) => j !== i))}
+                      className="absolute top-1 right-1 rounded-full bg-red-500/80 p-1 text-white opacity-0 group-hover:opacity-100 transition"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {photos.length === 0 && videos.length === 0 && (
+          <p className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-xs text-slate-400">
+            No media captured yet. Use the buttons above to add photos or videos.
+          </p>
+        )}
+
+        {/* Visually-hidden inputs — display:none blocks camera on mobile */}
+        <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple
+          style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden", zIndex: -1 }}
+          onChange={(e) => {
+            const imgs = Array.from(e.target.files ?? []).filter(f => f.type.startsWith("image/"));
+            const vids = Array.from(e.target.files ?? []).filter(f => f.type.startsWith("video/"));
+            const imgList = imgs.length ? ((() => { const dt = new DataTransfer(); imgs.forEach(f => dt.items.add(f)); return dt.files; })()) : null;
+            const vidList = vids.length ? ((() => { const dt = new DataTransfer(); vids.forEach(f => dt.items.add(f)); return dt.files; })()) : null;
+            if (imgList) void handleMediaUpload(imgList, "photo");
+            if (vidList) void handleMediaUpload(vidList, "video");
+          }}
+        />
+        <input ref={cameraRef} type="file" accept="image/*"
+          style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden", zIndex: -1 }}
+          onChange={(e) => void handleMediaUpload(e.target.files, "photo")}
+        />
+        <input ref={videoRef} type="file" accept="video/*"
+          style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden", zIndex: -1 }}
+          onChange={(e) => void handleMediaUpload(e.target.files, "video")}
         />
       </section>
 

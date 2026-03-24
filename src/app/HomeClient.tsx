@@ -120,10 +120,34 @@ export default function Home({ cms }: { cms: CMSContent }) {
   }, []);
 
   const liveAuctions = useMemo(() => {
-    // Show live products first, then all available products as featured
-    const live = products.filter((p) => p.status === "live");
-    return live.length > 0 ? live : products.slice(0, 6);
+    return [...products].sort((a, b) => b.bids - a.bids).slice(0, 10);
   }, [products]);
+
+  const CAROUSEL_VISIBLE = 5;
+  const [slideIndex, setSlideIndex] = useState(0);
+  const [carouselAnimating, setCarouselAnimating] = useState(true);
+  const carouselItems = useMemo(
+    () => [...liveAuctions, ...liveAuctions.slice(0, CAROUSEL_VISIBLE)],
+    [liveAuctions]
+  );
+
+  useEffect(() => {
+    if (liveAuctions.length <= CAROUSEL_VISIBLE) return;
+    const id = setInterval(() => setSlideIndex((i) => i + 1), 2000);
+    return () => clearInterval(id);
+  }, [liveAuctions.length]);
+
+  useEffect(() => {
+    if (slideIndex >= liveAuctions.length) {
+      const t = setTimeout(() => {
+        setCarouselAnimating(false);
+        setSlideIndex(0);
+      }, 500);
+      return () => clearTimeout(t);
+    } else {
+      setCarouselAnimating(true);
+    }
+  }, [slideIndex, liveAuctions.length]);
 
   useEffect(() => {
     const loggedIn = typeof window !== "undefined" && localStorage.getItem("isLoggedIn") === "true";
@@ -528,130 +552,111 @@ export default function Home({ cms }: { cms: CMSContent }) {
             <Link href="/marketplace" className="text-sm font-semibold text-emerald-600 hover:underline">Browse marketplace &rarr;</Link>
           </div>
         ) : (
-        <div className="relative mt-6 grid gap-5 md:grid-cols-3">
-          {liveAuctions.map((item) => (
-            <div
-              key={item.id}
-              className="group relative overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-50"
+        <div className="relative mt-6 overflow-hidden">
+          <div
+            className="flex"
+            style={{
+              transform: `translateX(-${slideIndex * (100 / CAROUSEL_VISIBLE)}%)`,
+              transition: carouselAnimating ? "transform 0.5s ease-in-out" : "none",
+            }}
+          >
+          {carouselItems.map((item, idx) => (
+            <div key={`${item.id}-${idx}`} className="w-1/5 shrink-0 px-2">
+            <Link
+              href={`/product-details/${item.lot}?name=${encodeURIComponent(item.name)}&image=${encodeURIComponent(item.image)}&seller=${encodeURIComponent(item.seller)}&price=${item.price}`}
+              className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-xl hover:shadow-emerald-100/60 block"
             >
-              {/* Hover glow */}
-              <div className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ boxShadow: "inset 0 0 60px 0 rgb(52 211 153 / 0.04)" }} />
-
-              {/* Image wrapper */}
-              <div className="relative h-48 w-full overflow-hidden">
+              {/* Image */}
+              <div className="relative h-36 w-full overflow-hidden">
                 <Image
                   src={item.image}
                   alt={item.name}
                   fill
-                  sizes="(min-width: 768px) 33vw, 100vw"
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  sizes="(min-width: 1024px) 20vw, (min-width: 640px) 50vw, 100vw"
+                  className="object-cover transition-transform duration-500 group-hover:scale-110"
                   priority
                 />
-                {/* Dark gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
-                {/* Top badges */}
-                <div className="absolute left-3 top-3 flex gap-2">
-                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white shadow backdrop-blur-sm ${
+                {/* Status badge */}
+                <div className="absolute left-2 top-2">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm ${
                     item.status === "live" ? "bg-emerald-500/90" : "bg-sky-500/90"
                   }`}>
-                    {item.status === "live" ? "● Live" : "● Available"}
-                  </span>
-                  <span className="rounded-full bg-black/50 px-2.5 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm">
-                    Grade {item.grade}
+                    <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                    {item.status === "live" ? "Live" : "Soon"}
                   </span>
                 </div>
 
-                {/* Bottom-on-image: lot + hub */}
-                <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
-                  <span className="rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-mono text-slate-300 backdrop-blur-sm">
-                    {item.lot}
+                {/* Grade */}
+                <div className="absolute right-2 top-2">
+                  <span className="rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-bold text-white backdrop-blur-sm">
+                    {item.grade}
                   </span>
-                  <span className="flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[10px] text-slate-300 backdrop-blur-sm">
-                    <MapPin className="h-2.5 w-2.5 text-emerald-400" /> {item.hub}
-                  </span>
+                </div>
+
+                {/* Price overlay */}
+                <div className="absolute bottom-2 left-2 right-2 flex items-end justify-between">
+                  <div>
+                    <p className="text-[10px] text-slate-300 font-mono">{item.lot}</p>
+                    <p className="text-base font-extrabold tabular-nums text-white leading-tight">
+                      ৳{item.price}
+                      <span className="text-[10px] font-normal text-slate-300">/kg</span>
+                    </p>
+                  </div>
+                  {item.trend === "up" ? (
+                    <span className="flex items-center gap-0.5 rounded-full bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      <ArrowUp className="h-2.5 w-2.5" /> Up
+                    </span>
+                  ) : item.trend === "down" ? (
+                    <span className="flex items-center gap-0.5 rounded-full bg-rose-500/90 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      <ArrowDown className="h-2.5 w-2.5" /> Dn
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
               {/* Body */}
-              <div className="space-y-3.5 px-5 py-4">
-                {/* Name + trend */}
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-base font-bold leading-snug text-slate-900">{item.name}</h3>
-                  {item.trend === "up" ? (
-                    <span className="mt-0.5 flex items-center gap-0.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-                      <ArrowUp className="h-3 w-3" /> Up
-                    </span>
-                  ) : item.trend === "down" ? (
-                    <span className="mt-0.5 flex items-center gap-0.5 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-600">
-                      <ArrowDown className="h-3 w-3" /> Down
-                    </span>
-                  ) : null}
-                </div>
-
-                {/* Price row */}
-                <div className="flex items-end justify-between">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-extrabold tabular-nums text-slate-900">৳{item.price}</span>
-                    <span className="text-xs text-slate-400">/kg</span>
-                    {item.originalPrice > item.price && (
-                      <span className="ml-1 text-xs text-slate-500 line-through">৳{item.originalPrice}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                    <span className="text-xs font-semibold text-slate-700">{item.rating}</span>
+              <div className="px-3 py-3 space-y-2">
+                <div className="flex items-start justify-between gap-1">
+                  <h3 className="text-xs font-bold leading-snug text-slate-900 line-clamp-1">{item.name}</h3>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                    <span className="text-[10px] font-semibold text-slate-600">{item.rating}</span>
                   </div>
                 </div>
 
-                {/* Seller + qty */}
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span className="flex items-center gap-1">
-                    <Users className="h-3 w-3 text-slate-500" /> {item.seller}
-                  </span>
-                  <span>{item.qty.toLocaleString()} kg available</span>
+                <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                  <MapPin className="h-2.5 w-2.5 text-emerald-500 shrink-0" />
+                  <span className="truncate">{item.hub}</span>
                 </div>
 
-                {/* Bid activity bar */}
+                {/* Bid bar */}
                 <div className="space-y-1">
-                  <div className="flex justify-between text-[11px] text-slate-400">
-                    <span className="flex items-center gap-1">
-                      <Gavel className="h-3 w-3 text-emerald-400" />
-                      <span className="font-semibold text-slate-700">{item.bids}</span> bids
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="flex items-center gap-0.5 font-semibold text-slate-700">
+                      <Gavel className="h-2.5 w-2.5 text-emerald-500" /> {item.bids} bids
                     </span>
                     {item.endsIn && (
-                      <span className="flex items-center gap-1 font-semibold text-amber-600">
-                        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
-                        Ends {item.endsIn}
-                      </span>
+                      <span className="font-semibold text-amber-600">{item.endsIn}</span>
                     )}
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-1 w-full overflow-hidden rounded-full bg-slate-100">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-300 transition-all"
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400"
                       style={{ width: `${Math.min(100, (item.bids / 200) * 100)}%` }}
                     />
                   </div>
                 </div>
 
-                {/* CTAs */}
-                <div className="flex gap-2.5 pt-0.5">
-                  <Link
-                    href={`/product-details/${item.lot}?name=${encodeURIComponent(item.name)}&image=${encodeURIComponent(item.image)}&seller=${encodeURIComponent(item.seller)}&price=${item.price}`}
-                    className="flex-1 rounded-full bg-emerald-500 px-4 py-2 text-center text-sm font-bold text-white shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-400"
-                  >
-                    {cms.liveAuctions.ctaBid}
-                  </Link>
-                  <Link
-                    href={`/product-details/${item.lot}?name=${encodeURIComponent(item.name)}&image=${encodeURIComponent(item.image)}&seller=${encodeURIComponent(item.seller)}&price=${item.price}`}
-                    className="flex-1 rounded-full border border-slate-200 px-4 py-2 text-center text-sm font-semibold text-slate-600 transition hover:border-emerald-200 hover:text-emerald-700"
-                  >
-                    {cms.liveAuctions.ctaView}
-                  </Link>
-                </div>
+                <button className="w-full rounded-xl bg-emerald-500 py-1.5 text-[11px] font-bold text-white transition group-hover:bg-emerald-600">
+                  {cms.liveAuctions.ctaBid}
+                </button>
               </div>
+            </Link>
             </div>
           ))}
+          </div>
         </div>
         )}
       </section>

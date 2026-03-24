@@ -123,7 +123,6 @@ export default function CreateLotPage() {
 
   const onSubmit = async (data: CreateLotFormData) => {
     try {
-      const sellerName = (typeof window !== "undefined" && localStorage.getItem("userName")) || "Seller";
       await api.post("/api/flow/lots", {
         title: data.title,
         category: data.category,
@@ -143,8 +142,7 @@ export default function CreateLotPage() {
         freeQtyEnabled: data.freeQtyEnabled ?? false,
         freeQtyPer: data.freeQtyPer ?? 0,
         freeQtyAmount: data.freeQtyAmount ?? 0,
-        freeQtyUnit: data.unit,   // always matches product unit
-        sellerName,
+        freeQtyUnit: data.unit,
         photoUrls,
       });
       toast.success(`Lot "${data.title}" published successfully`);
