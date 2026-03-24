@@ -329,12 +329,9 @@ export default function ProductDetailsPage() {
       )}
 
       {(lot || fallback.name) && (
-        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+        <div className="space-y-4">
 
-          {/* LEFT COLUMN */}
-          <div className="space-y-4">
-
-            {/* Hero image card */}
+        {/* Hero image — full width above the two-column grid */}
             <div className="relative overflow-hidden rounded-3xl bg-slate-100 shadow-sm">
               <div className="relative h-72 sm:h-96">
                 {displayImage ? (
@@ -462,6 +459,10 @@ export default function ProductDetailsPage() {
                 </div>
               )}
             </div>
+
+            {/* Two-column grid: tabs/description left, order panel right */}
+            <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+            <div className="space-y-4 order-2 lg:order-1">
 
             {/* Tab strip */}
             {lot && tabs.length > 1 && (
@@ -697,8 +698,8 @@ export default function ProductDetailsPage() {
             )}
           </div>
 
-          {/* RIGHT COLUMN */}
-          <div className="space-y-4">
+          {/* RIGHT COLUMN — order-first so it shows above tabs on mobile */}
+          <div className="space-y-4 order-first lg:order-none">
             <div className="rounded-3xl border border-slate-100 bg-white shadow-sm overflow-hidden lg:sticky lg:top-6">
 
               {/* Product identity header */}
@@ -1078,6 +1079,7 @@ export default function ProductDetailsPage() {
             </div>
           </div>
 
+          </div>{/* end grid */}
         </div>
       )}
 

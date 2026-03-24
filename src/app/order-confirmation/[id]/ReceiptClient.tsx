@@ -88,7 +88,7 @@ export default function SellerConfirmationReceiptClient({ id }: { id: string }) 
       </div>
 
       <div id="receipt" className="mx-auto my-5 max-w-4xl space-y-3 border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
-        <div className="flex items-start justify-between border-b border-slate-300 pb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-300 pb-4">
           <div>
             <p className="text-xs font-semibold tracking-[0.2em] text-slate-500">PAIKARI</p>
             <h1 className="text-lg font-bold text-slate-900">Seller Order Confirmation Receipt</h1>

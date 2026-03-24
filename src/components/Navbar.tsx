@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Role } from "@/types";
+import { Menu, X } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -34,8 +35,9 @@ const INTERNAL_ROLES: Role[] = [
 export function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const { user, isLoggedIn, logout, role } = useAuth();
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
@@ -52,17 +54,21 @@ export function Navbar() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpen(false);
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Close mobile menu on route change
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
+
   const handleLogout = async () => {
     await logout();
-    setOpen(false);
+    setProfileOpen(false);
+    setMobileOpen(false);
     router.push("/");
   };
 
@@ -81,14 +87,6 @@ export function Navbar() {
       })
     : [];
 
-  const navShellClass = isLandingPage
-    ? "mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5"
-    : "mx-auto flex max-w-6xl items-center justify-between px-4 py-4";
-  const logoBadgeClass = isLandingPage
-    ? "inline-flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-white text-xs font-bold"
-    : "inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white text-sm font-bold";
-  const navItemBaseClass = isLandingPage ? "rounded-full px-3 py-1.5" : "rounded-full px-3 py-2";
-
   return (
     <header
       className={
@@ -97,65 +95,82 @@ export function Navbar() {
           : "sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur"
       }
     >
-      <div className={navShellClass}>
-        <Link href={isLoggedIn ? dashboardHref : "/"} className="flex items-center gap-2 font-semibold text-slate-900">
-          <span className={logoBadgeClass}>
+      {/* Main bar */}
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        {/* Logo */}
+        <Link
+          href={isLoggedIn ? dashboardHref : "/"}
+          className="flex items-center gap-2 font-semibold text-slate-900"
+        >
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white text-sm font-bold">
             P
           </span>
           <span>Paikari</span>
         </Link>
-        <nav className="flex flex-wrap items-center gap-3 text-sm font-medium text-slate-700">
-          {navList.map((item) => {
-            const active = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={
-                  active
-                    ? `${navItemBaseClass} bg-emerald-50 text-emerald-700`
-                    : `${navItemBaseClass} hover:bg-slate-100`
-                }
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="flex items-center gap-3 text-sm font-medium text-slate-700">
+
+        {/* Desktop nav links */}
+        {navList.length > 0 && (
+          <nav className="hidden md:flex items-center gap-1 text-sm font-medium text-slate-700">
+            {navList.map((item) => {
+              const active = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={
+                    active
+                      ? "rounded-full px-3 py-1.5 bg-emerald-50 text-emerald-700"
+                      : "rounded-full px-3 py-1.5 hover:bg-slate-100"
+                  }
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
+
+        {/* Right side — desktop */}
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          {/* Role switcher + bell always visible */}
           {isLoggedIn && <RoleSwitcher />}
           {isLoggedIn && <NotificationBell />}
+
+          {/* Wallet — desktop only */}
           {isLoggedIn && role === "buyer" && walletBalance !== null && (
-            <div className="rounded-full border border-slate-200 px-3 py-2">
-              Balance: ৳ {walletBalance.toLocaleString("en-IN")}
+            <div className="hidden sm:block rounded-full border border-slate-200 px-3 py-1.5 text-xs">
+              ৳ {walletBalance.toLocaleString("en-IN")}
             </div>
           )}
+
+          {/* Sign in or profile */}
           {!isLoggedIn ? (
             <Link
               href="/auth/signin"
-              className="rounded-full bg-emerald-500 px-3 py-2 text-white hover:bg-emerald-600"
+              className="rounded-full bg-emerald-500 px-3 py-1.5 text-white hover:bg-emerald-600"
             >
               Sign in
             </Link>
           ) : (
-            <div className="relative" ref={menuRef}>
+            <div className="relative" ref={profileRef}>
               <button
                 type="button"
-                onClick={() => setOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-2 transition hover:border-emerald-200"
+                onClick={() => setProfileOpen((v) => !v)}
+                className="flex items-center gap-2 rounded-full border border-slate-200 px-2 py-1.5 transition hover:border-emerald-200"
               >
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-700">
                   {(user?.name ?? "U").slice(0, 1).toUpperCase()}
                 </span>
-                <span className="text-slate-900">{user?.name ?? "User"}</span>
+                {/* Name only on md+ */}
+                <span className="hidden md:inline text-slate-900 pr-1">{user?.name ?? "User"}</span>
               </button>
-              {open && (
+              {profileOpen && (
                 <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-slate-100 bg-white p-2 shadow-lg z-50">
                   <div className="px-3 py-2 text-xs font-semibold uppercase text-slate-500">Account</div>
                   <Link
                     href={dashboardHref}
                     className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-                    onClick={() => setOpen(false)}
+                    onClick={() => setProfileOpen(false)}
                   >
                     Dashboard
                   </Link>
@@ -164,25 +179,31 @@ export function Navbar() {
                       <Link
                         href="/buyer-dashboard/settings"
                         className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-                        onClick={() => setOpen(false)}
+                        onClick={() => setProfileOpen(false)}
                       >
                         My Account
                       </Link>
                       <Link
                         href="/buyer-dashboard/orders"
                         className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-                        onClick={() => setOpen(false)}
+                        onClick={() => setProfileOpen(false)}
                       >
                         My Orders
                       </Link>
                       <Link
                         href="/buyer-dashboard/messages"
                         className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-                        onClick={() => setOpen(false)}
+                        onClick={() => setProfileOpen(false)}
                       >
                         Messages
                       </Link>
                     </>
+                  )}
+                  {/* Wallet inside dropdown on mobile */}
+                  {role === "buyer" && walletBalance !== null && (
+                    <div className="sm:hidden mx-3 my-1 rounded-lg border border-slate-100 px-3 py-2 text-xs text-slate-600">
+                      Balance: ৳ {walletBalance.toLocaleString("en-IN")}
+                    </div>
                   )}
                   <button
                     type="button"
@@ -195,8 +216,42 @@ export function Navbar() {
               )}
             </div>
           )}
+
+          {/* Hamburger — only when there are nav links on mobile */}
+          {navList.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setMobileOpen((v) => !v)}
+              className="md:hidden flex items-center justify-center rounded-lg p-1.5 hover:bg-slate-100"
+              aria-label="Toggle menu"
+            >
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Mobile nav dropdown */}
+      {mobileOpen && navList.length > 0 && (
+        <div className="md:hidden border-t border-slate-100 bg-white px-4 py-3 flex flex-col gap-1">
+          {navList.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={
+                  active
+                    ? "rounded-lg px-3 py-2 text-sm font-medium bg-emerald-50 text-emerald-700"
+                    : "rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                }
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </header>
   );
 }
