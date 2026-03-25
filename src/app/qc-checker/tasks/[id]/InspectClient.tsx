@@ -13,7 +13,6 @@ import {
   Loader2,
   RotateCcw,
   Send,
-  Trash2,
   Upload,
   X,
   AlertTriangle,
@@ -340,7 +339,11 @@ export default function InspectClient() {
     if (type === "photo") setPhotos((prev) => [...prev, ...uploaded]);
     else setVideos((prev) => [...prev, ...uploaded]);
     setUploading(false);
-    if (uploaded.length > 0) toast.success(`${uploaded.length} ${type}(s) captured`);
+    // Reset inputs so same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraRef.current)   cameraRef.current.value   = "";
+    if (videoRef.current)    videoRef.current.value    = "";
+    if (uploaded.length > 0) toast.success(`${uploaded.length} ${type}(s) uploaded`);
   };
 
   /* ── submit ── */
@@ -1224,15 +1227,15 @@ export default function InspectClient() {
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Photos ({photos.length})</p>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {photos.map((url, i) => (
-                <div key={i} className="group relative aspect-square rounded-xl overflow-hidden border border-slate-200">
+                <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200">
                   <img src={url} alt={`QC photo ${i + 1}`} className="h-full w-full object-cover" />
                   {isEditable && (
                     <button
                       type="button"
                       onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
-                      className="absolute top-1 right-1 rounded-full bg-red-500/80 p-1 text-white opacity-0 group-hover:opacity-100 transition"
+                      className="absolute top-1 right-1 rounded-full bg-red-500 p-1.5 text-white shadow-md"
                     >
-                      <Trash2 size={11} />
+                      <X size={10} />
                     </button>
                   )}
                 </div>
@@ -1245,17 +1248,24 @@ export default function InspectClient() {
         {videos.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">Videos ({videos.length})</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {videos.map((url, i) => (
-                <div key={i} className="group relative rounded-xl overflow-hidden border border-slate-200 bg-black">
-                  <video src={url} controls className="w-full rounded-xl" style={{ maxHeight: 160 }} />
+                <div key={i} className="relative rounded-xl overflow-hidden border border-slate-200 bg-black">
+                  <video
+                    src={url}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="w-full rounded-xl"
+                    style={{ maxHeight: 200 }}
+                  />
                   {isEditable && (
                     <button
                       type="button"
                       onClick={() => setVideos((prev) => prev.filter((_, j) => j !== i))}
-                      className="absolute top-1 right-1 rounded-full bg-red-500/80 p-1 text-white opacity-0 group-hover:opacity-100 transition"
+                      className="absolute top-1.5 right-1.5 rounded-full bg-red-500 p-1.5 text-white shadow-md z-10"
                     >
-                      <Trash2 size={11} />
+                      <X size={10} />
                     </button>
                   )}
                 </div>

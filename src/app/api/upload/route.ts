@@ -14,14 +14,17 @@ export async function POST(req: NextRequest) {
     }
 
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
-    const allowed = ["jpg", "jpeg", "png", "webp", "gif"];
-    if (!allowed.includes(ext)) {
+    const allowedImages = ["jpg", "jpeg", "png", "webp", "gif", "heic", "heif"];
+    const allowedVideos = ["mp4", "mov", "webm", "avi", "mkv", "3gp"];
+    const isVideo = allowedVideos.includes(ext) || file.type.startsWith("video/");
+    const isImage = allowedImages.includes(ext) || file.type.startsWith("image/");
+    if (!isImage && !isVideo) {
       return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
     }
 
-    const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+    const MAX_SIZE = isVideo ? 100 * 1024 * 1024 : 5 * 1024 * 1024; // 100 MB video, 5 MB image
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: "File too large (max 5 MB)" }, { status: 400 });
+      return NextResponse.json({ error: `File too large (max ${isVideo ? "100" : "5"} MB)` }, { status: 400 });
     }
 
     const dir = path.join(process.cwd(), "public", "uploads", category);
