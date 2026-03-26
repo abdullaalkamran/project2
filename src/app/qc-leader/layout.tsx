@@ -10,6 +10,7 @@ import type { QCPendingApprovalRecord } from "@/lib/qc-approvals";
 const nav = [
   { label: "Overview", href: "/qc-leader" },
   { label: "All Tasks", href: "/qc-leader/tasks" },
+  { label: "Inspection Approvals", href: "/qc-leader/approvals" },
   { label: "Rejected Lots", href: "/qc-leader/rejected" },
   { label: "QC Reports", href: "/qc-leader/reports" },
   { label: "Product History", href: "/qc-leader/history" },
@@ -54,7 +55,7 @@ export default function QCLeaderLayout({ children }: { children: React.ReactNode
             pathname === link.href ||
             (link.href !== "/qc-leader" && pathname.startsWith(link.href));
           const badge =
-            link.href === "/qc-leader/tasks" && pendingApprovals > 0
+            link.href === "/qc-leader/approvals" && pendingApprovals > 0
               ? String(pendingApprovals)
               : link.badge;
           return (
