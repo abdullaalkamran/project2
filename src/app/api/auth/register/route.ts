@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { setSessionCookie } from "@/lib/session";
 import {
   buildPhoneAuthEmail,
-  getPublicEmail,
   isValidBangladeshMobileNumber,
   isValidEmailAddress,
   normalizeBangladeshPhone,
@@ -147,7 +145,7 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const user = await prisma.user.create({
+    await prisma.user.create({
       data: {
         name,
         email: storedEmail,
@@ -155,6 +153,7 @@ export async function POST(request: Request) {
         districtId: district.id,
         hubId: hub?.id ?? null,
         passwordHash,
+        status: "PENDING_APPROVAL",
         businessName: name,
         ownerName: role === "seller" ? ownerName : null,
         tradeLicense: role === "seller" ? tradeLicense : null,
@@ -163,37 +162,15 @@ export async function POST(request: Request) {
           create: { role },
         },
       },
-      include: { userRoles: true },
     });
 
-    const roles = user.userRoles.map((r) => r.role);
-    const activeRole = roles[0];
-
-    const res = NextResponse.json(
+    return NextResponse.json(
       {
-        message: "Account created successfully",
-        user: {
-          id: user.id,
-          name: user.name,
-          email: getPublicEmail(user.email),
-          phone: user.phone ?? null,
-          districtId: user.districtId ?? null,
-          roles,
-          activeRole,
-        },
+        message: "Registration submitted. Your account is pending admin approval. You will be notified once approved.",
+        pending: true,
       },
       { status: 201 }
     );
-
-    await setSessionCookie(res, {
-      userId: user.id,
-      email: user.email,
-      name: user.name,
-      roles,
-      activeRole,
-    });
-
-    return res;
   } catch (error) {
     console.error("[register]", error);
     return NextResponse.json({ message: "Server error" }, { status: 500 });

@@ -107,8 +107,8 @@ export function SignUpForm() {
         return;
       }
 
-      toast.success("Account created! Welcome to Paikari.");
-      router.push(json?.user?.activeRole === "seller" ? "/seller-dashboard" : "/buyer-dashboard");
+      toast.success("Registration submitted! Your account is pending admin approval.");
+      router.push("/auth/signin?pending=1");
     } catch {
       toast.error("Registration failed. Please try again.");
     }

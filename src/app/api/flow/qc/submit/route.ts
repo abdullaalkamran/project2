@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
       verdict: "PASSED" | "FAILED" | "CONDITIONAL";
       grade: "A" | "B" | "C";
       minBidRate?: number;
+      minOrderQty?: number;
       notes?: string;
       product?: string;
       category?: string;
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
         basePrice: typeof body.basePrice === "number" ? body.basePrice : lot.basePrice,
         verdict: body.verdict,
         minBidRate: body.minBidRate ?? null,
+        minOrderQty: body.minOrderQty ?? null,
         qcNotes: body.notes ?? null,
         status: "QC_SUBMITTED",
         qcTaskStatus: "SUBMITTED",

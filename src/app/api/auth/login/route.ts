@@ -56,6 +56,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (resolvedUser.status === "PENDING_APPROVAL") {
+      return NextResponse.json(
+        { message: "Your account is pending admin approval. Please wait for activation." },
+        { status: 403 }
+      );
+    }
+
     if (resolvedUser.status === "SUSPENDED") {
       return NextResponse.json(
         { message: "Your account has been suspended. Contact support." },

@@ -102,6 +102,7 @@ model Lot {
   basePrice        Float
   askingPricePerKg Float
   minBidRate       Float?
+  minOrderQty      Float?
   sellerId         String?
   sellerName       String
   sellerPhone      String?

@@ -52,8 +52,16 @@ export function SignInForm() {
     }
   };
 
+  const isPending = searchParams.get("pending") === "1";
+
   return (
     <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+      {isPending && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p className="font-semibold">Registration received!</p>
+          <p className="mt-0.5 text-xs text-amber-700">Your account is pending admin approval. You will be able to sign in once approved.</p>
+        </div>
+      )}
       <GoogleAuthButton mode="login" />
 
       <div className="flex items-center gap-3">

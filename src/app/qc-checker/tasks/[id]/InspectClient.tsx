@@ -234,6 +234,7 @@ export default function InspectClient() {
   const [verdict, setVerdict]     = useState<Verdict | "">("");
   const [notes, setNotes]         = useState("");
   const [minBidRate, setMinBidRate] = useState("");
+  const [minOrderQty, setMinOrderQty] = useState("");
 
   /* ── photos & videos ── */
   const [photos, setPhotos]       = useState<string[]>([]);
@@ -269,6 +270,7 @@ export default function InspectClient() {
       setBaggageQty(String(found.baggageQty ?? ""));
       setAskingPricePerKg(String(found.askingPricePerKg ?? ""));
       setMinBidRate(String(found.minBidRate ?? ""));
+      setMinOrderQty(String(found.minOrderQty ?? ""));
       setTransportCost(String(found.sellerTransportCost ?? ""));
       setTransportShare((found.sellerTransportShare as "YES" | "NO" | "HALF") ?? "YES");
       setFreeQtyEnabled(found.freeQtyEnabled ?? false);
@@ -309,14 +311,14 @@ export default function InspectClient() {
       (err) => {
         setGpsLoading(false);
         if (err.code === 1) {
-          toast.error("Location permission denied. Please allow location access in your browser settings.");
+          toast.error("Location permission denied. On mobile, GPS requires HTTPS — allow location in browser settings and ensure you're on a secure connection.");
         } else if (err.code === 2) {
-          toast.error("Location unavailable. Check device GPS or enter address manually.");
+          toast.error("Location unavailable. Enable device GPS, go outdoors, or enter address manually.");
         } else {
-          toast.error("GPS timed out. Try again or enter address manually.");
+          toast.error("GPS timed out. Move to open area or enter address manually.");
         }
       },
-      { timeout: 15000, enableHighAccuracy: false, maximumAge: 60000 }
+      { timeout: 20000, enableHighAccuracy: true, maximumAge: 0 }
     );
   };
 
@@ -357,6 +359,7 @@ export default function InspectClient() {
         verdict,
         grade,
         minBidRate: minBidRate ? parseFloat(minBidRate) : undefined,
+        minOrderQty: minOrderQty ? parseFloat(minOrderQty) : undefined,
         notes: notes || undefined,
         product: productName || undefined,
         category: category || undefined,
@@ -879,6 +882,25 @@ export default function InspectClient() {
               className={inputCls(isEditable)}
             />
             <p className="mt-1 text-xs text-slate-400">This is the price shown to buyers on the marketplace.</p>
+          </div>
+
+          {/* Minimum Order Qty */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Minimum Order Quantity ({lot?.unit ?? "kg"})
+              <span className="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">QC Set</span>
+            </label>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              value={minOrderQty}
+              onChange={(e) => setMinOrderQty(e.target.value)}
+              disabled={!isEditable}
+              placeholder={`e.g. 50 ${lot?.unit ?? "kg"}`}
+              className={inputCls(isEditable)}
+            />
+            <p className="mt-1 text-xs text-slate-400">Buyers must order at least this quantity.</p>
           </div>
         </div>
       </section>

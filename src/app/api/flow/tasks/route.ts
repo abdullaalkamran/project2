@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
         basePrice: l.basePrice,
         askingPricePerKg: l.askingPricePerKg,
         minBidRate: l.minBidRate,
+        minOrderQty: l.minOrderQty,
         sellerName: l.sellerName !== "Seller" ? l.sellerName : (l.seller?.name ?? l.sellerName),
         sellerPhone: l.sellerPhone ?? l.seller?.phone ?? null,
         sellerTransportCost: l.sellerTransportCost ?? undefined,

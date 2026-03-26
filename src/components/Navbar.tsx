@@ -7,7 +7,21 @@ import { useAuth } from "@/hooks/useAuth";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Role } from "@/types";
-import { Menu, X } from "lucide-react";
+import {
+  Bookmark,
+  Gavel,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  MessageSquare,
+  Package,
+  PanelLeft,
+  Settings,
+  Star,
+  Wallet,
+  X,
+  Zap,
+} from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -38,6 +52,7 @@ export function Navbar() {
   const profileRef = useRef<HTMLDivElement | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [buyerMenuOpen, setBuyerMenuOpen] = useState(false);
   const { user, isLoggedIn, logout, role } = useAuth();
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
@@ -62,8 +77,8 @@ export function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Close mobile menu on route change
-  useEffect(() => { setMobileOpen(false); }, [pathname]);
+  // Close menus on route change
+  useEffect(() => { setMobileOpen(false); setBuyerMenuOpen(false); }, [pathname]);
 
   const handleLogout = async () => {
     await logout();
@@ -136,6 +151,18 @@ export function Navbar() {
           {isLoggedIn && <RoleSwitcher />}
           {isLoggedIn && <NotificationBell />}
 
+          {/* Buyer quick-menu icon — shown on marketplace/live pages */}
+          {isLoggedIn && role === "buyer" && !pathname.startsWith("/buyer-dashboard") && (
+            <button
+              type="button"
+              onClick={() => setBuyerMenuOpen(true)}
+              className="flex items-center justify-center rounded-lg p-1.5 text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 transition"
+              title="My Dashboard"
+            >
+              <PanelLeft className="h-5 w-5" />
+            </button>
+          )}
+
           {/* Wallet — desktop only */}
           {isLoggedIn && role === "buyer" && walletBalance !== null && (
             <div className="hidden sm:block rounded-full border border-slate-200 px-3 py-1.5 text-xs">
@@ -161,8 +188,6 @@ export function Navbar() {
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-sm font-semibold text-emerald-700">
                   {(user?.name ?? "U").slice(0, 1).toUpperCase()}
                 </span>
-                {/* Name only on md+ */}
-                <span className="hidden md:inline text-slate-900 pr-1">{user?.name ?? "User"}</span>
               </button>
               {profileOpen && (
                 <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-slate-100 bg-white p-2 shadow-lg z-50">
@@ -250,6 +275,76 @@ export function Navbar() {
               </Link>
             );
           })}
+        </div>
+      )}
+      {/* Buyer side drawer */}
+      {buyerMenuOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setBuyerMenuOpen(false)} />
+          {/* Drawer */}
+          <aside className="relative z-10 flex w-72 flex-col bg-white shadow-2xl h-full overflow-y-auto px-4 py-5">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-white text-xs font-bold">
+                  {(user?.name ?? "B")[0].toUpperCase()}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 leading-tight">{user?.name}</p>
+                  <p className="text-[11px] text-slate-400">Buyer Account</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setBuyerMenuOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Wallet */}
+            {walletBalance !== null && (
+              <div className="mb-4 flex items-center justify-between rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3">
+                <div className="flex items-center gap-2 text-sm text-emerald-700">
+                  <Wallet size={15} /> Wallet Balance
+                </div>
+                <span className="font-bold text-emerald-700">৳ {walletBalance.toLocaleString("en-IN")}</span>
+              </div>
+            )}
+
+            {/* Nav */}
+            <nav className="flex-1 space-y-0.5">
+              {[
+                { label: "Dashboard",        href: "/buyer-dashboard",                  icon: LayoutDashboard },
+                { label: "Active Bids",      href: "/buyer-dashboard/my-bids",          icon: Gavel },
+                { label: "Auto-bid",         href: "/buyer-dashboard/my-bids/auto-bid", icon: Zap },
+                { label: "My Orders",        href: "/buyer-dashboard/orders",           icon: Package },
+                { label: "Saved Lots",       href: "/buyer-dashboard/watchlist",        icon: Bookmark },
+                { label: "Messages",         href: "/buyer-dashboard/messages",         icon: MessageSquare, badge: "2" },
+                { label: "My Reviews",       href: "/buyer-dashboard/reviews",          icon: Star },
+                { label: "Settings",         href: "/buyer-dashboard/settings",         icon: Settings },
+              ].map(({ label, href, icon: Icon, badge }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition"
+                >
+                  <Icon size={16} className="shrink-0 text-slate-400" />
+                  <span className="flex-1">{label}</span>
+                  {badge && <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{badge}</span>}
+                </Link>
+              ))}
+            </nav>
+
+            {/* Footer */}
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-500 hover:bg-rose-50 transition"
+              >
+                <LogOut size={16} className="shrink-0" /> Sign Out
+              </button>
+            </div>
+          </aside>
         </div>
       )}
     </header>

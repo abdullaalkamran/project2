@@ -31,6 +31,7 @@ export type FlowLot = {
   basePrice: number;
   askingPricePerKg: number;
   minBidRate?: number;
+  minOrderQty?: number;
   sellerName: string;
   sellerPhone?: string;
   status: FlowLotStatus;
