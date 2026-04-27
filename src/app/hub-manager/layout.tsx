@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Menu, X,
   LayoutDashboard, Package, ShieldCheck, Layers,
-  Users, Truck, UserCog, BarChart3, SendHorizonal,
+  Users, Truck, UserCog, BarChart3, SendHorizonal, Store, BadgeDollarSign,
 } from "lucide-react";
 
 const nav = [
@@ -18,7 +18,10 @@ const nav = [
   { label: "Registered Sellers", href: "/hub-manager/sellers",   icon: Users },
   { label: "Transport",          href: "/hub-manager/trucks",    icon: Truck },
   { label: "Manage Staff",       href: "/hub-manager/staff",     icon: UserCog },
-  { label: "Hub Reports",        href: "/hub-manager/reports",   icon: BarChart3 },
+  { label: "Manage Aroths",       href: "/hub-manager/aroths",       icon: Users },
+  { label: "Aroth Orders",        href: "/hub-manager/aroth-orders",  icon: Store },
+  { label: "Aroth Finance",      href: "/hub-manager/aroth-finance", icon: BadgeDollarSign },
+  { label: "Hub Reports",        href: "/hub-manager/reports",       icon: BarChart3 },
 ];
 
 export default function HubManagerLayout({ children }: { children: React.ReactNode }) {

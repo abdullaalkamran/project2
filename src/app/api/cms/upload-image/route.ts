@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { requireApiRole } from "@/lib/api-auth";
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireApiRole(["admin"]);
+    if (auth.response) return auth.response;
+
     const form = await req.formData();
     const file = form.get("file") as File | null;
     if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });

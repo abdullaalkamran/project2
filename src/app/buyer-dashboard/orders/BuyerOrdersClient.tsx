@@ -38,7 +38,107 @@ type OrderItem = {
   actualQtyUnit: string;
   lotStatus: string;
   thumbnail: string | null;
+  arothId: string | null;
+  arothName: string | null;
+  arothStatus: string | null;
 };
+
+type ArothOption = { id: string; name: string; phone: string | null; commissionRate: number };
+
+function RouteToArothModal({
+  order,
+  onClose,
+  onRouted,
+}: {
+  order: OrderItem;
+  onClose: () => void;
+  onRouted: (arothId: string, arothName: string) => void;
+}) {
+  const [aroths, setAroths] = useState<ArothOption[]>([]);
+  const [selected, setSelected] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const hubId = order.deliveryPoint || order.hub;
+    fetch(`/api/flow/aroths?hubId=${encodeURIComponent(hubId)}`)
+      .then((r) => r.json())
+      .then((data: ArothOption[]) => setAroths(Array.isArray(data) ? data : []))
+      .catch(() => setError("Failed to load aroths"))
+      .finally(() => setLoading(false));
+  }, [order.deliveryPoint, order.hub]);
+
+  async function submit() {
+    if (!selected) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/route-to-aroth`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ arothId: selected }),
+      });
+      if (!res.ok) {
+        const body = await res.json() as { message?: string };
+        throw new Error(body.message ?? "Failed to route");
+      }
+      const aroth = aroths.find((a) => a.id === selected);
+      onRouted(selected, aroth?.name ?? "Aroth");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to route");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-slate-900">Route to Aroth</h2>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <p className="text-sm text-slate-500">
+          Select a local market agent (Aroth) to sell <span className="font-semibold text-slate-700">{order.product}</span> on your behalf.
+          The Aroth will deduct their commission and send the rest to the platform.
+        </p>
+        {loading && <p className="text-sm text-slate-400">Loading available aroths…</p>}
+        {error && <p className="text-sm text-rose-600">{error}</p>}
+        {!loading && aroths.length === 0 && !error && (
+          <p className="text-sm text-slate-400">No aroths available for hub <span className="font-semibold">{order.deliveryPoint}</span>.</p>
+        )}
+        {aroths.length > 0 && (
+          <div className="space-y-2">
+            {aroths.map((a) => (
+              <label key={a.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${selected === a.id ? "border-emerald-400 bg-emerald-50" : "border-slate-200 hover:bg-slate-50"}`}>
+                <input type="radio" name="aroth" value={a.id} checked={selected === a.id} onChange={() => setSelected(a.id)} className="accent-emerald-600" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-800">{a.name}</p>
+                  {a.phone && <p className="text-xs text-slate-500">{a.phone}</p>}
+                </div>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">{a.commissionRate}% commission</span>
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2 pt-2">
+          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy || !selected}
+            className="flex-1 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40 transition"
+          >
+            {busy ? "Routing…" : "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function resolveDisplayStatus(status: string, sellerStatus: string) {
   if (status === "CANCELLED" || sellerStatus === "DECLINED") return "CANCELLED";
@@ -243,13 +343,14 @@ function Dropdown<T extends string>({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function BuyerOrdersClient() {
-  const [orders,    setOrders]    = useState<OrderItem[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState<string | null>(null);
-  const [search,    setSearch]    = useState("");
-  const [status,    setStatus]    = useState<StatusFilter>("ALL");
-  const [dateRange, setDateRange] = useState<DateFilter>("ALL");
-  const [sort,      setSort]      = useState<SortOption>("NEWEST");
+  const [orders,      setOrders]      = useState<OrderItem[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState<string | null>(null);
+  const [search,      setSearch]      = useState("");
+  const [status,      setStatus]      = useState<StatusFilter>("ALL");
+  const [dateRange,   setDateRange]   = useState<DateFilter>("ALL");
+  const [sort,        setSort]        = useState<SortOption>("NEWEST");
+  const [arothModal,  setArothModal]  = useState<OrderItem | null>(null);
 
   useEffect(() => {
     api
@@ -596,7 +697,22 @@ export default function BuyerOrdersClient() {
                     <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-300">Order ID</span>
                     <span className="font-mono text-xs text-slate-400">{o.id}</span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Route to Aroth — only for confirmed, non-routed orders */}
+                    {!o.arothId && display !== "CANCELLED" && display !== "PICKED_UP" && (
+                      <button
+                        type="button"
+                        onClick={() => setArothModal(o)}
+                        className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
+                      >
+                        Route to Aroth
+                      </button>
+                    )}
+                    {o.arothId && (
+                      <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        Aroth: {o.arothName} · {o.arothStatus}
+                      </span>
+                    )}
                     {(o.sellerStatus === "ACCEPTED" || o.sellerStatus === "CONFIRMED") && (
                       <Link
                         href={`/order-confirmation/${o.id}`}
@@ -621,6 +737,24 @@ export default function BuyerOrdersClient() {
             );
           })}
         </div>
+      )}
+
+      {/* Route-to-Aroth modal */}
+      {arothModal && (
+        <RouteToArothModal
+          order={arothModal}
+          onClose={() => setArothModal(null)}
+          onRouted={(arothId, arothName) => {
+            setOrders((prev) =>
+              prev.map((o) =>
+                o.id === arothModal.id
+                  ? { ...o, arothId, arothName, arothStatus: "PENDING" }
+                  : o
+              )
+            );
+            setArothModal(null);
+          }}
+        />
       )}
     </div>
   );

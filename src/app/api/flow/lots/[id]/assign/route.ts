@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notify } from "@/lib/notifications";
+import { requireApiRole } from "@/lib/api-auth";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiRole(["admin", "hub_manager", "qc_leader"]);
+  if (auth.response) return auth.response;
+
   const { id } = await params;
   const { leaderId, checkerId } = (await req.json()) as { leaderId?: string; checkerId?: string };
 

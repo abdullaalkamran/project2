@@ -12,6 +12,7 @@ const PROTECTED: { prefix: string; roles?: string[] }[] = [
   { prefix: "/qc-checker",           roles: ["qc_checker"] },
   { prefix: "/delivery-hub",         roles: ["delivery_hub_manager"] },
   { prefix: "/delivery-distributor", roles: ["delivery_distributor"] },
+  { prefix: "/aroth-dashboard",      roles: ["aroth"] },
   { prefix: "/running-bids",         roles: ["buyer"] },
   { prefix: "/marketplace" },      // any logged-in user
   { prefix: "/live" },             // any logged-in user
@@ -31,6 +32,7 @@ const ROLE_DASHBOARDS: Record<string, string> = {
   qc_checker:           "/qc-checker",
   delivery_hub_manager: "/delivery-hub",
   delivery_distributor: "/delivery-distributor",
+  aroth:                "/aroth-dashboard",
 };
 
 export default async function proxy(request: NextRequest) {

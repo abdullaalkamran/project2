@@ -39,11 +39,12 @@ const roleRedirects: Record<Role, string> = {
   qc_checker:           "/qc-checker",
   delivery_hub_manager: "/delivery-hub",
   delivery_distributor: "/delivery-distributor",
+  aroth:                "/aroth-dashboard",
 };
 
 const INTERNAL_ROLES: Role[] = [
   "admin", "hub_manager", "qc_leader", "qc_checker",
-  "delivery_hub_manager", "delivery_distributor",
+  "delivery_hub_manager", "delivery_distributor", "aroth",
 ];
 
 export function Navbar() {

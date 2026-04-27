@@ -8,7 +8,8 @@ export type Role =
   | "qc_leader"
   | "qc_checker"
   | "delivery_hub_manager"
-  | "delivery_distributor";
+  | "delivery_distributor"
+  | "aroth";
 
 export type LotStatus =
   | "DRAFT"

@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import type { CMSContent } from "@/lib/cms";
 import { DEFAULT_CMS } from "@/lib/cms";
+import { requireApiRole } from "@/lib/api-auth";
 
 const DATA_PATH = path.join(process.cwd(), "data", "cms-content.json");
 
@@ -29,6 +30,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireApiRole(["admin"]);
+    if (auth.response) return auth.response;
+
     const body = (await req.json()) as CMSContent;
     fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
     fs.writeFileSync(DATA_PATH, JSON.stringify(body, null, 2));

@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
+import { requireApiSession } from "@/lib/api-auth";
+
+const ALLOWED_CATEGORIES = new Set(["lots", "cms", "profiles", "misc"]);
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireApiSession();
+    if (auth.response) return auth.response;
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const category = (formData.get("category") as string | null) ?? "misc";
+    const requestedCategory = (formData.get("category") as string | null) ?? "misc";
+    const category = ALLOWED_CATEGORIES.has(requestedCategory) ? requestedCategory : "misc";
 
     if (!file || file.size === 0) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });

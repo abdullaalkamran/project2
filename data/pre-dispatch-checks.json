@@ -2,7 +2,7 @@
   {
     "orderCode": "ORD-D4HB65",
     "physicallyReceived": true,
-    "qualityChecked": false,
+    "qualityChecked": true,
     "packetQty": 0,
     "grossWeightKg": 0,
     "freeQty": 0,
@@ -11,7 +11,7 @@
     "truckPriceBDT": 0,
     "hubManagerConfirmed": false,
     "qcLeadConfirmed": false,
-    "updatedAt": "2026-03-20T09:13:57.026Z",
+    "updatedAt": "2026-04-25T17:50:07.982Z",
     "updatedBy": "cmmdiufnh0009trztsqpmpovr"
   },
   {

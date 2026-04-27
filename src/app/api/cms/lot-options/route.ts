@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readLotOptions, writeLotOptions } from "@/lib/lot-options";
 import type { LotOptions } from "@/lib/lot-options";
+import { requireApiRole } from "@/lib/api-auth";
 
 const LOT_FIELDS: (keyof LotOptions)[] = [
   "productNames",
@@ -24,6 +25,9 @@ export async function GET() {
 /** POST /api/cms/lot-options — full replace (from admin "Save all") */
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireApiRole(["admin"]);
+    if (auth.response) return auth.response;
+
     const body = (await req.json()) as Partial<LotOptions>;
     writeLotOptions({
       productNames: normalizeList(body.productNames),
@@ -45,6 +49,9 @@ export async function POST(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
   try {
+    const auth = await requireApiRole(["admin"]);
+    if (auth.response) return auth.response;
+
     const body = (await req.json()) as {
       field?: keyof LotOptions;
       action?: "add" | "delete";

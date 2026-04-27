@@ -109,6 +109,9 @@ export async function GET() {
       actualQty,
       actualQtyUnit: qtyUnit,
       thumbnail,
+      arothId: o.arothId ?? null,
+      arothName: o.arothName ?? null,
+      arothStatus: o.arothStatus ?? null,
     };
   }));
 

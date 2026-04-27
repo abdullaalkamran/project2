@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireApiRole } from "@/lib/api-auth";
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireApiRole(["admin", "delivery_hub_manager", "delivery_distributor"]);
+  if (auth.response) return auth.response;
+
   const { id } = await params;
   const order = await prisma.order.findUnique({ where: { orderCode: id } });
   if (!order) return NextResponse.json({ message: "Order not found" }, { status: 404 });

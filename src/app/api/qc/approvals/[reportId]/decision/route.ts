@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { readApprovals, writeApprovals } from "@/lib/qc-approvals-store";
 import { setLotMarketplacePhotos } from "@/lib/lot-media-store";
+import { requireApiRole } from "@/lib/api-auth";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ reportId: string }> }
 ) {
   try {
+    const auth = await requireApiRole(["admin", "qc_leader"]);
+    if (auth.response) return auth.response;
+
     const { reportId } = await params;
     const { decision, selectedPhotoUrl, selectedPhotoUrls } = (await req.json()) as {
       decision: "approved" | "rejected" | "pending" | "reinspect";

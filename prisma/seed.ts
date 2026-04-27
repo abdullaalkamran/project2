@@ -70,6 +70,9 @@ async function main() {
   await seedUser("distributor@paikari.com", "Karim Distributor", "dist1234", ["delivery_distributor"]);
   console.log("✅ distributor@paikari.com / dist1234  (delivery_distributor)");
 
+  const arothUser = await seedUser("aroth@paikari.com", "Hasan Aroth", "aroth123", ["aroth"]);
+  console.log("✅ aroth@paikari.com      / aroth123   (aroth)");
+
   // ── Hubs ───────────────────────────────────────────────────────────────────
   console.log("\n🏭 Seeding hubs...");
   const hubDefs = [
@@ -143,6 +146,20 @@ async function main() {
       create: { hubId: createdHubs["Mirpur Hub — Dhaka"], userId: deliveryHubUser.id, role: "delivery_hub_manager" },
     });
     console.log("✅ deliveryhub@paikari.com → Mirpur Hub — Dhaka (delivery_hub_manager)");
+  }
+
+  // Assign aroth@paikari.com → Mirpur Hub — Dhaka (aroth, 5% commission)
+  if (arothUser && createdHubs["Mirpur Hub — Dhaka"]) {
+    await prisma.arothAssignment.upsert({
+      where: { hubId_userId: { hubId: createdHubs["Mirpur Hub — Dhaka"], userId: arothUser.id } },
+      update: { commissionRate: 5 },
+      create: { hubId: createdHubs["Mirpur Hub — Dhaka"], userId: arothUser.id, commissionRate: 5 },
+    });
+    await prisma.user.update({
+      where: { email: "aroth@paikari.com" },
+      data: { hubId: "Mirpur Hub — Dhaka" },
+    });
+    console.log("✅ aroth@paikari.com → Mirpur Hub — Dhaka (aroth, 5% commission)");
   }
 
   // ── Trucks & Drivers ───────────────────────────────────────────────────────

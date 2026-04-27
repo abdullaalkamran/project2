@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notify, notifyMany, getLotParties } from "@/lib/notifications";
 import { getPreDispatchCheck, readPreDispatchChecks } from "@/lib/pre-dispatch-store";
+import { requireApiRole } from "@/lib/api-auth";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireApiRole(["admin", "hub_manager", "qc_leader"]);
+    if (auth.response) return auth.response;
+
     const { id } = await params;
     const body = (await req.json()) as {
       assignedTruck?: string | null;

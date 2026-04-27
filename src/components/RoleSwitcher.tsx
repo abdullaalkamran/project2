@@ -13,6 +13,7 @@ const ROLE_LABELS: Record<Role, string> = {
   qc_checker:           "QC Checker",
   delivery_hub_manager: "Delivery Hub Manager",
   delivery_distributor: "Delivery Man",
+  aroth:                "Aroth",
 };
 
 const ROLE_DASHBOARDS: Record<Role, string> = {
@@ -24,6 +25,7 @@ const ROLE_DASHBOARDS: Record<Role, string> = {
   qc_checker:           "/qc-checker",
   delivery_hub_manager: "/delivery-hub",
   delivery_distributor: "/delivery-distributor",
+  aroth:                "/aroth-dashboard",
 };
 
 export function RoleSwitcher() {

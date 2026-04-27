@@ -24,7 +24,11 @@ export type NotificationType =
   | "MESSAGE"
   | "PAYMENT_APPROVED"
   | "PAYMENT_PAID"
-  | "PAYMENT_REJECTED";
+  | "PAYMENT_REJECTED"
+  | "AROTH_ORDER_RECEIVED"
+  | "AROTH_SOLD"
+  | "AROTH_PAYMENT_SENT"
+  | "AROTH_SETTLED";
 
 export const NOTIF_ICONS: Record<NotificationType, string> = {
   LOT_RECEIVED:          "📦",
@@ -51,6 +55,10 @@ export const NOTIF_ICONS: Record<NotificationType, string> = {
   PAYMENT_APPROVED:            "✅",
   PAYMENT_PAID:                "💸",
   PAYMENT_REJECTED:            "❌",
+  AROTH_ORDER_RECEIVED:        "🏪",
+  AROTH_SOLD:                  "💰",
+  AROTH_PAYMENT_SENT:          "🏦",
+  AROTH_SETTLED:               "✅",
 };
 
 interface NotifParams {

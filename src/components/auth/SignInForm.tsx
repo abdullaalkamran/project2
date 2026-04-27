@@ -20,6 +20,7 @@ const roleRedirects: Record<Role, string> = {
   qc_checker:           "/qc-checker",
   delivery_hub_manager: "/delivery-hub",
   delivery_distributor: "/delivery-distributor",
+  aroth:                "/aroth-dashboard",
 };
 
 export function SignInForm() {

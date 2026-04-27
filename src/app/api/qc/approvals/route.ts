@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { QCPendingApprovalRecord } from "@/lib/qc-approvals";
 import { readApprovals, writeApprovals } from "@/lib/qc-approvals-store";
 import { readLotMedia } from "@/lib/lot-media-store";
+import { requireApiRole } from "@/lib/api-auth";
 
 function fallbackFromLots(lots: Array<{
   lotCode: string;
@@ -67,6 +68,9 @@ function fallbackFromLots(lots: Array<{
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireApiRole(["admin", "qc_leader"]);
+  if (auth.response) return auth.response;
+
   const status = req.nextUrl.searchParams.get("status");
   const store = await readApprovals();
 
@@ -161,6 +165,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireApiRole(["admin", "qc_checker", "qc_leader"]);
+    if (auth.response) return auth.response;
+
     const body = (await req.json()) as Omit<QCPendingApprovalRecord, "reportId"> & { reportId?: string };
     const reportId = body.reportId ?? `QCR-${body.lotId}`;
 

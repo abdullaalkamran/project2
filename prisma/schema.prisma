@@ -51,7 +51,10 @@ model User {
   notifications   Notification[]
   paymentRequests PaymentRequest[]
   depositRequests DepositRequest[]
-  hubAssignments  HubManagerAssignment[]
+  hubAssignments   HubManagerAssignment[]
+  arothAssignments ArothAssignment[]
+  arothOrders      Order[]               @relation("ArothOrders")
+  arothPrices      ArothPriceEntry[]     @relation("ArothPrices")
 
   @@index([email])
   @@index([districtId])
@@ -208,6 +211,21 @@ model Order {
   arrivedAt        DateTime?
   pickedUpAt       DateTime?
   deliveredAt      DateTime?                // when order is fully delivered
+
+  // Aroth (local market agent) routing
+  arothId                  String?
+  arothName                String?
+  arothHubId               String?
+  arothStatus              String?   // PENDING | RECEIVED | SOLD | PAYMENT_SENT | SETTLED
+  arothSaleAmount          Float?    // amount aroth sold it for in local market
+  arothCommissionRate      Float?    // % at time of assignment
+  arothCommission          Float?    // arothSaleAmount × rate / 100
+  arothNetAmount           Float?    // arothSaleAmount − arothCommission (sent to platform)
+  arothPaymentSentAt       DateTime?
+  arothPaymentConfirmedAt  DateTime?
+  arothSettledAt           DateTime?
+
+  aroth  User? @relation("ArothOrders", fields: [arothId], references: [id])
 
   // Delivery Hub & Distributor tracking
   hubReceivedAt         DateTime?           // delivery hub confirms receipt
@@ -425,7 +443,8 @@ model Hub {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 
-  assignments HubManagerAssignment[]
+  assignments      HubManagerAssignment[]
+  arothAssignments ArothAssignment[]
 
   @@index([isActive])
 }
@@ -441,6 +460,43 @@ model HubManagerAssignment {
 
   @@unique([hubId, userId, role])
   @@index([userId, role])
+}
+
+model ArothAssignment {
+  id              String   @id @default(cuid())
+  hubId           String
+  userId          String
+  commissionRate  Float    @default(5)  // % deducted from sale amount
+  allowedProducts String[] @default([]) // product names the aroth is permitted to sell
+  isVerified      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  hub  Hub  @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([hubId, userId])
+  @@index([hubId])
+  @@index([userId])
+}
+
+model ArothPriceEntry {
+  id          String   @id @default(cuid())
+  arothId     String
+  productName String
+  category    String   @default("")
+  pricePerKg  Float                      // price in BDT per kg (or per unit)
+  unit        String   @default("kg")
+  date        String                     // "YYYY-MM-DD" — one entry per product per day per aroth
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  aroth User @relation("ArothPrices", fields: [arothId], references: [id], onDelete: Cascade)
+
+  @@unique([arothId, productName, date])
+  @@index([arothId, date])
+  @@index([date])
 }
 
 // ─── Notifications ─────────────────────────────────────────────────────────────
