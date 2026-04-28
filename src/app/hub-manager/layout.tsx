@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Menu, X,
   LayoutDashboard, Package, ShieldCheck, Layers,
-  Users, Truck, UserCog, BarChart3, SendHorizonal, Store, BadgeDollarSign,
+  Users, Truck, UserCog, BarChart3, SendHorizonal, BadgeDollarSign, MapPinOff,
 } from "lucide-react";
 
 const nav = [
@@ -18,30 +18,34 @@ const nav = [
   { label: "Registered Sellers", href: "/hub-manager/sellers",   icon: Users },
   { label: "Transport",          href: "/hub-manager/trucks",    icon: Truck },
   { label: "Manage Staff",       href: "/hub-manager/staff",     icon: UserCog },
-  { label: "Manage Aroths",       href: "/hub-manager/aroths",       icon: Users },
-  { label: "Aroth Orders",        href: "/hub-manager/aroth-orders",  icon: Store },
-  { label: "Aroth Finance",      href: "/hub-manager/aroth-finance", icon: BadgeDollarSign },
-  { label: "Hub Reports",        href: "/hub-manager/reports",       icon: BarChart3 },
+  { label: "Aroths",              href: "/hub-manager/aroths",              icon: BadgeDollarSign },
+  { label: "Hub Change Requests", href: "/hub-manager/hub-change-requests", icon: MapPinOff },
+  { label: "Hub Reports",        href: "/hub-manager/reports",             icon: BarChart3 },
 ];
 
 export default function HubManagerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
-  const [pendingTrucks, setPendingTrucks] = useState(0);
-  const [pendingDispatch, setPendingDispatch] = useState(0);
+  const [pendingTrucks, setPendingTrucks]           = useState(0);
+  const [pendingDispatch, setPendingDispatch]         = useState(0);
+  const [pendingHubChanges, setPendingHubChanges]     = useState(0);
 
   useEffect(() => {
     type DispatchOrder = { dispatched: boolean };
+    type HubChangeRes = { requests: { status: string | null }[] };
     Promise.all([
       fetch("/api/flow/trucks/registrations").then((r) => r.ok ? r.json() as Promise<unknown[]> : Promise.resolve([])),
       fetch("/api/flow/dispatch/orders").then((r) => r.ok ? r.json() as Promise<DispatchOrder[]> : Promise.resolve([])),
+      fetch("/api/hub-manager/hub-change-requests").then((r) => r.ok ? r.json() as Promise<HubChangeRes> : Promise.resolve({ requests: [] })),
     ])
-      .then(([trucks, orders]) => {
+      .then(([trucks, orders, hcr]) => {
         setPendingTrucks(Array.isArray(trucks) ? trucks.length : 0);
         setPendingDispatch(Array.isArray(orders) ? orders.filter((o) => !o.dispatched).length : 0);
+        const reqs = (hcr as HubChangeRes).requests ?? [];
+        setPendingHubChanges(reqs.filter((r) => r.status === "PENDING").length);
       })
-      .catch(() => { setPendingTrucks(0); setPendingDispatch(0); });
+      .catch(() => { setPendingTrucks(0); setPendingDispatch(0); setPendingHubChanges(0); });
   }, [pathname]);
 
   const sidebarContent = (
@@ -67,6 +71,8 @@ export default function HubManagerLayout({ children }: { children: React.ReactNo
               ? String(pendingTrucks)
               : link.href === "/hub-manager/dispatch" && pendingDispatch > 0
               ? String(pendingDispatch)
+              : link.href === "/hub-manager/hub-change-requests" && pendingHubChanges > 0
+              ? String(pendingHubChanges)
               : undefined;
           const Icon = link.icon;
           return (

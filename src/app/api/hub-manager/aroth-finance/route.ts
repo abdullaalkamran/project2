@@ -18,6 +18,22 @@ export async function GET() {
           })
         ).map((h) => h.hubId);
 
+  // Always load ALL registered aroths for this hub (not just ones with orders)
+  const assignments = await prisma.arothAssignment.findMany({
+    where: hubIds ? { hubId: { in: hubIds } } : {},
+    select: {
+      id: true,
+      userId: true,
+      hubId: true,
+      commissionRate: true,
+      allowedProducts: true,
+      isVerified: true,
+      user: { select: { name: true, email: true } },
+      hub:  { select: { name: true } },
+    },
+  });
+
+  // Load all aroth-routed orders for this hub
   const orders = await prisma.order.findMany({
     where: {
       arothId: { not: null },
@@ -46,83 +62,79 @@ export async function GET() {
     },
   });
 
-  // Per-aroth accounts aggregation
-  const arothMap: Record<
-    string,
-    {
-      arothId: string;
-      arothName: string;
-      orders: number;
-      activeOrders: number;
-      awaitingPayment: number;
-      totalSales: number;
-      totalCommission: number;
-      totalNetAmount: number;
-      settledOrders: number;
-      lastActivity: string | null;
-    }
-  > = {};
+  // Aggregate order stats per aroth userId
+  const statsMap: Record<string, {
+    orders: number;
+    activeOrders: number;
+    awaitingPayment: number;
+    settledOrders: number;
+    totalSales: number;
+    totalCommission: number;
+    totalNetAmount: number;
+    lastActivity: string | null;
+  }> = {};
 
   for (const o of orders) {
     const id = o.arothId!;
-    if (!arothMap[id]) {
-      arothMap[id] = {
-        arothId: id,
-        arothName: o.arothName ?? "Unknown",
-        orders: 0,
-        activeOrders: 0,
-        awaitingPayment: 0,
-        totalSales: 0,
-        totalCommission: 0,
-        totalNetAmount: 0,
-        settledOrders: 0,
-        lastActivity: null,
+    if (!statsMap[id]) {
+      statsMap[id] = {
+        orders: 0, activeOrders: 0, awaitingPayment: 0,
+        settledOrders: 0, totalSales: 0, totalCommission: 0,
+        totalNetAmount: 0, lastActivity: null,
       };
     }
-    const a = arothMap[id];
-    a.orders += 1;
+    const s = statsMap[id];
+    s.orders += 1;
     if (o.arothStatus === "SETTLED") {
-      a.settledOrders += 1;
-      a.totalSales += o.arothSaleAmount ?? 0;
-      a.totalCommission += o.arothCommission ?? 0;
-      a.totalNetAmount += o.arothNetAmount ?? 0;
+      s.settledOrders += 1;
+      s.totalSales     += o.arothSaleAmount  ?? 0;
+      s.totalCommission += o.arothCommission ?? 0;
+      s.totalNetAmount  += o.arothNetAmount  ?? 0;
     } else {
-      a.activeOrders += 1;
-      if (o.arothStatus === "PAYMENT_SENT") a.awaitingPayment += 1;
+      s.activeOrders += 1;
+      if (o.arothStatus === "PAYMENT_SENT") s.awaitingPayment += 1;
     }
-    const latest = o.arothSettledAt ?? o.arothPaymentSentAt ?? o.arothPaymentConfirmedAt ?? o.confirmedAt?.toISOString?.() ?? null;
-    if (!a.lastActivity || (latest && latest > a.lastActivity)) {
-      a.lastActivity = typeof latest === "string" ? latest : (latest as Date | null)?.toISOString?.() ?? null;
-    }
+    const ts = (o.arothSettledAt ?? o.arothPaymentSentAt ?? o.arothPaymentConfirmedAt ?? o.confirmedAt) as Date | null;
+    const iso = ts instanceof Date ? ts.toISOString() : null;
+    if (iso && (!s.lastActivity || iso > s.lastActivity)) s.lastActivity = iso;
   }
 
-  // Enrich with isVerified + commissionRate from ArothAssignment
-  const assignments = await prisma.arothAssignment.findMany({
-    where: { userId: { in: Object.keys(arothMap) } },
-    select: { userId: true, isVerified: true, commissionRate: true },
+  // Build aroth accounts from ALL assignments, overlay stats
+  const arothAccounts = assignments.map((a) => {
+    const s = statsMap[a.userId] ?? {
+      orders: 0, activeOrders: 0, awaitingPayment: 0,
+      settledOrders: 0, totalSales: 0, totalCommission: 0,
+      totalNetAmount: 0, lastActivity: null,
+    };
+    return {
+      arothId:       a.userId,
+      arothName:     a.user.name,
+      email:         a.user.email,
+      hubName:       a.hub.name,
+      isVerified:    a.isVerified,
+      commissionRate: a.commissionRate,
+      allowedProducts: a.allowedProducts,
+      ...s,
+    };
   });
-  const assignMap = Object.fromEntries(assignments.map((a) => [a.userId, a]));
 
-  const arothAccounts = Object.values(arothMap).map((a) => ({
-    ...a,
-    isVerified: assignMap[a.arothId]?.isVerified ?? false,
-    commissionRate: assignMap[a.arothId]?.commissionRate ?? 0,
-  }));
+  // Summary (only from orders)
+  const totalSales       = orders.reduce((s, o) => s + (o.arothStatus === "SETTLED"      ? (o.arothSaleAmount ?? 0) : 0), 0);
+  const totalCommission  = orders.reduce((s, o) => s + (o.arothStatus === "SETTLED"      ? (o.arothCommission ?? 0) : 0), 0);
+  const totalNetReceived = orders.reduce((s, o) => s + (o.arothStatus === "SETTLED"      ? (o.arothNetAmount  ?? 0) : 0), 0);
+  const pendingAmount    = orders.reduce((s, o) => s + (o.arothStatus === "PAYMENT_SENT" ? (o.arothNetAmount  ?? 0) : 0), 0);
+  const settledCount     = orders.filter((o) => o.arothStatus === "SETTLED").length;
+  const awaitingCount    = orders.filter((o) => o.arothStatus === "PAYMENT_SENT").length;
 
-  // Summary
-  const totalSales = orders.reduce((s, o) => s + (o.arothStatus === "SETTLED" ? (o.arothSaleAmount ?? 0) : 0), 0);
-  const totalCommission = orders.reduce((s, o) => s + (o.arothStatus === "SETTLED" ? (o.arothCommission ?? 0) : 0), 0);
-  const totalNetReceived = orders.reduce((s, o) => s + (o.arothStatus === "SETTLED" ? (o.arothNetAmount ?? 0) : 0), 0);
-  const pendingAmount = orders.reduce((s, o) => s + (o.arothStatus === "PAYMENT_SENT" ? (o.arothNetAmount ?? 0) : 0), 0);
-  const settledOrders = orders.filter((o) => o.arothStatus === "SETTLED").length;
-  const awaitingConfirmation = orders.filter((o) => o.arothStatus === "PAYMENT_SENT").length;
+  const toIso = (v: Date | string | null) =>
+    v instanceof Date ? v.toISOString() : v;
 
   return NextResponse.json({
     summary: {
       totalOrders: orders.length,
-      activeOrders: orders.length - settledOrders,
-      settledOrders,
-      awaitingConfirmation,
+      activeOrders: orders.length - settledCount,
+      settledOrders: settledCount,
+      awaitingConfirmation: awaitingCount,
       totalSales,
       totalCommission,
       totalNetReceived,
@@ -131,10 +143,10 @@ export async function GET() {
     arothAccounts,
     orders: orders.map((o) => ({
       ...o,
-      confirmedAt: o.confirmedAt instanceof Date ? o.confirmedAt.toISOString() : o.confirmedAt,
-      arothPaymentSentAt: o.arothPaymentSentAt instanceof Date ? o.arothPaymentSentAt.toISOString() : o.arothPaymentSentAt,
-      arothPaymentConfirmedAt: o.arothPaymentConfirmedAt instanceof Date ? o.arothPaymentConfirmedAt.toISOString() : o.arothPaymentConfirmedAt,
-      arothSettledAt: o.arothSettledAt instanceof Date ? o.arothSettledAt.toISOString() : o.arothSettledAt,
+      confirmedAt:            toIso(o.confirmedAt),
+      arothPaymentSentAt:     toIso(o.arothPaymentSentAt),
+      arothPaymentConfirmedAt: toIso(o.arothPaymentConfirmedAt),
+      arothSettledAt:         toIso(o.arothSettledAt),
     })),
   });
 }

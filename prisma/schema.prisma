@@ -227,6 +227,12 @@ model Order {
 
   aroth  User? @relation("ArothOrders", fields: [arothId], references: [id])
 
+  // Delivery Hub change request (buyer can request before truck is confirmed)
+  requestedDeliveryHub    String?
+  hubChangeStatus         String?   // PENDING | APPROVED | REJECTED
+  hubChangeRequestedAt    DateTime?
+  hubChangeRejectedReason String?
+
   // Delivery Hub & Distributor tracking
   hubReceivedAt         DateTime?           // delivery hub confirms receipt
   distributorId         String?
@@ -469,6 +475,7 @@ model ArothAssignment {
   commissionRate  Float    @default(5)  // % deducted from sale amount
   allowedProducts String[] @default([]) // product names the aroth is permitted to sell
   isVerified      Boolean  @default(false)
+  isActive        Boolean  @default(true)  // hub manager can deactivate to suspend
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

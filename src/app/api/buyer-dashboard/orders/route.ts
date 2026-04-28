@@ -112,6 +112,11 @@ export async function GET() {
       arothId: o.arothId ?? null,
       arothName: o.arothName ?? null,
       arothStatus: o.arothStatus ?? null,
+      // Hub change request
+      requestedDeliveryHub: o.requestedDeliveryHub ?? null,
+      hubChangeStatus:      o.hubChangeStatus ?? null,
+      hubChangeRequestedAt: o.hubChangeRequestedAt?.toISOString() ?? null,
+      hubChangeRejectedReason: o.hubChangeRejectedReason ?? null,
     };
   }));
 

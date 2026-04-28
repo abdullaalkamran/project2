@@ -41,6 +41,7 @@ export async function GET() {
       commissionRate: a.commissionRate,
       allowedProducts: a.allowedProducts,
       isVerified: a.isVerified,
+      isActive:   a.isActive,
     })),
     allProducts: productNames,
   });

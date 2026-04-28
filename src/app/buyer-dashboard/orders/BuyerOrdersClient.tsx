@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, SlidersHorizontal, X, ChevronDown, Download } from "lucide-react";
+import { Search, SlidersHorizontal, X, ChevronDown, Download, MapPin } from "lucide-react";
 import api from "@/lib/api";
 
 type OrderItem = {
@@ -41,6 +41,10 @@ type OrderItem = {
   arothId: string | null;
   arothName: string | null;
   arothStatus: string | null;
+  requestedDeliveryHub: string | null;
+  hubChangeStatus: string | null;
+  hubChangeRequestedAt: string | null;
+  hubChangeRejectedReason: string | null;
 };
 
 type ArothOption = { id: string; name: string; phone: string | null; commissionRate: number };
@@ -133,6 +137,107 @@ function RouteToArothModal({
             className="flex-1 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40 transition"
           >
             {busy ? "Routing…" : "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type HubOption = { id: string; name: string; location: string; type: string };
+
+function ChangeHubModal({
+  order,
+  onClose,
+  onRequested,
+}: {
+  order: OrderItem;
+  onClose: () => void;
+  onRequested: (newHub: string) => void;
+}) {
+  const [hubs, setHubs]       = useState<HubOption[]>([]);
+  const [selected, setSelected] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy]       = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/hubs")
+      .then((r) => r.json())
+      .then((d: { hubs: HubOption[] }) =>
+        setHubs((d.hubs ?? []).filter((h) => h.name !== order.deliveryPoint && (h.type === "DELIVERY" || h.type === "BOTH")))
+      )
+      .catch(() => setError("Failed to load hubs"))
+      .finally(() => setLoading(false));
+  }, [order.deliveryPoint]);
+
+  async function submit() {
+    if (!selected) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/buyer-dashboard/orders/${order.id}/request-hub-change`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newHub: selected }),
+      });
+      if (!res.ok) {
+        const body = await res.json() as { message?: string };
+        throw new Error(body.message ?? "Request failed");
+      }
+      onRequested(selected);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-slate-900">Change Delivery Hub</h2>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <div className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2.5 text-sm">
+          <MapPin size={13} className="text-slate-400 shrink-0" />
+          <span className="text-slate-500">Current hub:</span>
+          <span className="font-semibold text-slate-800">{order.deliveryPoint}</span>
+        </div>
+        <p className="text-sm text-slate-500">
+          Select a new delivery hub. The hub manager will review and approve or reject your request.
+        </p>
+        {loading && <p className="text-sm text-slate-400">Loading hubs…</p>}
+        {error && <p className="text-sm text-rose-600">{error}</p>}
+        {!loading && hubs.length === 0 && !error && (
+          <p className="text-sm text-slate-400">No other delivery hubs available.</p>
+        )}
+        {hubs.length > 0 && (
+          <div className="space-y-2 max-h-56 overflow-y-auto">
+            {hubs.map((h) => (
+              <label key={h.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${selected === h.name ? "border-emerald-400 bg-emerald-50" : "border-slate-200 hover:bg-slate-50"}`}>
+                <input type="radio" name="hub" value={h.name} checked={selected === h.name} onChange={() => setSelected(h.name)} className="accent-emerald-600" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-800">{h.name}</p>
+                  <p className="text-xs text-slate-500">{h.location}</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">{h.type}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2 pt-2">
+          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-200 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy || !selected}
+            className="flex-1 rounded-xl bg-amber-500 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-40 transition"
+          >
+            {busy ? "Requesting…" : "Send Request"}
           </button>
         </div>
       </div>
@@ -350,7 +455,8 @@ export default function BuyerOrdersClient() {
   const [status,      setStatus]      = useState<StatusFilter>("ALL");
   const [dateRange,   setDateRange]   = useState<DateFilter>("ALL");
   const [sort,        setSort]        = useState<SortOption>("NEWEST");
-  const [arothModal,  setArothModal]  = useState<OrderItem | null>(null);
+  const [arothModal,    setArothModal]    = useState<OrderItem | null>(null);
+  const [hubChangeModal, setHubChangeModal] = useState<OrderItem | null>(null);
 
   useEffect(() => {
     api
@@ -698,6 +804,35 @@ export default function BuyerOrdersClient() {
                     <span className="font-mono text-xs text-slate-400">{o.id}</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* Change Delivery Hub — only before truck is confirmed */}
+                    {!o.loadConfirmed && !o.dispatched && display !== "CANCELLED" && display !== "PICKED_UP" && (
+                      o.hubChangeStatus === "PENDING" ? (
+                        <span className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                          Hub change pending…
+                        </span>
+                      ) : o.hubChangeStatus === "REJECTED" ? (
+                        <button
+                          type="button"
+                          onClick={() => setHubChangeModal(o)}
+                          className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-100 transition"
+                        >
+                          <MapPin size={11} /> Hub change rejected — retry
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setHubChangeModal(o)}
+                          className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition"
+                        >
+                          <MapPin size={11} /> Change Delivery Hub
+                        </button>
+                      )
+                    )}
+                    {o.hubChangeStatus === "APPROVED" && (
+                      <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        Hub changed → {o.deliveryPoint}
+                      </span>
+                    )}
                     {/* Route to Aroth — only for confirmed, non-routed orders */}
                     {!o.arothId && display !== "CANCELLED" && display !== "PICKED_UP" && (
                       <button
@@ -737,6 +872,24 @@ export default function BuyerOrdersClient() {
             );
           })}
         </div>
+      )}
+
+      {/* Change Delivery Hub modal */}
+      {hubChangeModal && (
+        <ChangeHubModal
+          order={hubChangeModal}
+          onClose={() => setHubChangeModal(null)}
+          onRequested={(newHub) => {
+            setOrders((prev) =>
+              prev.map((o) =>
+                o.id === hubChangeModal.id
+                  ? { ...o, requestedDeliveryHub: newHub, hubChangeStatus: "PENDING", hubChangeRequestedAt: new Date().toISOString(), hubChangeRejectedReason: null }
+                  : o
+              )
+            );
+            setHubChangeModal(null);
+          }}
+        />
       )}
 
       {/* Route-to-Aroth modal */}
