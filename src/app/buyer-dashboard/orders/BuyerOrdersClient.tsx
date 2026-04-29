@@ -65,13 +65,13 @@ function RouteToArothModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const hubId = order.deliveryPoint || order.hub;
-    fetch(`/api/flow/aroths?hubId=${encodeURIComponent(hubId)}`)
+    const hub = order.deliveryPoint || order.hub;
+    fetch(`/api/flow/aroths?hub=${encodeURIComponent(hub)}&product=${encodeURIComponent(order.product)}`)
       .then((r) => r.json())
       .then((data: ArothOption[]) => setAroths(Array.isArray(data) ? data : []))
       .catch(() => setError("Failed to load aroths"))
       .finally(() => setLoading(false));
-  }, [order.deliveryPoint, order.hub]);
+  }, [order.deliveryPoint, order.hub, order.product]);
 
   async function submit() {
     if (!selected) return;
@@ -110,7 +110,7 @@ function RouteToArothModal({
         {loading && <p className="text-sm text-slate-400">Loading available aroths…</p>}
         {error && <p className="text-sm text-rose-600">{error}</p>}
         {!loading && aroths.length === 0 && !error && (
-          <p className="text-sm text-slate-400">No aroths available for hub <span className="font-semibold">{order.deliveryPoint}</span>.</p>
+          <p className="text-sm text-slate-400">No verified aroths available for <span className="font-semibold">{order.product}</span> at <span className="font-semibold">{order.deliveryPoint}</span>.</p>
         )}
         {aroths.length > 0 && (
           <div className="space-y-2">

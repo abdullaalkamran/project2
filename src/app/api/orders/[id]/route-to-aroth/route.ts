@@ -24,24 +24,22 @@ export async function POST(
     return NextResponse.json({ message: "Order already routed to an aroth" }, { status: 409 });
   }
 
-  // Fetch aroth assignment (includes commission rate)
-  const assignment = await prisma.arothAssignment.findUnique({
-    where: { hubId_userId: { hubId: order.deliveryPoint, userId: arothId } },
-    include: { user: { select: { id: true, name: true } } },
+  // Resolve hub cuid from deliveryPoint (which stores hub name) or lot hubId
+  const hubNameCandidates = [order.deliveryPoint];
+  const lot = await prisma.lot.findUnique({ where: { id: order.lotId }, select: { hubId: true } });
+  if (lot?.hubId && !hubNameCandidates.includes(lot.hubId)) hubNameCandidates.push(lot.hubId);
+
+  const hub = await prisma.hub.findFirst({
+    where: { OR: hubNameCandidates.flatMap((n) => [{ name: n }, { id: n }]) },
+    select: { id: true },
   });
 
-  // If not found by deliveryPoint, try by order's lot hub
-  const lot = assignment ? null : await prisma.lot.findUnique({
-    where: { id: order.lotId },
-    select: { hubId: true },
-  });
-
-  const finalAssignment = assignment ?? (lot
+  const finalAssignment = hub
     ? await prisma.arothAssignment.findUnique({
-        where: { hubId_userId: { hubId: lot.hubId, userId: arothId } },
+        where: { hubId_userId: { hubId: hub.id, userId: arothId } },
         include: { user: { select: { id: true, name: true } } },
       })
-    : null);
+    : null;
 
   if (!finalAssignment) {
     return NextResponse.json({ message: "Aroth not found for this hub" }, { status: 404 });
