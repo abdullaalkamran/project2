@@ -6,11 +6,13 @@ export type LotOptions = {
   categories: string[];
   storageTypes: string[];
   baggageTypes: string[];
+  units: string[];
 };
 
 const DATA_PATH = path.join(process.cwd(), "data", "lot-options.json");
 
 const DEFAULTS: LotOptions = {
+  units: ["kg", "ton", "quintal", "piece", "dozen", "liter", "sack", "maund", "bundle"],
   productNames: [
     "Miniket Rice", "BRRI Dhan 28", "BRRI Dhan 29", "Najirshail Rice", "Chinigura Rice",
     "Tomato", "Potato", "Onion", "Garlic", "Ginger",
@@ -58,8 +60,9 @@ export function readLotOptions(): LotOptions {
     return {
       productNames: parsed.productNames ?? DEFAULTS.productNames,
       categories:   parsed.categories   ?? DEFAULTS.categories,
-      storageTypes:  parsed.storageTypes  ?? DEFAULTS.storageTypes,
-      baggageTypes:  parsed.baggageTypes  ?? DEFAULTS.baggageTypes,
+      storageTypes: parsed.storageTypes  ?? DEFAULTS.storageTypes,
+      baggageTypes: parsed.baggageTypes  ?? DEFAULTS.baggageTypes,
+      units:        parsed.units         ?? DEFAULTS.units,
     };
   } catch {
     return DEFAULTS;

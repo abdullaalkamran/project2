@@ -8,6 +8,7 @@ const LOT_FIELDS: (keyof LotOptions)[] = [
   "categories",
   "storageTypes",
   "baggageTypes",
+  "units",
 ];
 
 function normalizeList(input: unknown): string[] {
@@ -31,9 +32,10 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as Partial<LotOptions>;
     writeLotOptions({
       productNames: normalizeList(body.productNames),
-      categories: normalizeList(body.categories),
+      categories:   normalizeList(body.categories),
       storageTypes: normalizeList(body.storageTypes),
       baggageTypes: normalizeList(body.baggageTypes),
+      units:        normalizeList(body.units),
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

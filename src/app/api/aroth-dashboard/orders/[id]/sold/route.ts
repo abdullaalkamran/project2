@@ -22,7 +22,7 @@ export async function PATCH(
   if (order.arothId !== auth.session!.userId && auth.session!.activeRole !== "admin") {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
-  if (order.arothStatus !== "RECEIVED") {
+  if (order.arothStatus !== "RECEIVED" && order.arothStatus !== "SOLD") {
     return NextResponse.json({ message: "Must mark as RECEIVED first" }, { status: 409 });
   }
 

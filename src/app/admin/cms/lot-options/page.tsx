@@ -13,9 +13,9 @@ import {
   X,
   ListChecks,
   Tag,
-  Box,
   Thermometer,
   Package,
+  Scale,
 } from "lucide-react";
 import type { LotOptions } from "@/lib/lot-options";
 
@@ -59,6 +59,13 @@ const FIELD_CONFIG: {
     hint: "Packaging format used for this lot.",
     color: "orange",
   },
+  {
+    key: "units",
+    label: "Units of Measure",
+    icon: Scale,
+    hint: "Units available in the price chart, lot creation, and order forms (e.g. kg, ton, piece).",
+    color: "teal",
+  },
 ];
 
 const COLOR_MAP: Record<string, string> = {
@@ -66,12 +73,14 @@ const COLOR_MAP: Record<string, string> = {
   blue:    "bg-blue-50 border-blue-200 text-blue-700",
   violet:  "bg-violet-50 border-violet-200 text-violet-700",
   orange:  "bg-orange-50 border-orange-200 text-orange-700",
+  teal:    "bg-teal-50 border-teal-200 text-teal-700",
 };
 const ICON_BG: Record<string, string> = {
   emerald: "bg-emerald-100 text-emerald-600",
   blue:    "bg-blue-100 text-blue-600",
   violet:  "bg-violet-100 text-violet-600",
   orange:  "bg-orange-100 text-orange-600",
+  teal:    "bg-teal-100 text-teal-600",
 };
 
 /* ─── FieldSection ─── */
@@ -253,6 +262,7 @@ export default function LotOptionsPage() {
     categories: [],
     storageTypes: [],
     baggageTypes: [],
+    units: [],
   });
   const [loading, setLoading] = useState(true);
   const [status, setStatus]   = useState<Status>("idle");

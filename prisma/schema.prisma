@@ -492,17 +492,16 @@ model ArothPriceEntry {
   arothId     String
   productName String
   category    String   @default("")
-  pricePerKg  Float                      // price in BDT per kg (or per unit)
+  pricePerKg  Float
   unit        String   @default("kg")
-  date        String                     // "YYYY-MM-DD" — one entry per product per day per aroth
+  date        String   // "YYYY-MM-DD" — day bucket for fast range queries
   note        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  recordedAt  DateTime @default(now()) // exact timestamp; multiple entries per product per day allowed
 
   aroth User @relation("ArothPrices", fields: [arothId], references: [id], onDelete: Cascade)
 
-  @@unique([arothId, productName, date])
   @@index([arothId, date])
+  @@index([arothId, productName, date])
   @@index([date])
 }
 
